@@ -1,6 +1,6 @@
 #!/bin/bash
 
-clang++-10 -O3 -std=c++20 -o opelac main.cpp
+clang++-10 -O3 -std=c++20 -Wall -Wextra -o opelac main.cpp
 
 passed=0
 failed=0

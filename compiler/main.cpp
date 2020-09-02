@@ -1,8 +1,11 @@
+#include <algorithm>
 #include <cctype>
 #include <cstdint>
 #include <iostream>
+#include <iterator>
 #include <list>
 #include <string>
+#include <vector>
 
 #include "magic_enum.hpp"
 
@@ -16,15 +19,20 @@ struct Token {
   };
 
   Kind kind;
+  const char* loc; // src の中を指すポインタ
+  size_t len; // トークンの文字数
   int64_t value;
-  string raw;
 };
+
+// コンパイル対象のソースコード全体
+vector<char> src;
 
 // 現在処理中のトークン
 list<Token>::iterator cur_token;
 
 bool Consume(Token::Kind kind, const string& raw) {
-  if (cur_token->kind == kind && cur_token->raw == raw) {
+  string tk_raw(cur_token->loc, cur_token->len);
+  if (cur_token->kind == kind && tk_raw == raw) {
     ++cur_token;
     return true;
   }
@@ -41,12 +49,13 @@ list<Token>::iterator Expect(Token::Kind kind) {
 }
 
 list<Token>::iterator Expect(Token::Kind kind, const string& raw) {
-  if (cur_token->kind == kind && cur_token->raw == raw) {
+  string tk_raw(cur_token->loc, cur_token->len);
+  if (cur_token->kind == kind && tk_raw == raw) {
     return cur_token++;
   }
   cerr << "unexpected token "
     << magic_enum::enum_name(cur_token->kind)
-    << " '" << cur_token->raw << "'" << endl;
+    << " '" << tk_raw << "'" << endl;
   exit(1);
 }
 
@@ -64,16 +73,17 @@ auto Tokenize(const char* p) {
     }
 
     if (*p == '+' || *p == '-') {
-      Token tk{Token::kOperator, INT64_C(0), string(p, 1)};
+      Token tk{Token::kOperator, p, 1, 0};
       tokens.push_back(tk);
       ++p;
       continue;
     }
 
     if (isdigit(*p)) {
-      auto non_digit{p};
-      long v{strtol(p, const_cast<char**>(&non_digit), 0)};
-      Token tk{Token::kInteger, v, string(p, non_digit - p)};
+      char* non_digit;
+      long v{strtol(p, &non_digit, 0)};
+      size_t len = non_digit - p;
+      Token tk{Token::kInteger, p, len, v};
       tokens.push_back(tk);
       p = non_digit;
       continue;
@@ -83,14 +93,21 @@ auto Tokenize(const char* p) {
     exit(1);
   }
 
-  tokens.push_back(Token{Token::kEOF, 0, "\0"});
+  tokens.push_back(Token{Token::kEOF, p, 0, 0});
   return tokens;
 }
 
+void ReadAll(std::istream& is) {
+  char buf[1024];
+  while (auto n{is.read(buf, sizeof(buf)).gcount()}) {
+    copy_n(buf, n, back_inserter(src));
+  }
+  src.push_back('\0');
+}
+
 int main() {
-  string line;
-  getline(cin, line, '\n');
-  auto tokens{Tokenize(line.c_str())};
+  ReadAll(cin);
+  auto tokens{Tokenize(&src[0])};
   cur_token = tokens.begin();
 
   cout << "bits 64\nsection .text\n";
