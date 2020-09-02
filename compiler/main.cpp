@@ -4,6 +4,7 @@
 #include <iostream>
 #include <iterator>
 #include <list>
+#include <memory>
 #include <string>
 #include <utility>
 #include <vector>
@@ -126,6 +127,104 @@ void ReadAll(std::istream& is) {
   src.push_back('\0');
 }
 
+struct Node {
+  enum Kind {
+    kAdd,
+    kSub,
+    kMul,
+    kDiv,
+    kInt,
+  };
+
+  Kind kind;
+  shared_ptr<Node> lhs, rhs;
+  int64_t value;
+};
+
+auto MakeNode(Node::Kind kind,
+              const shared_ptr<Node>& lhs, const shared_ptr<Node>& rhs) {
+  return make_shared<Node>(Node{kind, lhs, rhs, 0});
+}
+
+auto MakeNodeInt(int64_t value) {
+  return make_shared<Node>(Node{Node::kInt, nullptr, nullptr, value});
+}
+
+shared_ptr<Node> Expr();
+shared_ptr<Node> Mul();
+shared_ptr<Node> Primary();
+
+shared_ptr<Node> Expr() {
+  auto node{Mul()};
+
+  for (;;) {
+    if (Consume(Token::kOperator, "+")) {
+      node = MakeNode(Node::kAdd, node, Mul());
+    } else if (Consume(Token::kOperator, "-")) {
+      node = MakeNode(Node::kSub, node, Mul());
+    } else {
+      return node;
+    }
+  }
+}
+
+shared_ptr<Node> Mul() {
+  auto node{Primary()};
+
+  for (;;) {
+    if (Consume(Token::kOperator, "*")) {
+      node = MakeNode(Node::kMul, node, Primary());
+    } else if (Consume(Token::kOperator, "/")) {
+      node = MakeNode(Node::kDiv, node, Primary());
+    } else {
+      return node;
+    }
+  }
+}
+
+shared_ptr<Node> Primary() {
+  if (Consume(Token::kOperator, "(")) {
+    auto node{Expr()};
+    Expect(Token::kOperator, ")");
+    return node;
+  }
+
+  return MakeNodeInt(Expect(Token::kInteger)->value);
+}
+
+void GenerateAsm(const shared_ptr<Node>& node) {
+  if (node->kind == Node::kInt) {
+    cout << "    push " << node->value << '\n';
+    return;
+  }
+
+  GenerateAsm(node->lhs);
+  GenerateAsm(node->rhs);
+
+  cout << "    pop rdi\n";
+  cout << "    pop rax\n";
+
+  switch (node->kind) {
+  case Node::kAdd:
+    cout << "    add rax, rdi\n";
+    break;
+  case Node::kSub:
+    cout << "    sub rax, rdi\n";
+    break;
+  case Node::kMul:
+    cout << "    imul rax, rdi\n";
+    break;
+  case Node::kDiv:
+    cout << "    cqo\n";
+    cout << "    idiv rdi\n";
+    break;
+  case Node::kInt: // 関数先頭のif文ではじかれている
+    break;
+  }
+
+  cout << "    push rax\n";
+}
+
 int main() {
   ReadAll(cin);
   auto tokens{Tokenize(&src[0])};
@@ -135,16 +234,9 @@ int main() {
   cout << "global main\n";
   cout << "main:\n";
 
-  cout << "    mov rax, " << Expect(Token::kInteger)->value << "\n";
-  while (!AtEOF()) {
-    if (Consume(Token::kOperator, "+")) {
-      cout << "    add rax, " << Expect(Token::kInteger)->value << "\n";
-      continue;
-    }
+  auto node{Expr()};
+  GenerateAsm(node);
 
-    Expect(Token::kOperator, "-");
-    cout << "    sub rax, " << Expect(Token::kInteger)->value << "\n";
-  }
-
+  cout << "    pop rax\n";
   cout << "    ret\n";
 }
