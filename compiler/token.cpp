@@ -49,6 +49,21 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
+    if (string op{p, 2};
+        op == "==" || op == "!=" || op == "<=" || op == ">=") {
+      Token tk{Token::kOp, p, 2, 0};
+      tokens.push_back(tk);
+      p += 2;
+      continue;
+    }
+
+    if (*p == '<' || *p == '>') {
+      Token tk{Token::kOp, p, 1, 0};
+      tokens.push_back(tk);
+      ++p;
+      continue;
+    }
+
     cerr << "failed to tokenize" << endl;
     ErrorAt(p);
   }

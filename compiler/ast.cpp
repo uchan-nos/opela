@@ -13,20 +13,56 @@ Node* NewNodeInt(std::int64_t value) {
 }
 
 Node* Expr() {
-  auto node{Mul()};
+  return Equality();
+}
+
+Node* Equality() {
+  auto node{Relational()};
 
   for (;;) {
-    if (Consume(Token::kOp, "+")) {
-      node = new Node{Node::kAdd, node, Mul(), 0};
-    } else if (Consume(Token::kOp, "-")) {
-      node = new Node{Node::kSub, node, Mul(), 0};
+    if (Consume(Token::kOp, "==")) {
+      node = new Node{Node::kEqu, node, Relational(), 0};
+    } else if (Consume(Token::kOp, "!=")) {
+      node = new Node{Node::kNEqu, node, Relational(), 0};
     } else {
       return node;
     }
   }
 }
 
-Node* Mul() {
+Node* Relational() {
+  auto node{Additive()};
+
+  for (;;) {
+    if (Consume(Token::kOp, "<")) {
+      node = new Node{Node::kLT, node, Additive(), 0};
+    } else if (Consume(Token::kOp, "<=")) {
+      node = new Node{Node::kLE, node, Additive(), 0};
+    } else if (Consume(Token::kOp, ">")) {
+      node = new Node{Node::kLT, Additive(), node, 0};
+    } else if (Consume(Token::kOp, ">=")) {
+      node = new Node{Node::kLE, Additive(), node, 0};
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* Additive() {
+  auto node{Multiplicative()};
+
+  for (;;) {
+    if (Consume(Token::kOp, "+")) {
+      node = new Node{Node::kAdd, node, Multiplicative(), 0};
+    } else if (Consume(Token::kOp, "-")) {
+      node = new Node{Node::kSub, node, Multiplicative(), 0};
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* Multiplicative() {
   auto node{Unary()};
 
   for (;;) {

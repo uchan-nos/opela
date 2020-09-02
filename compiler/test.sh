@@ -29,6 +29,9 @@ build_run 42 42
 build_run 11 "1+23 - 13"
 build_run 2 "12/2 - 2 * (3 - 1)"
 build_run 5 "-3 + (+8)"
+build_run 0 "3 < 1"
+build_run 1 "2*3 >= 13/2"
+build_run 1 "2>2 == 4<=3"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

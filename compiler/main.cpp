@@ -7,6 +7,12 @@
 
 using namespace std;
 
+void GenerateCmpSet(const char* cc) {
+  cout << "    cmp rax, rdi\n";
+  cout << "    set" << cc << " al\n";
+  cout << "    movzx eax, al\n";
+}
+
 void GenerateAsm(Node* node) {
   if (node->kind == Node::kInt) {
     cout << "    push " << node->value << '\n';
@@ -34,6 +40,18 @@ void GenerateAsm(Node* node) {
     cout << "    idiv rdi\n";
     break;
   case Node::kInt: // 関数先頭のif文ではじかれている
+    break;
+  case Node::kEqu:
+    GenerateCmpSet("e");
+    break;
+  case Node::kNEqu:
+    GenerateCmpSet("ne");
+    break;
+  case Node::kLT:
+    GenerateCmpSet("l");
+    break;
+  case Node::kLE:
+    GenerateCmpSet("le");
     break;
   }
 
