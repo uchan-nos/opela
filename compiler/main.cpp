@@ -15,9 +15,11 @@ using namespace std;
 
 struct Token {
   enum Kind {
-    kOperator,
-    kInteger,
+    kOp,
+    kInt,
     kEOF,
+    kLParen,
+    kRParen,
   };
 
   Kind kind;
@@ -57,6 +59,14 @@ pair<const char*, const char*> FindLine(const char* p) {
   ErrorAt(tk.loc);
 }
 
+bool Consume(Token::Kind kind) {
+  if (cur_token->kind == kind) {
+    ++cur_token;
+    return true;
+  }
+  return false;
+}
+
 bool Consume(Token::Kind kind, const string& raw) {
   string tk_raw(cur_token->loc, cur_token->len);
   if (cur_token->kind == kind && tk_raw == raw) {
@@ -67,16 +77,17 @@ bool Consume(Token::Kind kind, const string& raw) {
 }
 
 list<Token>::iterator Expect(Token::Kind kind) {
-  if (cur_token->kind == kind) {
-    return cur_token++;
+  auto tk{cur_token};
+  if (Consume(kind)) {
+    return tk;
   }
   Error(*cur_token);
 }
 
 list<Token>::iterator Expect(Token::Kind kind, const string& raw) {
-  string tk_raw(cur_token->loc, cur_token->len);
-  if (cur_token->kind == kind && tk_raw == raw) {
-    return cur_token++;
+  auto tk{cur_token};
+  if (Consume(kind, raw)) {
+    return tk;
   }
   Error(*cur_token);
 }
@@ -94,8 +105,22 @@ auto Tokenize(const char* p) {
       continue;
     }
 
-    if (*p == '+' || *p == '-') {
-      Token tk{Token::kOperator, p, 1, 0};
+    if (*p == '+' || *p == '-' || *p == '*' || *p == '/') {
+      Token tk{Token::kOp, p, 1, 0};
+      tokens.push_back(tk);
+      ++p;
+      continue;
+    }
+
+    if (*p == '(') {
+      Token tk{Token::kLParen, p, 1, 0};
+      tokens.push_back(tk);
+      ++p;
+      continue;
+    }
+
+    if (*p == ')') {
+      Token tk{Token::kRParen, p, 1, 0};
       tokens.push_back(tk);
       ++p;
       continue;
@@ -105,7 +130,7 @@ auto Tokenize(const char* p) {
       char* non_digit;
       long v{strtol(p, &non_digit, 0)};
       size_t len = non_digit - p;
-      Token tk{Token::kInteger, p, len, v};
+      Token tk{Token::kInt, p, len, v};
       tokens.push_back(tk);
       p = non_digit;
       continue;
@@ -158,9 +183,9 @@ shared_ptr<Node> Expr() {
   auto node{Mul()};
 
   for (;;) {
-    if (Consume(Token::kOperator, "+")) {
+    if (Consume(Token::kOp, "+")) {
       node = MakeNode(Node::kAdd, node, Mul());
-    } else if (Consume(Token::kOperator, "-")) {
+    } else if (Consume(Token::kOp, "-")) {
       node = MakeNode(Node::kSub, node, Mul());
     } else {
       return node;
@@ -172,9 +197,9 @@ shared_ptr<Node> Mul() {
   auto node{Primary()};
 
   for (;;) {
-    if (Consume(Token::kOperator, "*")) {
+    if (Consume(Token::kOp, "*")) {
       node = MakeNode(Node::kMul, node, Primary());
-    } else if (Consume(Token::kOperator, "/")) {
+    } else if (Consume(Token::kOp, "/")) {
       node = MakeNode(Node::kDiv, node, Primary());
     } else {
       return node;
@@ -183,13 +208,13 @@ shared_ptr<Node> Mul() {
 }
 
 shared_ptr<Node> Primary() {
-  if (Consume(Token::kOperator, "(")) {
+  if (Consume(Token::kLParen)) {
     auto node{Expr()};
-    Expect(Token::kOperator, ")");
+    Expect(Token::kRParen);
     return node;
   }
 
-  return MakeNodeInt(Expect(Token::kInteger)->value);
+  return MakeNodeInt(Expect(Token::kInt)->value);
 }
 
 void GenerateAsm(const shared_ptr<Node>& node) {
