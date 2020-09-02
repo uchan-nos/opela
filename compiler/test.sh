@@ -28,6 +28,7 @@ function build_run() {
 }
 
 build_run 42 42
+build_run 11 "1+23 - 13"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
