@@ -1,7 +1,5 @@
 #!/bin/bash
 
-clang++-10 -O3 -std=c++20 -Wall -Wextra -o opelac main.cpp || exit 1
-
 passed=0
 failed=0
 
