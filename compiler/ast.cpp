@@ -4,51 +4,49 @@
 
 using namespace std;
 
-std::shared_ptr<Node> MakeNode(Node::Kind kind,
-                               const std::shared_ptr<Node>& lhs,
-                               const std::shared_ptr<Node>& rhs) {
-  return make_shared<Node>(Node{kind, lhs, rhs, 0});
+Node* MakeNode(Node::Kind kind, Node* lhs, Node* rhs) {
+  return new Node{kind, lhs, rhs, 0};
 }
 
-std::shared_ptr<Node> MakeNodeInt(std::int64_t value) {
-  return make_shared<Node>(Node{Node::kInt, nullptr, nullptr, value});
+Node* NewNodeInt(std::int64_t value) {
+  return new Node{Node::kInt, nullptr, nullptr, value};
 }
 
-shared_ptr<Node> Expr() {
+Node* Expr() {
   auto node{Mul()};
 
   for (;;) {
     if (Consume(Token::kOp, "+")) {
-      node = MakeNode(Node::kAdd, node, Mul());
+      node = new Node{Node::kAdd, node, Mul(), 0};
     } else if (Consume(Token::kOp, "-")) {
-      node = MakeNode(Node::kSub, node, Mul());
+      node = new Node{Node::kSub, node, Mul(), 0};
     } else {
       return node;
     }
   }
 }
 
-shared_ptr<Node> Mul() {
+Node* Mul() {
   auto node{Primary()};
 
   for (;;) {
     if (Consume(Token::kOp, "*")) {
-      node = MakeNode(Node::kMul, node, Primary());
+      node = new Node{Node::kMul, node, Primary(), 0};
     } else if (Consume(Token::kOp, "/")) {
-      node = MakeNode(Node::kDiv, node, Primary());
+      node = new Node{Node::kDiv, node, Primary(), 0};
     } else {
       return node;
     }
   }
 }
 
-shared_ptr<Node> Primary() {
+Node* Primary() {
   if (Consume(Token::kLParen)) {
     auto node{Expr()};
     Expect(Token::kRParen);
     return node;
   }
 
-  return MakeNodeInt(Expect(Token::kInt)->value);
+  return new Node{Node::kInt, 0, 0, Expect(Token::kInt)->value};
 }
 

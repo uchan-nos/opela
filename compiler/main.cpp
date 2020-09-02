@@ -1,5 +1,4 @@
 #include <iostream>
-#include <memory>
 
 #include "ast.hpp"
 #include "source.hpp"
@@ -8,7 +7,7 @@
 
 using namespace std;
 
-void GenerateAsm(const shared_ptr<Node>& node) {
+void GenerateAsm(Node* node) {
   if (node->kind == Node::kInt) {
     cout << "    push " << node->value << '\n';
     return;

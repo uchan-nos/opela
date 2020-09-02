@@ -1,7 +1,6 @@
 #pragma once
 
 #include <cstdint>
-#include <memory>
 
 struct Node {
   enum Kind {
@@ -12,15 +11,14 @@ struct Node {
     kInt,
   } kind;
 
-  std::shared_ptr<Node> lhs, rhs;
+  Node* lhs;
+  Node* rhs;
   std::int64_t value;
 };
 
-std::shared_ptr<Node> MakeNode(Node::Kind kind,
-                               const std::shared_ptr<Node>& lhs,
-                               const std::shared_ptr<Node>& rhs);
-std::shared_ptr<Node> MakeNodeInt(std::int64_t value);
+Node* MakeNode(Node::Kind kind, const Node*& lhs, const Node*& rhs);
+Node* MakeNodeInt(std::int64_t value);
 
-std::shared_ptr<Node> Expr();
-std::shared_ptr<Node> Mul();
-std::shared_ptr<Node> Primary();
+Node* Expr();
+Node* Mul();
+Node* Primary();
