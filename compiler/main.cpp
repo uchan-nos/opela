@@ -5,6 +5,7 @@
 #include <iterator>
 #include <list>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "magic_enum.hpp"
@@ -30,6 +31,31 @@ vector<char> src;
 // 現在処理中のトークン
 list<Token>::iterator cur_token;
 
+pair<const char*, const char*> FindLine(const char* p) {
+  auto head{p};
+  while (&src[0] < head && head[-1] != '\n') {
+    --head;
+  }
+  while (*p != '\n' && *p != '\0') {
+    ++p;
+  }
+  return {head, p};
+}
+
+[[noreturn]] void ErrorAt(const char* loc) {
+  auto [ line, line_end ] = FindLine(loc);
+  cerr << string(line, line_end - line) << endl;
+  cerr << string(loc - line, ' ') << '^' << endl;
+  exit(1);
+}
+
+[[noreturn]] void Error(const Token& tk) {
+  cerr << "unexpected token "
+    << magic_enum::enum_name(tk.kind)
+    << " '" << string(tk.loc, tk.len) << "'" << endl;
+  ErrorAt(tk.loc);
+}
+
 bool Consume(Token::Kind kind, const string& raw) {
   string tk_raw(cur_token->loc, cur_token->len);
   if (cur_token->kind == kind && tk_raw == raw) {
@@ -43,9 +69,7 @@ list<Token>::iterator Expect(Token::Kind kind) {
   if (cur_token->kind == kind) {
     return cur_token++;
   }
-  cerr << "unexpected token "
-    << magic_enum::enum_name(cur_token->kind) << endl;
-  exit(1);
+  Error(*cur_token);
 }
 
 list<Token>::iterator Expect(Token::Kind kind, const string& raw) {
@@ -53,10 +77,7 @@ list<Token>::iterator Expect(Token::Kind kind, const string& raw) {
   if (cur_token->kind == kind && tk_raw == raw) {
     return cur_token++;
   }
-  cerr << "unexpected token "
-    << magic_enum::enum_name(cur_token->kind)
-    << " '" << tk_raw << "'" << endl;
-  exit(1);
+  Error(*cur_token);
 }
 
 bool AtEOF() {
@@ -90,7 +111,7 @@ auto Tokenize(const char* p) {
     }
 
     cerr << "failed to tokenize" << endl;
-    exit(1);
+    ErrorAt(p);
   }
 
   tokens.push_back(Token{Token::kEOF, p, 0, 0});
