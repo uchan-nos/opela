@@ -4,12 +4,32 @@
 
 using namespace std;
 
-Node* MakeNode(Node::Kind kind, Node* lhs, Node* rhs) {
-  return new Node{kind, lhs, rhs, 0};
+Node* NewNodeExpr(Node::Kind kind, Node* lhs, Node* rhs) {
+  return new Node{kind, nullptr, lhs, rhs, 0};
 }
 
 Node* NewNodeInt(std::int64_t value) {
-  return new Node{Node::kInt, nullptr, nullptr, value};
+  return new Node{Node::kInt, nullptr, nullptr, nullptr, value};
+}
+
+Node* Program() {
+  if (AtEOF()) {
+    return nullptr;
+  }
+
+  auto head{Statement()};
+  auto cur{head};
+  while (!AtEOF()) {
+    cur->next = Statement();
+    cur = cur->next;
+  }
+  return head;
+}
+
+Node* Statement() {
+  auto node{Expr()};
+  Expect(";");
+  return node;
 }
 
 Node* Expr() {
@@ -21,9 +41,9 @@ Node* Equality() {
 
   for (;;) {
     if (Consume("==")) {
-      node = new Node{Node::kEqu, node, Relational(), 0};
+      node = NewNodeExpr(Node::kEqu, node, Relational());
     } else if (Consume("!=")) {
-      node = new Node{Node::kNEqu, node, Relational(), 0};
+      node = NewNodeExpr(Node::kNEqu, node, Relational());
     } else {
       return node;
     }
@@ -35,13 +55,13 @@ Node* Relational() {
 
   for (;;) {
     if (Consume("<")) {
-      node = new Node{Node::kLT, node, Additive(), 0};
+      node = NewNodeExpr(Node::kLT, node, Additive());
     } else if (Consume("<=")) {
-      node = new Node{Node::kLE, node, Additive(), 0};
+      node = NewNodeExpr(Node::kLE, node, Additive());
     } else if (Consume(">")) {
-      node = new Node{Node::kLT, Additive(), node, 0};
+      node = NewNodeExpr(Node::kLT, Additive(), node);
     } else if (Consume(">=")) {
-      node = new Node{Node::kLE, Additive(), node, 0};
+      node = NewNodeExpr(Node::kLE, Additive(), node);
     } else {
       return node;
     }
@@ -53,9 +73,9 @@ Node* Additive() {
 
   for (;;) {
     if (Consume("+")) {
-      node = new Node{Node::kAdd, node, Multiplicative(), 0};
+      node = NewNodeExpr(Node::kAdd, node, Multiplicative());
     } else if (Consume("-")) {
-      node = new Node{Node::kSub, node, Multiplicative(), 0};
+      node = NewNodeExpr(Node::kSub, node, Multiplicative());
     } else {
       return node;
     }
@@ -67,9 +87,9 @@ Node* Multiplicative() {
 
   for (;;) {
     if (Consume("*")) {
-      node = new Node{Node::kMul, node, Unary(), 0};
+      node = NewNodeExpr(Node::kMul, node, Unary());
     } else if (Consume("/")) {
-      node = new Node{Node::kDiv, node, Unary(), 0};
+      node = NewNodeExpr(Node::kDiv, node, Unary());
     } else {
       return node;
     }
@@ -80,8 +100,8 @@ Node* Unary() {
   if (Consume("+")) {
     return Primary();
   } else if (Consume("-")) {
-    auto zero{new Node{Node::kInt, 0, 0, 0}};
-    return new Node{Node::kSub, zero, Primary(), 0};
+    auto zero{NewNodeInt(0)};
+    return NewNodeExpr(Node::kSub, zero, Primary());
   }
   return Primary();
 }
@@ -93,5 +113,5 @@ Node* Primary() {
     return node;
   }
 
-  return new Node{Node::kInt, 0, 0, Expect(Token::kInt)->value};
+  return NewNodeInt(Expect(Token::kInt)->value);
 }

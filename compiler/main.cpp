@@ -67,9 +67,10 @@ int main() {
   cout << "global main\n";
   cout << "main:\n";
 
-  auto node{Expr()};
-  GenerateAsm(node);
+  for (auto node{Program()}; node != nullptr; node = node->next) {
+    GenerateAsm(node);
+    cout << "    pop rax\n";
+  }
 
-  cout << "    pop rax\n";
   cout << "    ret\n";
 }

@@ -15,6 +15,7 @@ struct Node {
     kLE,
   } kind;
 
+  Node* next;
   Node* lhs;
   Node* rhs;
   std::int64_t value;
@@ -23,6 +24,8 @@ struct Node {
 Node* MakeNode(Node::Kind kind, const Node*& lhs, const Node*& rhs);
 Node* MakeNodeInt(std::int64_t value);
 
+Node* Program();
+Node* Statement();
 Node* Expr();
 Node* Equality();
 Node* Relational();

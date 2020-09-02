@@ -37,7 +37,7 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (strchr("+-*/()<>", *p)) {
+    if (strchr("+-*/()<>;", *p)) {
       Token tk{Token::kReserved, p, 1, 0};
       tokens.push_back(tk);
       ++p;
