@@ -2,6 +2,7 @@
 
 #include <cctype>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 
 #include "magic_enum.hpp"
@@ -18,27 +19,6 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (*p == '+' || *p == '-' || *p == '*' || *p == '/') {
-      Token tk{Token::kOp, p, 1, 0};
-      tokens.push_back(tk);
-      ++p;
-      continue;
-    }
-
-    if (*p == '(') {
-      Token tk{Token::kLParen, p, 1, 0};
-      tokens.push_back(tk);
-      ++p;
-      continue;
-    }
-
-    if (*p == ')') {
-      Token tk{Token::kRParen, p, 1, 0};
-      tokens.push_back(tk);
-      ++p;
-      continue;
-    }
-
     if (isdigit(*p)) {
       char* non_digit;
       long v{strtol(p, &non_digit, 0)};
@@ -51,14 +31,14 @@ vector<Token> Tokenize(const char* p) {
 
     if (string op{p, 2};
         op == "==" || op == "!=" || op == "<=" || op == ">=") {
-      Token tk{Token::kOp, p, 2, 0};
+      Token tk{Token::kReserved, p, 2, 0};
       tokens.push_back(tk);
       p += 2;
       continue;
     }
 
-    if (*p == '<' || *p == '>') {
-      Token tk{Token::kOp, p, 1, 0};
+    if (strchr("+-*/()<>", *p)) {
+      Token tk{Token::kReserved, p, 1, 0};
       tokens.push_back(tk);
       ++p;
       continue;
@@ -87,9 +67,9 @@ bool Consume(Token::Kind kind) {
   return false;
 }
 
-bool Consume(Token::Kind kind, const string& raw) {
+bool Consume(const string& raw) {
   string tk_raw(cur_token->loc, cur_token->len);
-  if (cur_token->kind == kind && tk_raw == raw) {
+  if (cur_token->kind == Token::kReserved && tk_raw == raw) {
     ++cur_token;
     return true;
   }
@@ -104,9 +84,9 @@ vector<Token>::iterator Expect(Token::Kind kind) {
   Error(*cur_token);
 }
 
-vector<Token>::iterator Expect(Token::Kind kind, const string& raw) {
+vector<Token>::iterator Expect(const string& raw) {
   auto tk{cur_token};
-  if (Consume(kind, raw)) {
+  if (Consume(raw)) {
     return tk;
   }
   Error(*cur_token);

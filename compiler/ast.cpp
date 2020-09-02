@@ -20,9 +20,9 @@ Node* Equality() {
   auto node{Relational()};
 
   for (;;) {
-    if (Consume(Token::kOp, "==")) {
+    if (Consume("==")) {
       node = new Node{Node::kEqu, node, Relational(), 0};
-    } else if (Consume(Token::kOp, "!=")) {
+    } else if (Consume("!=")) {
       node = new Node{Node::kNEqu, node, Relational(), 0};
     } else {
       return node;
@@ -34,13 +34,13 @@ Node* Relational() {
   auto node{Additive()};
 
   for (;;) {
-    if (Consume(Token::kOp, "<")) {
+    if (Consume("<")) {
       node = new Node{Node::kLT, node, Additive(), 0};
-    } else if (Consume(Token::kOp, "<=")) {
+    } else if (Consume("<=")) {
       node = new Node{Node::kLE, node, Additive(), 0};
-    } else if (Consume(Token::kOp, ">")) {
+    } else if (Consume(">")) {
       node = new Node{Node::kLT, Additive(), node, 0};
-    } else if (Consume(Token::kOp, ">=")) {
+    } else if (Consume(">=")) {
       node = new Node{Node::kLE, Additive(), node, 0};
     } else {
       return node;
@@ -52,9 +52,9 @@ Node* Additive() {
   auto node{Multiplicative()};
 
   for (;;) {
-    if (Consume(Token::kOp, "+")) {
+    if (Consume("+")) {
       node = new Node{Node::kAdd, node, Multiplicative(), 0};
-    } else if (Consume(Token::kOp, "-")) {
+    } else if (Consume("-")) {
       node = new Node{Node::kSub, node, Multiplicative(), 0};
     } else {
       return node;
@@ -66,9 +66,9 @@ Node* Multiplicative() {
   auto node{Unary()};
 
   for (;;) {
-    if (Consume(Token::kOp, "*")) {
+    if (Consume("*")) {
       node = new Node{Node::kMul, node, Unary(), 0};
-    } else if (Consume(Token::kOp, "/")) {
+    } else if (Consume("/")) {
       node = new Node{Node::kDiv, node, Unary(), 0};
     } else {
       return node;
@@ -77,9 +77,9 @@ Node* Multiplicative() {
 }
 
 Node* Unary() {
-  if (Consume(Token::kOp, "+")) {
+  if (Consume("+")) {
     return Primary();
-  } else if (Consume(Token::kOp, "-")) {
+  } else if (Consume("-")) {
     auto zero{new Node{Node::kInt, 0, 0, 0}};
     return new Node{Node::kSub, zero, Primary(), 0};
   }
@@ -87,12 +87,11 @@ Node* Unary() {
 }
 
 Node* Primary() {
-  if (Consume(Token::kLParen)) {
+  if (Consume("(")) {
     auto node{Expr()};
-    Expect(Token::kRParen);
+    Expect(")");
     return node;
   }
 
   return new Node{Node::kInt, 0, 0, Expect(Token::kInt)->value};
 }
-

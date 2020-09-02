@@ -7,11 +7,9 @@
 
 struct Token {
   enum Kind {
-    kOp,
+    kReserved,
     kInt,
     kEOF,
-    kLParen,
-    kRParen,
   } kind;
 
   const char* loc; // src の中を指すポインタ
@@ -26,7 +24,7 @@ inline std::vector<Token>::iterator cur_token;
 std::vector<Token> Tokenize(const char* p);
 [[noreturn]] void Error(const Token& tk);
 bool Consume(Token::Kind kind);
-bool Consume(Token::Kind kind, const std::string& raw);
+bool Consume(const std::string& raw);
 std::vector<Token>::iterator Expect(Token::Kind kind);
-std::vector<Token>::iterator Expect(Token::Kind kind, const std::string& raw);
+std::vector<Token>::iterator Expect(const std::string& raw);
 bool AtEOF();
