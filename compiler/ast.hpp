@@ -21,4 +21,5 @@ Node* MakeNodeInt(std::int64_t value);
 
 Node* Expr();
 Node* Mul();
+Node* Unary();
 Node* Primary();

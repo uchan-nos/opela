@@ -27,17 +27,27 @@ Node* Expr() {
 }
 
 Node* Mul() {
-  auto node{Primary()};
+  auto node{Unary()};
 
   for (;;) {
     if (Consume(Token::kOp, "*")) {
-      node = new Node{Node::kMul, node, Primary(), 0};
+      node = new Node{Node::kMul, node, Unary(), 0};
     } else if (Consume(Token::kOp, "/")) {
-      node = new Node{Node::kDiv, node, Primary(), 0};
+      node = new Node{Node::kDiv, node, Unary(), 0};
     } else {
       return node;
     }
   }
+}
+
+Node* Unary() {
+  if (Consume(Token::kOp, "+")) {
+    return Primary();
+  } else if (Consume(Token::kOp, "-")) {
+    auto zero{new Node{Node::kInt, 0, 0, 0}};
+    return new Node{Node::kSub, zero, Primary(), 0};
+  }
+  return Primary();
 }
 
 Node* Primary() {
