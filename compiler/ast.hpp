@@ -1,6 +1,14 @@
 #pragma once
 
 #include <cstdint>
+#include <string>
+
+#include "token.hpp"
+
+struct LVar {
+  Token* token;
+  std::int64_t offset;
+};
 
 struct Node {
   enum Kind {
@@ -13,16 +21,21 @@ struct Node {
     kNEqu,
     kLT,
     kLE,
+    kLVar, // local variable
+    kDefLVar,
   } kind;
 
   Node* next;
   Node* lhs;
   Node* rhs;
-  std::int64_t value;
+
+  union {
+    std::int64_t i;
+    LVar* lvar;
+  } value;
 };
 
-Node* MakeNode(Node::Kind kind, const Node*& lhs, const Node*& rhs);
-Node* MakeNodeInt(std::int64_t value);
+size_t LVarBytes();
 
 Node* Program();
 Node* Statement();

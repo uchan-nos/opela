@@ -1,4 +1,5 @@
 #include <iostream>
+#include <sstream>
 
 #include "ast.hpp"
 #include "source.hpp"
@@ -7,55 +8,86 @@
 
 using namespace std;
 
-void GenerateCmpSet(const char* cc) {
-  cout << "    cmp rax, rdi\n";
-  cout << "    set" << cc << " al\n";
-  cout << "    movzx eax, al\n";
+void GenerateCmpSet(ostream& os, const char* cc) {
+  os << "    cmp rax, rdi\n";
+  os << "    set" << cc << " al\n";
+  os << "    movzx eax, al\n";
 }
 
-void GenerateAsm(Node* node) {
-  if (node->kind == Node::kInt) {
-    cout << "    push " << node->value << '\n';
+// 左辺値（lvalue）を生成する
+void GenerateLVal(ostream& os, Node* node) {
+  if (node->kind != Node::kLVar) {
+    cerr << "cannot generate lvalue for "
+         << magic_enum::enum_name(node->kind) << endl;
+    exit(1);
+  }
+
+  os << "    lea rax, [rbp - " << node->value.lvar->offset << "]\n";
+  os << "    push rax\n";
+}
+
+void GenerateAsm(ostream& os, Node* node) {
+  switch (node->kind) {
+  case Node::kInt:
+    os << "    push qword " << node->value.i << '\n';
+    return;
+  case Node::kLVar:
+    GenerateLVal(os, node);
+    os << "    pop rax\n";
+    os << "    push qword [rax]\n";
+    return;
+  case Node::kDefLVar:
+    GenerateLVal(os, node->lhs);
+    GenerateAsm(os, node->rhs);
+    os << "    pop rdi\n";
+    os << "    pop rax\n";
+    os << "    mov [rax], rdi\n";
+    os << "    push rax\n";
     return;
   }
 
-  GenerateAsm(node->lhs);
-  GenerateAsm(node->rhs);
+  GenerateAsm(os, node->lhs);
+  GenerateAsm(os, node->rhs);
 
-  cout << "    pop rdi\n";
-  cout << "    pop rax\n";
+  os << "    pop rdi\n";
+  os << "    pop rax\n";
 
   switch (node->kind) {
   case Node::kAdd:
-    cout << "    add rax, rdi\n";
+    os << "    add rax, rdi\n";
     break;
   case Node::kSub:
-    cout << "    sub rax, rdi\n";
+    os << "    sub rax, rdi\n";
     break;
   case Node::kMul:
-    cout << "    imul rax, rdi\n";
+    os << "    imul rax, rdi\n";
     break;
   case Node::kDiv:
-    cout << "    cqo\n";
-    cout << "    idiv rdi\n";
+    os << "    cqo\n";
+    os << "    idiv rdi\n";
     break;
   case Node::kInt: // 関数先頭のif文ではじかれている
     break;
   case Node::kEqu:
-    GenerateCmpSet("e");
+    GenerateCmpSet(os, "e");
     break;
   case Node::kNEqu:
-    GenerateCmpSet("ne");
+    GenerateCmpSet(os, "ne");
     break;
   case Node::kLT:
-    GenerateCmpSet("l");
+    GenerateCmpSet(os, "l");
     break;
   case Node::kLE:
-    GenerateCmpSet("le");
+    GenerateCmpSet(os, "le");
+    break;
+  case Node::kLVar: // 関数先頭のif文ではじかれている
+    break;
+  case Node::kDefLVar:
+    os << "    mov [rax], rdi\n";
     break;
   }
 
-  cout << "    push rax\n";
+  os << "    push rax\n";
 }
 
 int main() {
@@ -63,14 +95,20 @@ int main() {
   auto tokens{Tokenize(&src[0])};
   cur_token = tokens.begin();
 
+  ostringstream oss;
+  for (auto node{Program()}; node != nullptr; node = node->next) {
+    GenerateAsm(oss, node);
+    oss << "    pop rax\n";
+  }
+
   cout << "bits 64\nsection .text\n";
   cout << "global main\n";
   cout << "main:\n";
-
-  for (auto node{Program()}; node != nullptr; node = node->next) {
-    GenerateAsm(node);
-    cout << "    pop rax\n";
-  }
-
+  cout << "    push rbp\n";
+  cout << "    mov rbp, rsp\n";
+  cout << "    sub rsp, " << LVarBytes() << "\n";
+  cout << oss.str();
+  cout << "    mov rsp, rbp\n";
+  cout << "    pop rbp\n";
   cout << "    ret\n";
 }

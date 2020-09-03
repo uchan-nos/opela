@@ -1,15 +1,36 @@
 #include "ast.hpp"
 
-#include "token.hpp"
+#include <map>
 
 using namespace std;
 
+namespace {
+
 Node* NewNodeExpr(Node::Kind kind, Node* lhs, Node* rhs) {
-  return new Node{kind, nullptr, lhs, rhs, 0};
+  return new Node{kind, nullptr, lhs, rhs, {0}};
 }
 
 Node* NewNodeInt(std::int64_t value) {
-  return new Node{Node::kInt, nullptr, nullptr, nullptr, value};
+  return new Node{Node::kInt, nullptr, nullptr, nullptr, {value}};
+}
+
+map<string, LVar*> local_vars;
+Node* NewNodeLVar(Token* tk) {
+  auto node = new Node{Node::kLVar, nullptr, nullptr, nullptr, {0}};
+  string name(tk->loc, tk->len);
+
+  if (auto it = local_vars.find(name); it != local_vars.end()) {
+    node->value.lvar = it->second;
+  } else {
+    node->value.lvar = new LVar{tk, 0};
+  }
+  return node;
+}
+
+} // namespace
+
+size_t LVarBytes() {
+  return local_vars.size() * 8;
 }
 
 Node* Program() {
@@ -28,7 +49,20 @@ Node* Program() {
 
 Node* Statement() {
   auto node{Expr()};
-  Expect(";");
+  if (Consume(";")) {
+    return node;
+  } else if (Consume(":=")) {
+    auto tk{node->value.lvar->token};
+    if (node->kind != Node::kLVar || node->value.lvar->offset != 0) {
+      Error(*tk);
+    }
+
+    auto init{Expr()};
+    Expect(";");
+    local_vars[string(tk->loc, tk->len)] = node->value.lvar;
+    node->value.lvar->offset = local_vars.size() * 8;
+    return new Node{Node::kDefLVar, nullptr, node, init, {0}};
+  }
   return node;
 }
 
@@ -111,6 +145,8 @@ Node* Primary() {
     auto node{Expr()};
     Expect(")");
     return node;
+  } else if (auto tk = Consume(Token::kId)) {
+    return NewNodeLVar(tk);
   }
 
   return NewNodeInt(Expect(Token::kInt)->value);

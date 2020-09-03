@@ -30,7 +30,7 @@ vector<Token> Tokenize(const char* p) {
     }
 
     if (string op{p, 2};
-        op == "==" || op == "!=" || op == "<=" || op == ">=") {
+        op == "==" || op == "!=" || op == "<=" || op == ">=" || op == ":=") {
       Token tk{Token::kReserved, p, 2, 0};
       tokens.push_back(tk);
       p += 2;
@@ -41,6 +41,17 @@ vector<Token> Tokenize(const char* p) {
       Token tk{Token::kReserved, p, 1, 0};
       tokens.push_back(tk);
       ++p;
+      continue;
+    }
+
+    if (isalpha(*p) || *p == '_') {
+      auto id{p++};
+      while (isalnum(*p) || *p == '_') {
+        ++p;
+      }
+      size_t len = p - id;
+      Token tk{Token::kId, id, len, 0};
+      tokens.push_back(tk);
       continue;
     }
 
@@ -59,34 +70,34 @@ void Error(const Token& tk) {
   ErrorAt(tk.loc);
 }
 
-bool Consume(Token::Kind kind) {
+Token* Consume(Token::Kind kind) {
   if (cur_token->kind == kind) {
+    auto tk{cur_token};
     ++cur_token;
-    return true;
+    return &*tk;
   }
-  return false;
+  return nullptr;
 }
 
-bool Consume(const string& raw) {
+Token* Consume(const string& raw) {
   string tk_raw(cur_token->loc, cur_token->len);
   if (cur_token->kind == Token::kReserved && tk_raw == raw) {
+    auto tk{cur_token};
     ++cur_token;
-    return true;
+    return &*tk;
   }
-  return false;
+  return nullptr;
 }
 
-vector<Token>::iterator Expect(Token::Kind kind) {
-  auto tk{cur_token};
-  if (Consume(kind)) {
+Token* Expect(Token::Kind kind) {
+  if (auto tk = Consume(kind)) {
     return tk;
   }
   Error(*cur_token);
 }
 
-vector<Token>::iterator Expect(const string& raw) {
-  auto tk{cur_token};
-  if (Consume(raw)) {
+Token* Expect(const string& raw) {
+  if (auto tk = Consume(raw)) {
     return tk;
   }
   Error(*cur_token);
