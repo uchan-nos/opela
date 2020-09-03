@@ -35,6 +35,7 @@ build_run 1 "2>2 == 4<=3;"
 build_run 0 ""
 build_run 3 "42; 3;"
 build_run 15 "foo:=5; bar:=3; foo*bar;"
+build_run 3 "return 3; 42;"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

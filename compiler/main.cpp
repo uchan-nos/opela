@@ -48,6 +48,11 @@ void GenerateAsm(ostream& os, Node* node) {
     os << "    mov [rax], rdi\n";
     os << "    push rax\n";
     return;
+  case Node::kRet:
+    GenerateAsm(os, node->lhs);
+    os << "    pop rax\n";
+    os << "    jmp main_exit\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -112,6 +117,7 @@ int main() {
   cout << "    mov rbp, rsp\n";
   cout << "    sub rsp, " << LVarBytes() << "\n";
   cout << oss.str();
+  cout << "main_exit:\n";
   cout << "    mov rsp, rbp\n";
   cout << "    pop rbp\n";
   cout << "    ret\n";

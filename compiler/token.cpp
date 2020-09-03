@@ -10,6 +10,18 @@
 
 using namespace std;
 
+namespace {
+
+bool IsAlpha(char ch) {
+  return isalpha(ch) || ch == '_';
+}
+
+bool IsAlNum(char ch) {
+  return isalnum(ch) || ch == '_';
+}
+
+} // namespace
+
 vector<Token> Tokenize(const char* p) {
   vector<Token> tokens;
 
@@ -44,9 +56,16 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (isalpha(*p) || *p == '_') {
+    if (strncmp(p, "return", 6) == 0 && !IsAlNum(p[6])) {
+      Token tk{Token::kRet, p, 6, 0};
+      tokens.push_back(tk);
+      p += 6;
+      continue;
+    }
+
+    if (IsAlpha(*p)) {
       auto id{p++};
-      while (isalnum(*p) || *p == '_') {
+      while (IsAlNum(*p)) {
         ++p;
       }
       size_t len = p - id;

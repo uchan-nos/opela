@@ -49,6 +49,12 @@ Node* Program() {
 }
 
 Node* Statement() {
+  if (auto tk{Consume(Token::kRet)}) {
+    auto expr{Expr()};
+    Expect(";");
+    return new Node{Node::kRet, tk, nullptr, expr, nullptr, {0}};
+  }
+
   auto node{Expr()};
   if (Consume(";")) {
     return node;

@@ -23,6 +23,7 @@ struct Node {
     kLE,
     kLVar, // local variable
     kDefLVar,
+    kRet,
   } kind;
 
   Token* token; // このノードを代表するトークン
