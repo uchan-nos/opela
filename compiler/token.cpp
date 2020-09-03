@@ -66,7 +66,7 @@ vector<Token> Tokenize(const char* p) {
 void Error(const Token& tk) {
   cerr << "unexpected token "
     << magic_enum::enum_name(tk.kind)
-    << " '" << string(tk.loc, tk.len) << "'" << endl;
+    << " '" << tk.Raw() << "'" << endl;
   ErrorAt(tk.loc);
 }
 

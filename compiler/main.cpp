@@ -19,7 +19,11 @@ void GenerateLVal(ostream& os, Node* node) {
   if (node->kind != Node::kLVar) {
     cerr << "cannot generate lvalue for "
          << magic_enum::enum_name(node->kind) << endl;
-    exit(1);
+    ErrorAt(node->token->loc);
+  } else if (node->value.lvar->offset == 0) {
+    cerr << "undefined variable '"
+         << node->token->Raw() << "'" << endl;
+    ErrorAt(node->token->loc);
   }
 
   os << "    lea rax, [rbp - " << node->value.lvar->offset << "]\n";

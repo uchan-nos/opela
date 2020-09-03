@@ -18,6 +18,8 @@ struct Token {
   std::size_t len; // トークンの文字数
 
   std::int64_t value;
+
+  std::string Raw() const { return {loc, len}; }
 };
 
 // 現在処理中のトークン

@@ -1,25 +1,26 @@
 #include "ast.hpp"
 
+#include <iostream>
 #include <map>
+
+#include "source.hpp"
 
 using namespace std;
 
 namespace {
 
-Node* NewNodeExpr(Node::Kind kind, Node* lhs, Node* rhs) {
-  return new Node{kind, nullptr, lhs, rhs, {0}};
+Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
+  return new Node{kind, op, nullptr, lhs, rhs, {0}};
 }
 
-Node* NewNodeInt(std::int64_t value) {
-  return new Node{Node::kInt, nullptr, nullptr, nullptr, {value}};
+Node* NewNodeInt(Token* tk, int64_t value) {
+  return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, {value}};
 }
 
 map<string, LVar*> local_vars;
 Node* NewNodeLVar(Token* tk) {
-  auto node = new Node{Node::kLVar, nullptr, nullptr, nullptr, {0}};
-  string name(tk->loc, tk->len);
-
-  if (auto it = local_vars.find(name); it != local_vars.end()) {
+  auto node = new Node{Node::kLVar, tk, nullptr, nullptr, nullptr, {0}};
+  if (auto it = local_vars.find(tk->Raw()); it != local_vars.end()) {
     node->value.lvar = it->second;
   } else {
     node->value.lvar = new LVar{tk, 0};
@@ -51,17 +52,22 @@ Node* Statement() {
   auto node{Expr()};
   if (Consume(";")) {
     return node;
-  } else if (Consume(":=")) {
-    auto tk{node->value.lvar->token};
-    if (node->kind != Node::kLVar || node->value.lvar->offset != 0) {
-      Error(*tk);
+  } else if (auto op{Consume(":=")}) {
+    if (node->kind != Node::kLVar) {
+      cerr << "lhs of ':=' must be an identifier" << endl;
+      ErrorAt(node->token->loc);
+    }
+
+    if (node->value.lvar->offset != 0) {
+      cerr << "'" << node->token->Raw() << "' is redefined" << endl;
+      ErrorAt(node->token->loc);
     }
 
     auto init{Expr()};
     Expect(";");
-    local_vars[string(tk->loc, tk->len)] = node->value.lvar;
+    local_vars[node->token->Raw()] = node->value.lvar;
     node->value.lvar->offset = local_vars.size() * 8;
-    return new Node{Node::kDefLVar, nullptr, node, init, {0}};
+    return new Node{Node::kDefLVar, op, nullptr, node, init, {0}};
   }
   return node;
 }
@@ -74,10 +80,10 @@ Node* Equality() {
   auto node{Relational()};
 
   for (;;) {
-    if (Consume("==")) {
-      node = NewNodeExpr(Node::kEqu, node, Relational());
-    } else if (Consume("!=")) {
-      node = NewNodeExpr(Node::kNEqu, node, Relational());
+    if (auto op{Consume("==")}) {
+      node = NewNodeExpr(Node::kEqu, op, node, Relational());
+    } else if (auto op{Consume("!=")}) {
+      node = NewNodeExpr(Node::kNEqu, op, node, Relational());
     } else {
       return node;
     }
@@ -88,14 +94,14 @@ Node* Relational() {
   auto node{Additive()};
 
   for (;;) {
-    if (Consume("<")) {
-      node = NewNodeExpr(Node::kLT, node, Additive());
-    } else if (Consume("<=")) {
-      node = NewNodeExpr(Node::kLE, node, Additive());
-    } else if (Consume(">")) {
-      node = NewNodeExpr(Node::kLT, Additive(), node);
-    } else if (Consume(">=")) {
-      node = NewNodeExpr(Node::kLE, Additive(), node);
+    if (auto op{Consume("<")}) {
+      node = NewNodeExpr(Node::kLT, op, node, Additive());
+    } else if (auto op{Consume("<=")}) {
+      node = NewNodeExpr(Node::kLE, op, node, Additive());
+    } else if (auto op{Consume(">")}) {
+      node = NewNodeExpr(Node::kLT, op, Additive(), node);
+    } else if (auto op{Consume(">=")}) {
+      node = NewNodeExpr(Node::kLE, op, Additive(), node);
     } else {
       return node;
     }
@@ -106,10 +112,10 @@ Node* Additive() {
   auto node{Multiplicative()};
 
   for (;;) {
-    if (Consume("+")) {
-      node = NewNodeExpr(Node::kAdd, node, Multiplicative());
-    } else if (Consume("-")) {
-      node = NewNodeExpr(Node::kSub, node, Multiplicative());
+    if (auto op{Consume("+")}) {
+      node = NewNodeExpr(Node::kAdd, op, node, Multiplicative());
+    } else if (auto op{Consume("-")}) {
+      node = NewNodeExpr(Node::kSub, op, node, Multiplicative());
     } else {
       return node;
     }
@@ -120,10 +126,10 @@ Node* Multiplicative() {
   auto node{Unary()};
 
   for (;;) {
-    if (Consume("*")) {
-      node = NewNodeExpr(Node::kMul, node, Unary());
-    } else if (Consume("/")) {
-      node = NewNodeExpr(Node::kDiv, node, Unary());
+    if (auto op{Consume("*")}) {
+      node = NewNodeExpr(Node::kMul, op, node, Unary());
+    } else if (auto op{Consume("/")}) {
+      node = NewNodeExpr(Node::kDiv, op, node, Unary());
     } else {
       return node;
     }
@@ -133,9 +139,9 @@ Node* Multiplicative() {
 Node* Unary() {
   if (Consume("+")) {
     return Primary();
-  } else if (Consume("-")) {
-    auto zero{NewNodeInt(0)};
-    return NewNodeExpr(Node::kSub, zero, Primary());
+  } else if (auto op{Consume("-")}) {
+    auto zero{NewNodeInt(nullptr, 0)};
+    return NewNodeExpr(Node::kSub, op, zero, Primary());
   }
   return Primary();
 }
@@ -149,5 +155,6 @@ Node* Primary() {
     return NewNodeLVar(tk);
   }
 
-  return NewNodeInt(Expect(Token::kInt)->value);
+  auto tk{Expect(Token::kInt)};
+  return NewNodeInt(tk, tk->value);
 }

@@ -25,7 +25,8 @@ struct Node {
     kDefLVar,
   } kind;
 
-  Node* next;
+  Token* token; // このノードを代表するトークン
+  Node* next; // 複文中で次の文を表す
   Node* lhs;
   Node* rhs;
 
