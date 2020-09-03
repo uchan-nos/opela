@@ -13,6 +13,7 @@ struct Token {
     kEOF,
     kId,
     kRet,
+    kIf,
   } kind;
 
   const char* loc; // src の中を指すポインタ

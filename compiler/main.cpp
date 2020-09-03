@@ -53,6 +53,16 @@ void GenerateAsm(ostream& os, Node* node) {
     os << "    pop rax\n";
     os << "    jmp main_exit\n";
     return;
+  case Node::kIf:
+    os << "    push rax\n";
+    GenerateAsm(os, node->lhs);
+    os << "    pop rax\n";
+    os << "    test rax, rax\n";
+    os << "    jz if_else\n";
+    os << "    pop rax\n";
+    GenerateAsm(os, node->rhs);
+    os << "if_else:\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

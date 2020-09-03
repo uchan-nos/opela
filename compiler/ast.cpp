@@ -48,11 +48,32 @@ Node* Program() {
   return head;
 }
 
+Node* CompoundStatement() {
+  Expect("{");
+  if (Consume("}")) {
+    return new Node{Node::kInt, nullptr, nullptr, nullptr, nullptr, {0}};
+  }
+
+  auto head{Statement()};
+  auto cur{head};
+  while (!Consume("}")) {
+    cur->next = Statement();
+    cur = cur->next;
+  }
+  return head;
+}
+
 Node* Statement() {
   if (auto tk{Consume(Token::kRet)}) {
     auto expr{Expr()};
     Expect(";");
     return new Node{Node::kRet, tk, nullptr, expr, nullptr, {0}};
+  }
+
+  if (auto tk{Consume(Token::kIf)}) {
+    auto expr{Expr()};
+    auto body{CompoundStatement()};
+    return new Node{Node::kIf, tk, nullptr, expr, body, {0}};
   }
 
   auto node{Expr()};

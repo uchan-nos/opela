@@ -24,6 +24,7 @@ struct Node {
     kLVar, // local variable
     kDefLVar,
     kRet,
+    kIf,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -40,6 +41,7 @@ struct Node {
 size_t LVarBytes();
 
 Node* Program();
+Node* CompoundStatement();
 Node* Statement();
 Node* Expr();
 Node* Equality();

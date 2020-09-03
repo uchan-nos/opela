@@ -25,6 +25,16 @@ bool IsAlNum(char ch) {
 vector<Token> Tokenize(const char* p) {
   vector<Token> tokens;
 
+  auto consume_id = [&](Token::Kind kind, const string& id) {
+    if (string(p, id.size()) != id || IsAlNum(p[id.size()])) {
+      return false;
+    }
+
+    tokens.push_back(Token{kind, p, id.size(), 0});
+    p += id.size();
+    return true;
+  };
+
   while (*p) {
     if (isspace(*p)) {
       ++p;
@@ -49,17 +59,18 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (strchr("+-*/()<>;", *p)) {
+    if (strchr("+-*/()<>;{}", *p)) {
       Token tk{Token::kReserved, p, 1, 0};
       tokens.push_back(tk);
       ++p;
       continue;
     }
 
-    if (strncmp(p, "return", 6) == 0 && !IsAlNum(p[6])) {
-      Token tk{Token::kRet, p, 6, 0};
-      tokens.push_back(tk);
-      p += 6;
+    if (consume_id(Token::kRet, "return")) {
+      continue;
+    }
+
+    if (consume_id(Token::kIf, "if")) {
       continue;
     }
 
