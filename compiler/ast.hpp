@@ -22,7 +22,6 @@ struct Node {
     kLT,
     kLE,
     kLVar, // local variable
-    kDefLVar,
     kRet,
     kIf,
     kAssign,

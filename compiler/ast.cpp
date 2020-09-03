@@ -89,25 +89,7 @@ Node* Statement() {
   }
 
   auto node{Expr()};
-  if (Consume(";")) {
-    return node;
-  } else if (auto op{Consume(":=")}) {
-    if (node->kind != Node::kLVar) {
-      cerr << "lhs of ':=' must be an identifier" << endl;
-      ErrorAt(node->token->loc);
-    }
-
-    if (node->value.lvar->offset != 0) {
-      cerr << "'" << node->token->Raw() << "' is redefined" << endl;
-      ErrorAt(node->token->loc);
-    }
-
-    auto init{Expr()};
-    Expect(";");
-    local_vars[node->token->Raw()] = node->value.lvar;
-    node->value.lvar->offset = local_vars.size() * 8;
-    return new Node{Node::kDefLVar, op, nullptr, node, init, {0}};
-  }
+  Expect(";");
   return node;
 }
 
@@ -118,13 +100,23 @@ Node* Expr() {
 Node* Assignment() {
   auto node{Equality()};
 
-  for (;;) {
-    if (auto op{Consume("=")}) {
-      node = NewNodeExpr(Node::kAssign, op, node, Equality());
-    } else {
-      return node;
+  // 代入演算は右結合
+  if (auto op{Consume("=")}) {
+    node = NewNodeExpr(Node::kAssign, op, node, Assignment());
+  } else if (auto op{Consume(":=")}) {
+    if (node->kind != Node::kLVar) {
+      cerr << "lhs of ':=' must be an identifier" << endl;
+      ErrorAt(node->token->loc);
+    } else if (node->value.lvar->offset != 0) {
+      cerr << "'" << node->token->Raw() << "' is redefined" << endl;
+      ErrorAt(node->token->loc);
     }
+
+    local_vars[node->token->Raw()] = node->value.lvar;
+    node->value.lvar->offset = local_vars.size() * 8;
+    node = new Node{Node::kAssign, op, nullptr, node, Assignment(), {0}};
   }
+  return node;
 }
 
 Node* Equality() {

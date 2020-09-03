@@ -38,13 +38,6 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     LoadLVarAddr(os, node);
     os << "    push " << (lval ? "rax" : "qword [rax]") << "\n";
     return;
-  case Node::kDefLVar:
-    GenerateAsm(os, node->rhs);
-    os << "    pop rdi\n";
-    LoadLVarAddr(os, node->lhs);
-    os << "    mov [rax], rdi\n";
-    os << "    push " << (lval ? "rax" : "rdi") << "\n";
-    return;
   case Node::kRet:
     GenerateAsm(os, node->lhs);
     os << "    pop rax\n";
