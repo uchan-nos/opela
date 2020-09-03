@@ -26,6 +26,9 @@ struct Node {
     kRet,
     kIf,
     kAssign,
+    kLoop, // 無限ループ
+    kFor, // 条件付きループ
+    kBlock, // 複文
   } kind;
 
   Token* token; // このノードを代表するトークン

@@ -49,12 +49,12 @@ Node* Program() {
 }
 
 Node* CompoundStatement() {
-  Expect("{");
+  auto start{Expect("{")};
   if (Consume("}")) {
     return new Node{Node::kInt, nullptr, nullptr, nullptr, nullptr, {0}};
   }
 
-  auto head{Statement()};
+  auto head{new Node{Node::kBlock, start, nullptr, nullptr, nullptr, {0}}};
   auto cur{head};
   while (!Consume("}")) {
     cur->next = Statement();
@@ -74,6 +74,18 @@ Node* Statement() {
     auto expr{Expr()};
     auto body{CompoundStatement()};
     return new Node{Node::kIf, tk, nullptr, expr, body, {0}};
+  }
+
+  if (auto tk{Consume(Token::kFor)}) {
+    if (Consume("{")) {
+      Rewind();
+      auto body{CompoundStatement()};
+      return new Node{Node::kLoop, tk, nullptr, nullptr, body, {0}};
+    }
+
+    auto expr{Expr()};
+    auto body{CompoundStatement()};
+    return new Node{Node::kFor, tk, nullptr, expr, body, {0}};
   }
 
   auto node{Expr()};

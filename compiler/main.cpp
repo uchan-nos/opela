@@ -60,6 +60,32 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     GenerateAsm(os, node->rhs);
     os << "if_else:\n";
     return;
+  case Node::kLoop:
+    os << "loop:\n";
+    GenerateAsm(os, node->rhs);
+    os << "    pop rax\n";
+    os << "    jmp loop\n";
+    return;
+  case Node::kFor:
+    os << "    push qword [rsp]\n";
+    os << "    jmp loop_cond\n";
+    os << "loop:\n";
+    os << "    pop rax\n";
+    GenerateAsm(os, node->rhs);
+    os << "loop_cond:\n";
+    GenerateAsm(os, node->lhs);
+    os << "    pop rax\n";
+    os << "    test rax, rax\n";
+    os << "    jnz loop\n";
+    return;
+  case Node::kBlock:
+    for (node = node->next; node != nullptr; node = node->next) {
+      GenerateAsm(os, node);
+      if (node->next) {
+        os << "    pop rax\n";
+      }
+    }
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

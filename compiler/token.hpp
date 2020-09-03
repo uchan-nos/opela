@@ -14,6 +14,7 @@ struct Token {
     kId,
     kRet,
     kIf,
+    kFor,
   } kind;
 
   const char* loc; // src の中を指すポインタ
@@ -34,3 +35,4 @@ Token* Consume(const std::string& raw);
 Token* Expect(Token::Kind kind);
 Token* Expect(const std::string& raw);
 bool AtEOF();
+void Rewind();

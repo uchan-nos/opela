@@ -4,6 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include <map>
 
 #include "magic_enum.hpp"
 #include "source.hpp"
@@ -11,6 +12,12 @@
 using namespace std;
 
 namespace {
+
+const map<Token::Kind, string> kKeywords{
+  {Token::kRet, "return"},
+  {Token::kIf,  "if"},
+  {Token::kFor, "for"},
+};
 
 bool IsAlpha(char ch) {
   return isalpha(ch) || ch == '_';
@@ -24,16 +31,6 @@ bool IsAlNum(char ch) {
 
 vector<Token> Tokenize(const char* p) {
   vector<Token> tokens;
-
-  auto consume_id = [&](Token::Kind kind, const string& id) {
-    if (string(p, id.size()) != id || IsAlNum(p[id.size()])) {
-      return false;
-    }
-
-    tokens.push_back(Token{kind, p, id.size(), 0});
-    p += id.size();
-    return true;
-  };
 
   while (*p) {
     if (isspace(*p)) {
@@ -66,11 +63,17 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (consume_id(Token::kRet, "return")) {
-      continue;
+    bool match_keyword{false};
+    for (auto [ kind, name ] : kKeywords) {
+      if (strncmp(p, name.c_str(), name.size()) == 0 &&
+          !IsAlNum(p[name.size()])) {
+        tokens.push_back(Token{kind, p, name.size(), 0});
+        p += name.size();
+        match_keyword = true;
+        break;
+      }
     }
-
-    if (consume_id(Token::kIf, "if")) {
+    if (match_keyword) {
       continue;
     }
 
@@ -135,4 +138,8 @@ Token* Expect(const string& raw) {
 
 bool AtEOF() {
   return cur_token->kind == Token::kEOF;
+}
+
+void Rewind() {
+  --cur_token;
 }
