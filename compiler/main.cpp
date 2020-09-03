@@ -48,6 +48,8 @@ void GenerateAsm(ostream& os, Node* node) {
     os << "    mov [rax], rdi\n";
     os << "    push rax\n";
     return;
+  default: // caseが足りないという警告を抑制する
+    break;
   }
 
   GenerateAsm(os, node->lhs);
@@ -70,8 +72,6 @@ void GenerateAsm(ostream& os, Node* node) {
     os << "    cqo\n";
     os << "    idiv rdi\n";
     break;
-  case Node::kInt: // 関数先頭のif文ではじかれている
-    break;
   case Node::kEqu:
     GenerateCmpSet(os, "e");
     break;
@@ -84,10 +84,10 @@ void GenerateAsm(ostream& os, Node* node) {
   case Node::kLE:
     GenerateCmpSet(os, "le");
     break;
-  case Node::kLVar: // 関数先頭のif文ではじかれている
-    break;
   case Node::kDefLVar:
     os << "    mov [rax], rdi\n";
+    break;
+  default: // caseが足りないという警告を抑制する
     break;
   }
 
