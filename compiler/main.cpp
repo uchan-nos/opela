@@ -14,10 +14,10 @@ void GenerateCmpSet(ostream& os, const char* cc) {
   os << "    movzx eax, al\n";
 }
 
-// 左辺値（lvalue）を生成する
-void GenerateLVal(ostream& os, Node* node) {
+// ローカル変数のアドレスを rax に書く
+void LoadLVarAddr(ostream& os, Node* node) {
   if (node->kind != Node::kLVar) {
-    cerr << "cannot generate lvalue for "
+    cerr << "cannot load address for "
          << magic_enum::enum_name(node->kind) << endl;
     ErrorAt(node->token->loc);
   } else if (node->value.lvar->offset == 0) {
@@ -27,26 +27,23 @@ void GenerateLVal(ostream& os, Node* node) {
   }
 
   os << "    lea rax, [rbp - " << node->value.lvar->offset << "]\n";
-  os << "    push rax\n";
 }
 
-void GenerateAsm(ostream& os, Node* node) {
+void GenerateAsm(ostream& os, Node* node, bool lval = false) {
   switch (node->kind) {
   case Node::kInt:
     os << "    push qword " << node->value.i << '\n';
     return;
   case Node::kLVar:
-    GenerateLVal(os, node);
-    os << "    pop rax\n";
-    os << "    push qword [rax]\n";
+    LoadLVarAddr(os, node);
+    os << "    push " << (lval ? "rax" : "qword [rax]") << "\n";
     return;
   case Node::kDefLVar:
-    GenerateLVal(os, node->lhs);
     GenerateAsm(os, node->rhs);
     os << "    pop rdi\n";
-    os << "    pop rax\n";
+    LoadLVarAddr(os, node->lhs);
     os << "    mov [rax], rdi\n";
-    os << "    push rax\n";
+    os << "    push " << (lval ? "rax" : "rdi") << "\n";
     return;
   case Node::kRet:
     GenerateAsm(os, node->lhs);
@@ -67,7 +64,7 @@ void GenerateAsm(ostream& os, Node* node) {
     break;
   }
 
-  GenerateAsm(os, node->lhs);
+  GenerateAsm(os, node->lhs, node->kind == Node::kAssign);
   GenerateAsm(os, node->rhs);
 
   os << "    pop rdi\n";
@@ -99,9 +96,10 @@ void GenerateAsm(ostream& os, Node* node) {
   case Node::kLE:
     GenerateCmpSet(os, "le");
     break;
-  case Node::kDefLVar:
+  case Node::kAssign:
     os << "    mov [rax], rdi\n";
-    break;
+    os << "    push " << (lval ? "rax" : "rdi") << "\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

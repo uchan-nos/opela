@@ -25,6 +25,7 @@ struct Node {
     kDefLVar,
     kRet,
     kIf,
+    kAssign,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -44,6 +45,7 @@ Node* Program();
 Node* CompoundStatement();
 Node* Statement();
 Node* Expr();
+Node* Assignment();
 Node* Equality();
 Node* Relational();
 Node* Additive();

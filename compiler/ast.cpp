@@ -100,7 +100,19 @@ Node* Statement() {
 }
 
 Node* Expr() {
-  return Equality();
+  return Assignment();
+}
+
+Node* Assignment() {
+  auto node{Equality()};
+
+  for (;;) {
+    if (auto op{Consume("=")}) {
+      node = NewNodeExpr(Node::kAssign, op, node, Equality());
+    } else {
+      return node;
+    }
+  }
 }
 
 Node* Equality() {
