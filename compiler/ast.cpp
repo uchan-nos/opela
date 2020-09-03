@@ -84,6 +84,14 @@ Node* Statement() {
     }
 
     auto expr{Expr()};
+    if (Consume(";")) {
+      auto cond{Expr()};
+      cond->next = expr; // condition -> initialization
+      Expect(";");
+      auto succ{Expr()};
+      expr->next = succ; // initialization -> successor
+      expr = cond;
+    }
     auto body{CompoundStatement()};
     return new Node{Node::kFor, tk, nullptr, expr, body, {0}};
   }

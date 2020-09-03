@@ -60,11 +60,24 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    jmp loop\n";
     return;
   case Node::kFor:
+    // for init; cond; succ { ... }
+    // init: node->lhs->next
+    // cond: node->lhs
+    // succ: node->lhs->next->next
+    if (node->lhs->next) {
+      GenerateAsm(os, node->lhs->next);
+      os << "    pop rax\n";
+    }
+
     os << "    push qword [rsp]\n";
     os << "    jmp loop_cond\n";
     os << "loop:\n";
     os << "    pop rax\n";
     GenerateAsm(os, node->rhs);
+    if (node->lhs->next) {
+      GenerateAsm(os, node->lhs->next->next);
+      os << "    pop rax\n";
+    }
     os << "loop_cond:\n";
     GenerateAsm(os, node->lhs);
     os << "    pop rax\n";
