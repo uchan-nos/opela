@@ -1,7 +1,6 @@
 #include "ast.hpp"
 
 #include <iostream>
-#include <map>
 
 #include "source.hpp"
 
@@ -21,22 +20,19 @@ Node* NewNodeInt(Token* tk, int64_t value) {
   return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr, {value}};
 }
 
-map<string, LVar*> local_vars;
-Node* NewNodeLVar(Token* tk) {
+Node* NewNodeLVar(Context* ctx, Token* tk) {
   auto node{NewNode(Node::kLVar, tk)};
-  if (auto it = local_vars.find(tk->Raw()); it != local_vars.end()) {
+  if (auto it = ctx->local_vars.find(tk->Raw()); it != ctx->local_vars.end()) {
     node->value.lvar = it->second;
   } else {
-    node->value.lvar = new LVar{tk, 0};
+    node->value.lvar = new LVar{ctx, tk, 0};
   }
   return node;
 }
 
-} // namespace
+Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテキスト
 
-size_t LVarBytes() {
-  return local_vars.size() * 8;
-}
+} // namespace
 
 Node* Program() {
   return DeclarationSequence();
@@ -60,6 +56,11 @@ Node* FunctionDefinition() {
   auto name{Expect(Token::kId)};
   Expect("(");
   Expect(")");
+
+  auto func_name{name->Raw()};
+  cur_ctx = new Context{func_name, {}};
+  contexts[func_name] = cur_ctx;
+
   auto body{CompoundStatement()};
   return new Node{Node::kDefFunc, name, nullptr, nullptr, body, nullptr, {0}};
 }
@@ -163,8 +164,8 @@ Node* Assignment() {
       ErrorAt(node->token->loc);
     }
 
-    local_vars[node->token->Raw()] = node->value.lvar;
-    node->value.lvar->offset = local_vars.size() * 8;
+    cur_ctx->local_vars[node->token->Raw()] = node->value.lvar;
+    node->value.lvar->offset = cur_ctx->StackSize();
     node = NewNodeExpr(Node::kAssign, op, node, Assignment());
   }
   return node;
@@ -270,7 +271,7 @@ Node* Primary() {
     Expect(")");
     return node;
   } else if (auto tk = Consume(Token::kId)) {
-    return NewNodeLVar(tk);
+    return NewNodeLVar(cur_ctx, tk);
   }
 
   auto tk{Expect(Token::kInt)};

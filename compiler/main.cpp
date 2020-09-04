@@ -20,6 +20,8 @@ string GenerateLabel() {
 
 const array<const char*, 6> kArgRegs{"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
+Context* cur_ctx; // 現在コード生成中の関数を表すコンテキスト
+
 } // namespace
 
 void GenerateCmpSet(ostream& os, const char* cc) {
@@ -55,7 +57,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
   case Node::kRet:
     GenerateAsm(os, node->lhs);
     os << "    pop rax\n";
-    os << "    jmp main_exit\n";
+    os << "    jmp " << cur_ctx->func_name << "_exit\n";
     return;
   case Node::kIf:
     {
@@ -139,9 +141,12 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
 
       auto f{node->lhs};
       if (f->kind == Node::kLVar && f->value.lvar->offset == 0) {
-        // 外部の関数だと仮定する
         auto fname{f->token->Raw()};
-        os << "extern " << fname << "\n";
+        auto f_ctx{contexts[fname]};
+        if (!f_ctx) {
+          // 未定義の関数なので，外部の関数だと仮定する
+          os << "extern " << fname << "\n";
+        }
         os << "    mov rax, " << fname << "\n";
       } else if (f->kind == Node::kLVar) {
         LoadLVarAddr(os, f);
@@ -160,18 +165,19 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     return;
   case Node::kDeclSeq:
     for (auto decl{node->next}; decl != nullptr; decl = decl->next) {
+      cur_ctx = contexts[decl->token->Raw()];
       GenerateAsm(os, decl);
     }
     return;
   case Node::kDefFunc:
-    os << "global " << node->token->Raw() << "\n";
-    os << node->token->Raw() << ":\n";
+    os << "global " << cur_ctx->func_name << "\n";
+    os << cur_ctx->func_name << ":\n";
     os << "    push rbp\n";
     os << "    mov rbp, rsp\n";
-    os << "    sub rsp, " << LVarBytes() << "\n";
+    os << "    sub rsp, " << cur_ctx->StackSize() << "\n";
     GenerateAsm(os, node->lhs); // 関数ボディ
     os << "    pop rax\n";
-    os << node->token->Raw() << "_exit:\n";
+    os << cur_ctx->func_name << "_exit:\n";
     os << "    mov rsp, rbp\n";
     os << "    pop rbp\n";
     os << "    ret\n";

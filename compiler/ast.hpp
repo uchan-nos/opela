@@ -1,14 +1,27 @@
 #pragma once
 
 #include <cstdint>
+#include <map>
 #include <string>
 
 #include "token.hpp"
 
+struct Context;
+
 struct LVar {
+  Context* ctx;
   Token* token;
   std::int64_t offset;
 };
+
+struct Context {
+  std::string func_name;
+  std::map<std::string, LVar*> local_vars;
+
+  std::size_t StackSize() const { return local_vars.size() * 8; }
+};
+
+inline std::map<std::string /* func name */, Context*> contexts;
 
 struct Node {
   enum Kind {
@@ -45,8 +58,6 @@ struct Node {
     LVar* lvar;
   } value;
 };
-
-size_t LVarBytes();
 
 Node* Program();
 Node* DeclarationSequence();

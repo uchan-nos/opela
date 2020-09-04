@@ -51,6 +51,7 @@ build_run 9  "func main() { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*
 build_run 39 "func main() { func42() - 3; }"
 build_run 42 "func main() { funcfunc42()(); }"
 build_run 4  "func main() { add(add(1, -2), 5); }"
+build_run 57 "func main(){add(f(), 2);} func f(){s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} s;}"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
