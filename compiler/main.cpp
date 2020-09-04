@@ -51,7 +51,12 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    jz if_else\n";
     os << "    pop rax\n";
     GenerateAsm(os, node->rhs);
+    os << "    jmp if_exit\n";
     os << "if_else:\n";
+    if (node->next) {
+      GenerateAsm(os, node->next);
+    }
+    os << "if_exit:\n";
     return;
   case Node::kLoop:
     os << "loop:\n";

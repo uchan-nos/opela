@@ -73,7 +73,11 @@ Node* Statement() {
   if (auto tk{Consume(Token::kIf)}) {
     auto expr{Expr()};
     auto body{CompoundStatement()};
-    return new Node{Node::kIf, tk, nullptr, expr, body, {0}};
+    Node* body_else{nullptr};
+    if (Consume(Token::kElse)) {
+      body_else = CompoundStatement();
+    }
+    return new Node{Node::kIf, tk, body_else, expr, body, {0}};
   }
 
   if (auto tk{Consume(Token::kFor)}) {

@@ -14,6 +14,7 @@ struct Token {
     kId,
     kRet,
     kIf,
+    kElse,
     kFor,
   } kind;
 

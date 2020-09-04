@@ -14,9 +14,10 @@ using namespace std;
 namespace {
 
 const map<Token::Kind, string> kKeywords{
-  {Token::kRet, "return"},
-  {Token::kIf,  "if"},
-  {Token::kFor, "for"},
+  {Token::kRet,  "return"},
+  {Token::kIf,   "if"},
+  {Token::kElse, "else"},
+  {Token::kFor,  "for"},
 };
 
 bool IsAlpha(char ch) {
