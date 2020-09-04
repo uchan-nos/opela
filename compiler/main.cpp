@@ -187,6 +187,9 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    ret\n";
     return;
   case Node::kDefVar:
+    if (node->rhs) { // 初期値付き変数定義
+      break;
+    }
     os << "    push rax\n"; // dummy push
     return;
   default: // caseが足りないという警告を抑制する
@@ -195,7 +198,8 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
 
   const bool request_lval{
     node->kind == Node::kAssign ||
-    node->kind == Node::kAddr
+    node->kind == Node::kAddr ||
+    node->kind == Node::kDefVar
   };
 
   GenerateAsm(os, node->lhs, request_lval);
@@ -233,6 +237,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     GenerateCmpSet(os, "le");
     break;
   case Node::kAssign:
+  case Node::kDefVar:
     os << "    mov [rax], rdi\n";
     os << "    push " << (lval ? "rax" : "rdi") << "\n";
     return;

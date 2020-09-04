@@ -30,6 +30,18 @@ Node* NewNodeLVar(Context* ctx, Token* tk) {
   return node;
 }
 
+void AllocateLVar(Context* ctx, LVar* lvar) {
+  ctx->local_vars[lvar->token->Raw()] = lvar;
+  lvar->offset = ctx->StackSize();
+}
+
+void ErrorRedefineLVar(LVar* lvar) {
+  if (lvar->offset != 0) {
+    cerr << "'" << lvar->token->Raw() << "' is redefined" << endl;
+    ErrorAt(lvar->token->loc);
+  }
+}
+
 Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテキスト
 
 const map<Node::Kind, const char*> kUnaryOps{
@@ -69,8 +81,7 @@ Node* FunctionDefinition() {
     for (;;) {
       auto lvar{new LVar{cur_ctx, Expect(Token::kId), 0}};
       cur_ctx->params.push_back(lvar);
-      cur_ctx->local_vars[lvar->token->Raw()] = lvar;
-      lvar->offset = cur_ctx->StackSize();
+      AllocateLVar(cur_ctx, lvar);
       if (!Consume(",")) {
         Expect(")");
         break;
@@ -102,19 +113,16 @@ Node* Statement() {
   if (Consume(Token::kVar)) {
     auto id{Expect(Token::kId)};
     auto tspec{TypeSpecifier()};
+    Node* init{nullptr};
+    if (Consume("=")) {
+      init = Expr();
+    }
     Expect(";");
 
-    if (auto it{cur_ctx->local_vars.find(id->Raw())};
-        it != cur_ctx->local_vars.end()) {
-      cerr << "'" << id->Raw() << "' is redefined" << endl;
-      ErrorAt(id->loc);
-    }
-    auto lvar{new LVar{cur_ctx, id, 0}};
-
-    cur_ctx->local_vars[id->Raw()] = lvar;
-    lvar->offset = cur_ctx->StackSize();
-
-    return new Node{Node::kDefVar, id, nullptr, nullptr, tspec, nullptr, {0}};
+    auto node{NewNodeLVar(cur_ctx, id)};
+    ErrorRedefineLVar(node->value.lvar);
+    AllocateLVar(cur_ctx, node->value.lvar);
+    return new Node{Node::kDefVar, id, nullptr, tspec, node, init, {0}};
   }
 
   return ExpressionStatement();
@@ -194,13 +202,10 @@ Node* Assignment() {
     if (node->kind != Node::kLVar) {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ErrorAt(node->token->loc);
-    } else if (node->value.lvar->offset != 0) {
-      cerr << "'" << node->token->Raw() << "' is redefined" << endl;
-      ErrorAt(node->token->loc);
     }
+    ErrorRedefineLVar(node->value.lvar);
 
-    cur_ctx->local_vars[node->token->Raw()] = node->value.lvar;
-    node->value.lvar->offset = cur_ctx->StackSize();
+    AllocateLVar(cur_ctx, node->value.lvar);
     node = NewNodeExpr(Node::kAssign, op, node, Assignment());
   }
   return node;
