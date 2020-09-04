@@ -48,6 +48,26 @@ Node* Program() {
   return head;
 }
 
+Node* Statement() {
+  if (Peek(Token::kRet)) {
+    return JumpStatement();
+  }
+
+  if (Peek(Token::kIf)) {
+    return SelectionStatement();
+  }
+
+  if (Peek(Token::kFor)) {
+    return IterationStatement();
+  }
+
+  if (Peek("{")) {
+    return CompoundStatement();
+  }
+
+  return ExpressionStatement();
+}
+
 Node* CompoundStatement() {
   auto start{Expect("{")};
   if (Consume("}")) {
@@ -63,43 +83,45 @@ Node* CompoundStatement() {
   return head;
 }
 
-Node* Statement() {
-  if (auto tk{Consume(Token::kRet)}) {
-    auto expr{Expr()};
+Node* SelectionStatement() {
+  auto tk{Expect(Token::kIf)};
+  auto expr{Expr()};
+  auto body{CompoundStatement()};
+  Node* body_else{nullptr};
+  if (Consume(Token::kElse)) {
+    body_else = Statement();
+  }
+  return new Node{Node::kIf, tk, body_else, expr, body, {0}};
+}
+
+Node* IterationStatement() {
+  auto tk{Expect(Token::kFor)};
+  if (Peek("{")) {
+    auto body{CompoundStatement()};
+    return new Node{Node::kLoop, tk, nullptr, nullptr, body, {0}};
+  }
+
+  auto expr{Expr()};
+  if (Consume(";")) {
+    auto cond{Expr()};
+    cond->next = expr; // condition -> initialization
     Expect(";");
-    return new Node{Node::kRet, tk, nullptr, expr, nullptr, {0}};
+    auto succ{Expr()};
+    expr->next = succ; // initialization -> successor
+    expr = cond;
   }
+  auto body{CompoundStatement()};
+  return new Node{Node::kFor, tk, nullptr, expr, body, {0}};
+}
 
-  if (auto tk{Consume(Token::kIf)}) {
-    auto expr{Expr()};
-    auto body{CompoundStatement()};
-    Node* body_else{nullptr};
-    if (Consume(Token::kElse)) {
-      body_else = CompoundStatement();
-    }
-    return new Node{Node::kIf, tk, body_else, expr, body, {0}};
-  }
+Node* JumpStatement() {
+  auto tk{Expect(Token::kRet)};
+  auto expr{Expr()};
+  Expect(";");
+  return new Node{Node::kRet, tk, nullptr, expr, nullptr, {0}};
+}
 
-  if (auto tk{Consume(Token::kFor)}) {
-    if (Consume("{")) {
-      Rewind();
-      auto body{CompoundStatement()};
-      return new Node{Node::kLoop, tk, nullptr, nullptr, body, {0}};
-    }
-
-    auto expr{Expr()};
-    if (Consume(";")) {
-      auto cond{Expr()};
-      cond->next = expr; // condition -> initialization
-      Expect(";");
-      auto succ{Expr()};
-      expr->next = succ; // initialization -> successor
-      expr = cond;
-    }
-    auto body{CompoundStatement()};
-    return new Node{Node::kFor, tk, nullptr, expr, body, {0}};
-  }
-
+Node* ExpressionStatement() {
   auto node{Expr()};
   Expect(";");
   return node;

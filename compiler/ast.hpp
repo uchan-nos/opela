@@ -44,8 +44,12 @@ struct Node {
 size_t LVarBytes();
 
 Node* Program();
-Node* CompoundStatement();
 Node* Statement();
+Node* CompoundStatement();
+Node* SelectionStatement();
+Node* IterationStatement();
+Node* JumpStatement();
+Node* ExpressionStatement();
 Node* Expr();
 Node* Assignment();
 Node* Equality();

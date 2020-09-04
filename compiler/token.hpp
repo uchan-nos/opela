@@ -31,9 +31,10 @@ inline std::vector<Token>::iterator cur_token;
 
 std::vector<Token> Tokenize(const char* p);
 [[noreturn]] void Error(const Token& tk);
+Token* Peek(Token::Kind kind);
+Token* Peek(const std::string& raw);
 Token* Consume(Token::Kind kind);
 Token* Consume(const std::string& raw);
 Token* Expect(Token::Kind kind);
 Token* Expect(const std::string& raw);
 bool AtEOF();
-void Rewind();

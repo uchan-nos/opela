@@ -104,23 +104,34 @@ void Error(const Token& tk) {
   ErrorAt(tk.loc);
 }
 
-Token* Consume(Token::Kind kind) {
+Token* Peek(Token::Kind kind) {
   if (cur_token->kind == kind) {
-    auto tk{cur_token};
-    ++cur_token;
-    return &*tk;
+    return &*cur_token;
   }
   return nullptr;
 }
 
-Token* Consume(const string& raw) {
-  string tk_raw(cur_token->loc, cur_token->len);
-  if (cur_token->kind == Token::kReserved && tk_raw == raw) {
-    auto tk{cur_token};
-    ++cur_token;
-    return &*tk;
+Token* Peek(const string& raw) {
+  if (cur_token->kind == Token::kReserved && cur_token->Raw() == raw) {
+    return &*cur_token;
   }
   return nullptr;
+}
+
+Token* Consume(Token::Kind kind) {
+  auto tk{Peek(kind)};
+  if (tk) {
+    ++cur_token;
+  }
+  return tk;
+}
+
+Token* Consume(const string& raw) {
+  auto tk{Peek(raw)};
+  if (tk) {
+    ++cur_token;
+  }
+  return tk;
 }
 
 Token* Expect(Token::Kind kind) {
@@ -139,8 +150,4 @@ Token* Expect(const string& raw) {
 
 bool AtEOF() {
   return cur_token->kind == Token::kEOF;
-}
-
-void Rewind() {
-  --cur_token;
 }
