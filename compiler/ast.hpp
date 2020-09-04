@@ -30,6 +30,8 @@ struct Node {
     kBlock, // 複文
     kCall,
     kEList, // 式リスト
+    kDeclSeq,
+    kDefFunc,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -47,6 +49,8 @@ struct Node {
 size_t LVarBytes();
 
 Node* Program();
+Node* DeclarationSequence();
+Node* FunctionDefinition();
 Node* Statement();
 Node* CompoundStatement();
 Node* SelectionStatement();

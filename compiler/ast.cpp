@@ -39,17 +39,29 @@ size_t LVarBytes() {
 }
 
 Node* Program() {
-  if (AtEOF()) {
-    return nullptr;
-  }
+  return DeclarationSequence();
+}
 
-  auto head{Statement()};
+Node* DeclarationSequence() {
+  auto head{NewNode(Node::kDeclSeq, nullptr)};
   auto cur{head};
-  while (!AtEOF()) {
-    cur->next = Statement();
+  for (;;) {
+    if (Peek(Token::kFunc)) {
+      cur->next = FunctionDefinition();
+    } else {
+      return head;
+    }
     cur = cur->next;
   }
-  return head;
+}
+
+Node* FunctionDefinition() {
+  Expect(Token::kFunc);
+  auto name{Expect(Token::kId)};
+  Expect("(");
+  Expect(")");
+  auto body{CompoundStatement()};
+  return new Node{Node::kDefFunc, name, nullptr, nullptr, body, nullptr, {0}};
 }
 
 Node* Statement() {

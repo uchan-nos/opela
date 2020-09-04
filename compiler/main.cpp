@@ -158,6 +158,24 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       os << "    push rax\n";
     }
     return;
+  case Node::kDeclSeq:
+    for (auto decl{node->next}; decl != nullptr; decl = decl->next) {
+      GenerateAsm(os, decl);
+    }
+    return;
+  case Node::kDefFunc:
+    os << "global " << node->token->Raw() << "\n";
+    os << node->token->Raw() << ":\n";
+    os << "    push rbp\n";
+    os << "    mov rbp, rsp\n";
+    os << "    sub rsp, " << LVarBytes() << "\n";
+    GenerateAsm(os, node->lhs); // 関数ボディ
+    os << "    pop rax\n";
+    os << node->token->Raw() << "_exit:\n";
+    os << "    mov rsp, rbp\n";
+    os << "    pop rbp\n";
+    os << "    ret\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -211,20 +229,17 @@ int main() {
   cur_token = tokens.begin();
 
   ostringstream oss;
-  for (auto node{Program()}; node != nullptr; node = node->next) {
-    GenerateAsm(oss, node);
-    oss << "    pop rax\n";
-  }
+  GenerateAsm(oss, Program());
 
   cout << "bits 64\nsection .text\n";
-  cout << "global main\n";
-  cout << "main:\n";
-  cout << "    push rbp\n";
-  cout << "    mov rbp, rsp\n";
-  cout << "    sub rsp, " << LVarBytes() << "\n";
+  //cout << "global main\n";
+  //cout << "main:\n";
+  //cout << "    push rbp\n";
+  //cout << "    mov rbp, rsp\n";
+  //cout << "    sub rsp, " << LVarBytes() << "\n";
   cout << oss.str();
-  cout << "main_exit:\n";
-  cout << "    mov rsp, rbp\n";
-  cout << "    pop rbp\n";
-  cout << "    ret\n";
+  //cout << "main_exit:\n";
+  //cout << "    mov rsp, rbp\n";
+  //cout << "    pop rbp\n";
+  //cout << "    ret\n";
 }
