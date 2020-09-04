@@ -186,6 +186,9 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    pop rbp\n";
     os << "    ret\n";
     return;
+  case Node::kDefVar:
+    os << "    push rax\n"; // dummy push
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

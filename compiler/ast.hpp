@@ -48,6 +48,8 @@ struct Node {
     kDefFunc,
     kAddr,
     kDeref,
+    kDefVar,
+    kType,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -80,3 +82,4 @@ Node* Multiplicative();
 Node* Unary();
 Node* Postfix();
 Node* Primary();
+Node* TypeSpecifier();

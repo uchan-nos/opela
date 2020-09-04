@@ -99,6 +99,24 @@ Node* Statement() {
     return CompoundStatement();
   }
 
+  if (Consume(Token::kVar)) {
+    auto id{Expect(Token::kId)};
+    auto tspec{TypeSpecifier()};
+    Expect(";");
+
+    if (auto it{cur_ctx->local_vars.find(id->Raw())};
+        it != cur_ctx->local_vars.end()) {
+      cerr << "'" << id->Raw() << "' is redefined" << endl;
+      ErrorAt(id->loc);
+    }
+    auto lvar{new LVar{cur_ctx, id, 0}};
+
+    cur_ctx->local_vars[id->Raw()] = lvar;
+    lvar->offset = cur_ctx->StackSize();
+
+    return new Node{Node::kDefVar, id, nullptr, nullptr, tspec, nullptr, {0}};
+  }
+
   return ExpressionStatement();
 }
 
@@ -300,4 +318,15 @@ Node* Primary() {
 
   auto tk{Expect(Token::kInt)};
   return NewNodeInt(tk, tk->value);
+}
+
+Node* TypeSpecifier() {
+  int64_t num_ptr{0};
+  while (Consume("*")) {
+    ++num_ptr;
+  }
+  auto type{Expect(Token::kId)};
+  auto node{NewNode(Node::kType, type)};
+  node->value.i = num_ptr;
+  return node;
 }
