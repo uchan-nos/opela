@@ -29,6 +29,7 @@ struct Node {
     kFor, // 条件付きループ
     kBlock, // 複文
     kCall,
+    kEList, // 式リスト
   } kind;
 
   Token* token; // このノードを代表するトークン

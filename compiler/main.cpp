@@ -1,3 +1,4 @@
+#include <array>
 #include <iostream>
 #include <sstream>
 
@@ -16,6 +17,8 @@ string GenerateLabel() {
   oss << "LABEL" << label_counter++;
   return oss.str();
 }
+
+const array<const char*, 6> kArgRegs{"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 } // namespace
 
@@ -124,6 +127,16 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     return;
   case Node::kCall:
     {
+      int num_arg{0};
+      for (auto arg{node->rhs->next}; arg != nullptr; arg = arg->next) {
+        if (num_arg == kArgRegs.size()) {
+          cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
+          ErrorAt(arg->token->loc);
+        }
+        GenerateAsm(os, arg);
+        ++num_arg;
+      }
+
       auto f{node->lhs};
       if (f->kind == Node::kLVar && f->value.lvar->offset == 0) {
         // 外部の関数だと仮定する
@@ -136,6 +149,11 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
         GenerateAsm(os, f, true);
         os << "    pop rax\n";
       }
+
+      for (; num_arg > 0; --num_arg) {
+        os << "    pop " << kArgRegs[num_arg - 1] << "\n";
+      }
+
       os << "    call rax\n";
       os << "    push rax\n";
     }

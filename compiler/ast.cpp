@@ -233,8 +233,19 @@ Node* Postfix() {
 
   for (;;) {
     if (auto op{Consume("(")}) {
-      Expect(")");
-      node = NewNodeExpr(Node::kCall, op, node, nullptr);
+      auto head{NewNode(Node::kEList, op)};
+      auto cur{head};
+      if (!Consume(")")) {
+        for (;;) {
+          cur->next = Expr();
+          cur = cur->next;
+          if (!Consume(",")) {
+            Expect(")");
+            break;
+          }
+        }
+      }
+      node = NewNodeExpr(Node::kCall, op, node, head);
     } else {
       return node;
     }
