@@ -130,8 +130,11 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
         auto fname{f->token->Raw()};
         os << "extern " << fname << "\n";
         os << "    mov rax, " << fname << "\n";
-      } else {
+      } else if (f->kind == Node::kLVar) {
         LoadLVarAddr(os, f);
+      } else {
+        GenerateAsm(os, f, true);
+        os << "    pop rax\n";
       }
       os << "    call rax\n";
       os << "    push rax\n";

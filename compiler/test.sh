@@ -49,6 +49,7 @@ build_run 5 "if 0 { 3; } else if 1 { 5; } else { 4; }"
 build_run 42 "42; {}"
 build_run 9 "s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s;"
 build_run 39 "func42() - 3;"
+build_run 42 "funcfunc42()();"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
