@@ -88,7 +88,14 @@ Node* SelectionStatement() {
   auto body{CompoundStatement()};
   Node* body_else{nullptr};
   if (Consume(Token::kElse)) {
-    body_else = Statement();
+    if (Peek("{")) {
+      body_else = CompoundStatement();
+    } else if (Peek(Token::kIf)) {
+      body_else = SelectionStatement();
+    } else {
+      cerr << "else must be followed by if/compound statement" << endl;
+      ErrorAt(cur_token->loc);
+    }
   }
   return new Node{Node::kIf, tk, nullptr, expr, body, body_else, {0}};
 }
