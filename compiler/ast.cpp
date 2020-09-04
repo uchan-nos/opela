@@ -9,17 +9,21 @@ using namespace std;
 
 namespace {
 
+Node* NewNode(Node::Kind kind, Token* tk) {
+  return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr, {0}};
+}
+
 Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
-  return new Node{kind, op, nullptr, lhs, rhs, {0}};
+  return new Node{kind, op, nullptr, nullptr, lhs, rhs, {0}};
 }
 
 Node* NewNodeInt(Token* tk, int64_t value) {
-  return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, {value}};
+  return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr, {value}};
 }
 
 map<string, LVar*> local_vars;
 Node* NewNodeLVar(Token* tk) {
-  auto node = new Node{Node::kLVar, tk, nullptr, nullptr, nullptr, {0}};
+  auto node{NewNode(Node::kLVar, tk)};
   if (auto it = local_vars.find(tk->Raw()); it != local_vars.end()) {
     node->value.lvar = it->second;
   } else {
@@ -69,12 +73,7 @@ Node* Statement() {
 }
 
 Node* CompoundStatement() {
-  auto start{Expect("{")};
-  if (Consume("}")) {
-    return new Node{Node::kInt, nullptr, nullptr, nullptr, nullptr, {0}};
-  }
-
-  auto head{new Node{Node::kBlock, start, nullptr, nullptr, nullptr, {0}}};
+  auto head{NewNode(Node::kBlock, Expect("{"))};
   auto cur{head};
   while (!Consume("}")) {
     cur->next = Statement();
@@ -91,34 +90,33 @@ Node* SelectionStatement() {
   if (Consume(Token::kElse)) {
     body_else = Statement();
   }
-  return new Node{Node::kIf, tk, body_else, expr, body, {0}};
+  return new Node{Node::kIf, tk, nullptr, expr, body, body_else, {0}};
 }
 
 Node* IterationStatement() {
   auto tk{Expect(Token::kFor)};
   if (Peek("{")) {
     auto body{CompoundStatement()};
-    return new Node{Node::kLoop, tk, nullptr, nullptr, body, {0}};
+    return new Node{Node::kLoop, tk, nullptr, nullptr, body, nullptr, {0}};
   }
 
-  auto expr{Expr()};
+  auto cond{Expr()};
+  Node* init{nullptr};
   if (Consume(";")) {
-    auto cond{Expr()};
-    cond->next = expr; // condition -> initialization
+    init = cond;
+    cond = Expr();
     Expect(";");
-    auto succ{Expr()};
-    expr->next = succ; // initialization -> successor
-    expr = cond;
+    init->next = Expr();
   }
   auto body{CompoundStatement()};
-  return new Node{Node::kFor, tk, nullptr, expr, body, {0}};
+  return new Node{Node::kFor, tk, nullptr, cond, body, init, {0}};
 }
 
 Node* JumpStatement() {
   auto tk{Expect(Token::kRet)};
   auto expr{Expr()};
   Expect(";");
-  return new Node{Node::kRet, tk, nullptr, expr, nullptr, {0}};
+  return new Node{Node::kRet, tk, nullptr, nullptr, expr, nullptr, {0}};
 }
 
 Node* ExpressionStatement() {
@@ -148,7 +146,7 @@ Node* Assignment() {
 
     local_vars[node->token->Raw()] = node->value.lvar;
     node->value.lvar->offset = local_vars.size() * 8;
-    node = new Node{Node::kAssign, op, nullptr, node, Assignment(), {0}};
+    node = NewNodeExpr(Node::kAssign, op, node, Assignment());
   }
   return node;
 }

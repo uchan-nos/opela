@@ -32,6 +32,7 @@ struct Node {
 
   Token* token; // このノードを代表するトークン
   Node* next; // 複文中で次の文を表す
+  Node* cond; // 条件式がある文における条件式
   Node* lhs;
   Node* rhs;
 

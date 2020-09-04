@@ -8,6 +8,17 @@
 
 using namespace std;
 
+namespace {
+
+size_t label_counter{0};
+string GenerateLabel() {
+  ostringstream oss;
+  oss << "LABEL" << label_counter++;
+  return oss.str();
+}
+
+} // namespace
+
 void GenerateCmpSet(ostream& os, const char* cc) {
   os << "    cmp rax, rdi\n";
   os << "    set" << cc << " al\n";
@@ -44,33 +55,37 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    jmp main_exit\n";
     return;
   case Node::kIf:
-    os << "    push rax\n";
-    GenerateAsm(os, node->lhs);
-    os << "    pop rax\n";
-    os << "    test rax, rax\n";
-    os << "    jz if_else\n";
-    os << "    pop rax\n";
-    GenerateAsm(os, node->rhs);
-    os << "    jmp if_exit\n";
-    os << "if_else:\n";
-    if (node->next) {
-      GenerateAsm(os, node->next);
+    {
+      auto label_else{GenerateLabel()};
+      auto label_exit{GenerateLabel()};
+      os << "    push rax\n";
+      GenerateAsm(os, node->cond);
+      os << "    pop rax\n";
+      os << "    test rax, rax\n";
+      os << "    jz " << label_else << "\n";
+      os << "    pop rax\n";
+      GenerateAsm(os, node->lhs);
+      os << "    jmp " << label_exit << "\n";
+      os << label_else << ":\n";
+      if (node->rhs) {
+        GenerateAsm(os, node->rhs);
+      }
+      os << label_exit << ":\n";
     }
-    os << "if_exit:\n";
     return;
   case Node::kLoop:
     os << "loop:\n";
-    GenerateAsm(os, node->rhs);
+    GenerateAsm(os, node->lhs);
     os << "    pop rax\n";
     os << "    jmp loop\n";
     return;
   case Node::kFor:
     // for init; cond; succ { ... }
-    // init: node->lhs->next
-    // cond: node->lhs
-    // succ: node->lhs->next->next
-    if (node->lhs->next) {
-      GenerateAsm(os, node->lhs->next);
+    // init: node->rhs
+    // cond: node->cond
+    // succ: node->rhs->next
+    if (node->rhs) {
+      GenerateAsm(os, node->rhs);
       os << "    pop rax\n";
     }
 
@@ -78,18 +93,22 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    jmp loop_cond\n";
     os << "loop:\n";
     os << "    pop rax\n";
-    GenerateAsm(os, node->rhs);
-    if (node->lhs->next) {
-      GenerateAsm(os, node->lhs->next->next);
+    GenerateAsm(os, node->lhs);
+    if (node->rhs) {
+      GenerateAsm(os, node->rhs->next);
       os << "    pop rax\n";
     }
     os << "loop_cond:\n";
-    GenerateAsm(os, node->lhs);
+    GenerateAsm(os, node->cond);
     os << "    pop rax\n";
     os << "    test rax, rax\n";
     os << "    jnz loop\n";
     return;
   case Node::kBlock:
+    if (node->next == nullptr) {
+      os << "    push rax\n";
+      return;
+    }
     for (node = node->next; node != nullptr; node = node->next) {
       GenerateAsm(os, node);
       if (node->next) {
