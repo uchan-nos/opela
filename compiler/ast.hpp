@@ -46,6 +46,8 @@ struct Node {
     kEList, // 式リスト
     kDeclSeq,
     kDefFunc,
+    kAddr,
+    kDeref,
   } kind;
 
   Token* token; // このノードを代表するトークン

@@ -190,10 +190,17 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     break;
   }
 
-  GenerateAsm(os, node->lhs, node->kind == Node::kAssign);
-  GenerateAsm(os, node->rhs);
+  const bool request_lval{
+    node->kind == Node::kAssign ||
+    node->kind == Node::kAddr
+  };
 
-  os << "    pop rdi\n";
+  GenerateAsm(os, node->lhs, request_lval);
+  if (node->rhs) {
+    // 単項演算子の場合は rhs が null の場合がある
+    GenerateAsm(os, node->rhs);
+    os << "    pop rdi\n";
+  }
   os << "    pop rax\n";
 
   switch (node->kind) {
@@ -226,6 +233,14 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    mov [rax], rdi\n";
     os << "    push " << (lval ? "rax" : "rdi") << "\n";
     return;
+  case Node::kAddr:
+    // pass
+    break;
+  case Node::kDeref:
+    if (!lval) {
+      os << "    mov rax, [rax]\n";
+    }
+    break;
   default: // caseが足りないという警告を抑制する
     break;
   }

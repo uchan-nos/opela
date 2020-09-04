@@ -32,6 +32,11 @@ Node* NewNodeLVar(Context* ctx, Token* tk) {
 
 Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテキスト
 
+const map<Node::Kind, const char*> kUnaryOps{
+  {Node::kAddr,  "&"},
+  {Node::kDeref, "*"},
+};
+
 } // namespace
 
 Node* Program() {
@@ -245,11 +250,18 @@ Node* Multiplicative() {
 
 Node* Unary() {
   if (Consume("+")) {
-    return Primary();
+    return Unary();
   } else if (auto op{Consume("-")}) {
     auto zero{NewNodeInt(nullptr, 0)};
-    return NewNodeExpr(Node::kSub, op, zero, Primary());
+    return NewNodeExpr(Node::kSub, op, zero, Unary());
   }
+
+  for (auto [ k, v ] : kUnaryOps) {
+    if (auto op{Consume(v)}) {
+      return NewNodeExpr(k, op, Unary(), nullptr);
+    }
+  }
+
   return Postfix();
 }
 
