@@ -1,11 +1,12 @@
 CXX = clang++-10
 CXXFLAGS = -O3 -std=c++20 -Wall -Wextra -g
+CFLAGS = -O3 -std=c11 -Wall -Wextra
 
 opelac: main.cpp source.cpp token.cpp ast.cpp
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 .PHONY: test
-test: opelac
+test: opelac cfunc.o
 	./test.sh
 
 .PHONY: clean

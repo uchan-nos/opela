@@ -225,7 +225,20 @@ Node* Unary() {
     auto zero{NewNodeInt(nullptr, 0)};
     return NewNodeExpr(Node::kSub, op, zero, Primary());
   }
-  return Primary();
+  return Postfix();
+}
+
+Node* Postfix() {
+  auto node{Primary()};
+
+  for (;;) {
+    if (auto op{Consume("(")}) {
+      Expect(")");
+      node = NewNodeExpr(Node::kCall, op, node, nullptr);
+    } else {
+      return node;
+    }
+  }
 }
 
 Node* Primary() {

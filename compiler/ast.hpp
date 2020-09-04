@@ -28,6 +28,7 @@ struct Node {
     kLoop, // 無限ループ
     kFor, // 条件付きループ
     kBlock, // 複文
+    kCall,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -58,4 +59,5 @@ Node* Relational();
 Node* Additive();
 Node* Multiplicative();
 Node* Unary();
+Node* Postfix();
 Node* Primary();

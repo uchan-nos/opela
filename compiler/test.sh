@@ -9,7 +9,7 @@ function build_run() {
 
   echo "$input" | ./opelac > tmp.s
   nasm -f elf64 -o tmp.o tmp.s
-  cc -o tmp tmp.o
+  cc -o tmp tmp.o cfunc.o
   ./tmp
   got=$?
 
@@ -48,6 +48,7 @@ build_run 4 "if 0 { 3; } else { 4; }"
 build_run 5 "if 0 { 3; } else if 1 { 5; } else { 4; }"
 build_run 42 "42; {}"
 build_run 9 "s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s;"
+build_run 39 "func42() - 3;"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

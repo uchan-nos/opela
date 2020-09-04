@@ -122,6 +122,21 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       }
     }
     return;
+  case Node::kCall:
+    {
+      auto f{node->lhs};
+      if (f->kind == Node::kLVar && f->value.lvar->offset == 0) {
+        // 外部の関数だと仮定する
+        auto fname{f->token->Raw()};
+        os << "extern " << fname << "\n";
+        os << "    mov rax, " << fname << "\n";
+      } else {
+        LoadLVarAddr(os, f);
+      }
+      os << "    call rax\n";
+      os << "    push rax\n";
+    }
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
