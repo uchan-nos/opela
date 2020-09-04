@@ -54,12 +54,24 @@ Node* DeclarationSequence() {
 Node* FunctionDefinition() {
   Expect(Token::kFunc);
   auto name{Expect(Token::kId)};
-  Expect("(");
-  Expect(")");
 
   auto func_name{name->Raw()};
-  cur_ctx = new Context{func_name, {}};
+  cur_ctx = new Context{func_name, {}, {}};
   contexts[func_name] = cur_ctx;
+
+  Expect("(");
+  if (!Consume(")")) {
+    for (;;) {
+      auto lvar{new LVar{cur_ctx, Expect(Token::kId), 0}};
+      cur_ctx->params.push_back(lvar);
+      cur_ctx->local_vars[lvar->token->Raw()] = lvar;
+      lvar->offset = cur_ctx->StackSize();
+      if (!Consume(",")) {
+        Expect(")");
+        break;
+      }
+    }
+  }
 
   auto body{CompoundStatement()};
   return new Node{Node::kDefFunc, name, nullptr, nullptr, body, nullptr, {0}};

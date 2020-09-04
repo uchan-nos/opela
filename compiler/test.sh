@@ -52,6 +52,8 @@ build_run 39 "func main() { func42() - 3; }"
 build_run 42 "func main() { funcfunc42()(); }"
 build_run 4  "func main() { add(add(1, -2), 5); }"
 build_run 57 "func main(){add(f(), 2);} func f(){s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} s;}"
+build_run 5  "func main(){f(-3,8);} func f(a,b){a+b;}"
+build_run 21 "func main(){fib(8);} func fib(n){ if n<=1 {n;} else {fib(n-1)+fib(n-2);} }"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

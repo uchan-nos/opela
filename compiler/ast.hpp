@@ -17,6 +17,7 @@ struct LVar {
 struct Context {
   std::string func_name;
   std::map<std::string, LVar*> local_vars;
+  std::vector<LVar*> params;
 
   std::size_t StackSize() const { return local_vars.size() * 8; }
 };
