@@ -74,35 +74,41 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     }
     return;
   case Node::kLoop:
-    os << "loop:\n";
-    GenerateAsm(os, node->lhs);
-    os << "    pop rax\n";
-    os << "    jmp loop\n";
+    {
+      auto label_loop{GenerateLabel()};
+      os << label_loop << ":\n";
+      GenerateAsm(os, node->lhs);
+      os << "    pop rax\n";
+      os << "    jmp " << label_loop << "\n";
+    }
     return;
   case Node::kFor:
     // for init; cond; succ { ... }
     // init: node->rhs
     // cond: node->cond
     // succ: node->rhs->next
-    if (node->rhs) {
-      GenerateAsm(os, node->rhs);
+    {
+      auto label_loop{GenerateLabel()};
+      auto label_cond{GenerateLabel()};
+      if (node->rhs) {
+        GenerateAsm(os, node->rhs);
+        os << "    pop rax\n";
+      }
+      os << "    push qword [rsp]\n";
+      os << "    jmp " << label_cond << "\n";
+      os << label_loop << ":\n";
       os << "    pop rax\n";
-    }
-
-    os << "    push qword [rsp]\n";
-    os << "    jmp loop_cond\n";
-    os << "loop:\n";
-    os << "    pop rax\n";
-    GenerateAsm(os, node->lhs);
-    if (node->rhs) {
-      GenerateAsm(os, node->rhs->next);
+      GenerateAsm(os, node->lhs);
+      if (node->rhs) {
+        GenerateAsm(os, node->rhs->next);
+        os << "    pop rax\n";
+      }
+      os << label_cond << ":\n";
+      GenerateAsm(os, node->cond);
       os << "    pop rax\n";
+      os << "    test rax, rax\n";
+      os << "    jnz " << label_loop << "\n";
     }
-    os << "loop_cond:\n";
-    GenerateAsm(os, node->cond);
-    os << "    pop rax\n";
-    os << "    test rax, rax\n";
-    os << "    jnz loop\n";
     return;
   case Node::kBlock:
     if (node->next == nullptr) {

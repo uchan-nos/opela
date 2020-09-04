@@ -47,6 +47,7 @@ build_run 55 "s:=0; for i:=0; i<=10; i=i+1 { s=s+i; }"
 build_run 4 "if 0 { 3; } else { 4; }"
 build_run 5 "if 0 { 3; } else if 1 { 5; } else { 4; }"
 build_run 42 "42; {}"
+build_run 9 "s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s;"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
