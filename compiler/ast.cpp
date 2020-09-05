@@ -9,24 +9,27 @@ using namespace std;
 namespace {
 
 Node* NewNode(Node::Kind kind, Token* tk) {
-  return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr, {0}};
+  return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr,
+                  {0}, {Type::kUndefined, 0}};
 }
 
-Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
-  return new Node{kind, op, nullptr, nullptr, lhs, rhs, {0}};
+Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs, Type type) {
+  return new Node{kind, op, nullptr, nullptr, lhs, rhs, {0}, type};
 }
 
 Node* NewNodeInt(Token* tk, int64_t value) {
-  return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr, {value}};
+  return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr,
+                  {value}, {Type::kInt, 0}};
 }
 
-Node* NewNodeLVar(Context* ctx, Token* tk) {
+Node* NewNodeLVar(Context* ctx, Token* tk, Type type) {
   auto node{NewNode(Node::kLVar, tk)};
   if (auto it = ctx->local_vars.find(tk->Raw()); it != ctx->local_vars.end()) {
     node->value.lvar = it->second;
   } else {
-    node->value.lvar = new LVar{ctx, tk, 0};
+    node->value.lvar = new LVar{ctx, tk, 0, type};
   }
+  node->type = node->value.lvar->type;
   return node;
 }
 
@@ -48,6 +51,18 @@ const map<Node::Kind, const char*> kUnaryOps{
   {Node::kAddr,  "&"},
   {Node::kDeref, "*"},
 };
+
+Type GetType(Node* type_spec) {
+  if (type_spec->token->kind != Token::kId) {
+    return {Type::kUndefined, 0};
+  }
+
+  Type type{Type::kUnknown, static_cast<unsigned int>(type_spec->value.i)};
+  if (type_spec->token->Raw() == "int") {
+    type.base = Type::kInt;
+  }
+  return type;
+}
 
 } // namespace
 
@@ -79,9 +94,18 @@ Node* FunctionDefinition() {
   Expect("(");
   if (!Consume(")")) {
     for (;;) {
-      auto lvar{new LVar{cur_ctx, Expect(Token::kId), 0}};
-      cur_ctx->params.push_back(lvar);
-      AllocateLVar(cur_ctx, lvar);
+      vector<Token*> params;
+      do {
+        auto param_name{Expect(Token::kId)};
+        params.push_back(param_name);
+      } while (Consume(","));
+      auto type_spec{TypeSpecifier()};
+      auto type{GetType(type_spec)};
+      for (auto param_name : params) {
+        auto lvar{new LVar{cur_ctx, param_name, 0, type}};
+        cur_ctx->params.push_back(lvar);
+        AllocateLVar(cur_ctx, lvar);
+      }
       if (!Consume(",")) {
         Expect(")");
         break;
@@ -90,7 +114,9 @@ Node* FunctionDefinition() {
   }
 
   auto body{CompoundStatement()};
-  return new Node{Node::kDefFunc, name, nullptr, nullptr, body, nullptr, {0}};
+  auto node{NewNode(Node::kDefFunc, name)};
+  node->lhs = body;
+  return node;
 }
 
 Node* Statement() {
@@ -119,10 +145,11 @@ Node* Statement() {
     }
     Expect(";");
 
-    auto node{NewNodeLVar(cur_ctx, id)};
+    auto node{NewNodeLVar(cur_ctx, id, GetType(tspec))};
     ErrorRedefineLVar(node->value.lvar);
     AllocateLVar(cur_ctx, node->value.lvar);
-    return new Node{Node::kDefVar, id, nullptr, tspec, node, init, {0}};
+    return new Node{Node::kDefVar, id, nullptr, tspec, node, init,
+                    {0}, GetType(tspec)};
   }
 
   return ExpressionStatement();
@@ -153,14 +180,17 @@ Node* SelectionStatement() {
       ErrorAt(cur_token->loc);
     }
   }
-  return new Node{Node::kIf, tk, nullptr, expr, body, body_else, {0}};
+  return new Node{Node::kIf, tk, nullptr, expr, body, body_else,
+                  {0}, {Type::kUndefined, 0}};
 }
 
 Node* IterationStatement() {
   auto tk{Expect(Token::kFor)};
   if (Peek("{")) {
     auto body{CompoundStatement()};
-    return new Node{Node::kLoop, tk, nullptr, nullptr, body, nullptr, {0}};
+    auto node{NewNode(Node::kLoop, tk)};
+    node->lhs = body;
+    return node;
   }
 
   auto cond{Expr()};
@@ -172,14 +202,17 @@ Node* IterationStatement() {
     init->next = Expr();
   }
   auto body{CompoundStatement()};
-  return new Node{Node::kFor, tk, nullptr, cond, body, init, {0}};
+  return new Node{Node::kFor, tk, nullptr, cond, body, init,
+                  {0}, {Type::kUndefined, 0}};
 }
 
 Node* JumpStatement() {
   auto tk{Expect(Token::kRet)};
   auto expr{Expr()};
   Expect(";");
-  return new Node{Node::kRet, tk, nullptr, nullptr, expr, nullptr, {0}};
+  auto node{NewNode(Node::kRet, tk)};
+  node->lhs = expr;
+  return node;
 }
 
 Node* ExpressionStatement() {
@@ -197,7 +230,7 @@ Node* Assignment() {
 
   // 代入演算は右結合
   if (auto op{Consume("=")}) {
-    node = NewNodeExpr(Node::kAssign, op, node, Assignment());
+    node = NewNodeExpr(Node::kAssign, op, node, Assignment(), node->type);
   } else if (auto op{Consume(":=")}) {
     if (node->kind != Node::kLVar) {
       cerr << "lhs of ':=' must be an identifier" << endl;
@@ -206,7 +239,9 @@ Node* Assignment() {
     ErrorRedefineLVar(node->value.lvar);
 
     AllocateLVar(cur_ctx, node->value.lvar);
-    node = NewNodeExpr(Node::kAssign, op, node, Assignment());
+    auto init{Assignment()};
+    node->value.lvar->type = init->type;
+    node = NewNodeExpr(Node::kAssign, op, node, init, init->type);
   }
   return node;
 }
@@ -216,9 +251,9 @@ Node* Equality() {
 
   for (;;) {
     if (auto op{Consume("==")}) {
-      node = NewNodeExpr(Node::kEqu, op, node, Relational());
+      node = NewNodeExpr(Node::kEqu, op, node, Relational(), {Type::kInt, 0});
     } else if (auto op{Consume("!=")}) {
-      node = NewNodeExpr(Node::kNEqu, op, node, Relational());
+      node = NewNodeExpr(Node::kNEqu, op, node, Relational(), {Type::kInt, 0});
     } else {
       return node;
     }
@@ -230,13 +265,13 @@ Node* Relational() {
 
   for (;;) {
     if (auto op{Consume("<")}) {
-      node = NewNodeExpr(Node::kLT, op, node, Additive());
+      node = NewNodeExpr(Node::kLT, op, node, Additive(), {Type::kInt, 0});
     } else if (auto op{Consume("<=")}) {
-      node = NewNodeExpr(Node::kLE, op, node, Additive());
+      node = NewNodeExpr(Node::kLE, op, node, Additive(), {Type::kInt, 0});
     } else if (auto op{Consume(">")}) {
-      node = NewNodeExpr(Node::kLT, op, Additive(), node);
+      node = NewNodeExpr(Node::kLT, op, Additive(), node, {Type::kInt, 0});
     } else if (auto op{Consume(">=")}) {
-      node = NewNodeExpr(Node::kLE, op, Additive(), node);
+      node = NewNodeExpr(Node::kLE, op, Additive(), node, {Type::kInt, 0});
     } else {
       return node;
     }
@@ -247,10 +282,11 @@ Node* Additive() {
   auto node{Multiplicative()};
 
   for (;;) {
+    // TODO merge both types of lhs and rhs
     if (auto op{Consume("+")}) {
-      node = NewNodeExpr(Node::kAdd, op, node, Multiplicative());
+      node = NewNodeExpr(Node::kAdd, op, node, Multiplicative(), node->type);
     } else if (auto op{Consume("-")}) {
-      node = NewNodeExpr(Node::kSub, op, node, Multiplicative());
+      node = NewNodeExpr(Node::kSub, op, node, Multiplicative(), node->type);
     } else {
       return node;
     }
@@ -261,10 +297,11 @@ Node* Multiplicative() {
   auto node{Unary()};
 
   for (;;) {
+    // TODO merge both types of lhs and rhs
     if (auto op{Consume("*")}) {
-      node = NewNodeExpr(Node::kMul, op, node, Unary());
+      node = NewNodeExpr(Node::kMul, op, node, Unary(), node->type);
     } else if (auto op{Consume("/")}) {
-      node = NewNodeExpr(Node::kDiv, op, node, Unary());
+      node = NewNodeExpr(Node::kDiv, op, node, Unary(), node->type);
     } else {
       return node;
     }
@@ -276,12 +313,24 @@ Node* Unary() {
     return Unary();
   } else if (auto op{Consume("-")}) {
     auto zero{NewNodeInt(nullptr, 0)};
-    return NewNodeExpr(Node::kSub, op, zero, Unary());
+    auto node{Unary()};
+    return NewNodeExpr(Node::kSub, op, zero, node, node->type);
   }
 
   for (auto [ k, v ] : kUnaryOps) {
     if (auto op{Consume(v)}) {
-      return NewNodeExpr(k, op, Unary(), nullptr);
+      auto node{Unary()};
+      auto type{node->type};
+      if (k == Node::kDeref) {
+        if (node->type.pointer == 0) {
+          cerr << "try to dereference non-pointer" << endl;
+          ErrorAt(node->token->loc);
+        }
+        --type.pointer;
+      } else if (k == Node::kAddr) {
+        ++type.pointer;
+      }
+      return NewNodeExpr(k, op, node, nullptr, type);
     }
   }
 
@@ -305,7 +354,8 @@ Node* Postfix() {
           }
         }
       }
-      node = NewNodeExpr(Node::kCall, op, node, head);
+      // TODO: get the return type of a function
+      node = NewNodeExpr(Node::kCall, op, node, head, {Type::kInt, 0});
     } else {
       return node;
     }
@@ -318,7 +368,7 @@ Node* Primary() {
     Expect(")");
     return node;
   } else if (auto tk = Consume(Token::kId)) {
-    return NewNodeLVar(cur_ctx, tk);
+    return NewNodeLVar(cur_ctx, tk, {Type::kUndefined, 0});
   }
 
   auto tk{Expect(Token::kInt)};
