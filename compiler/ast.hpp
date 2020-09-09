@@ -10,21 +10,22 @@ struct Context;
 struct Node;
 
 struct Type {
-  enum {
+  enum Kind {
     kUndefined, // そもそも型という概念がない文法要素の場合
     kUnknown, // 未知の型
     kInt,
-  } base;
+    kPointer,
+  } kind;
 
-  // 0: ポインタではない, 1: ベース型へのポインタ, 2: ポインタのポインタ, ...
-  unsigned int pointer;
+  // base == kPointer の場合: 指す先の型
+  Type* next;
 };
 
 struct LVar {
   Context* ctx;
   Token* token;
   std::int64_t offset;
-  Type type;
+  Type* type;
 };
 
 struct Context {
@@ -76,7 +77,7 @@ struct Node {
     LVar* lvar;
   } value;
 
-  Type type;
+  Type* type;
 };
 
 Node* Program();

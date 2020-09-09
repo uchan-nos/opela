@@ -8,21 +8,26 @@ using namespace std;
 
 namespace {
 
-Node* NewNode(Node::Kind kind, Token* tk) {
-  return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr,
-                  {0}, {Type::kUndefined, 0}};
+Type* NewType(Type::Kind kind) {
+  return new Type{kind, nullptr};
 }
 
-Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs, Type type) {
+Node* NewNode(Node::Kind kind, Token* tk) {
+  return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr,
+                  {0}, NewType(Type::kUndefined)};
+}
+
+Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs,
+                  Type* type) {
   return new Node{kind, op, nullptr, nullptr, lhs, rhs, {0}, type};
 }
 
 Node* NewNodeInt(Token* tk, int64_t value) {
   return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr,
-                  {value}, {Type::kInt, 0}};
+                  {value}, NewType(Type::kInt)};
 }
 
-Node* NewNodeLVar(Context* ctx, Token* tk, Type type) {
+Node* NewNodeLVar(Context* ctx, Token* tk, Type* type) {
   auto node{NewNode(Node::kLVar, tk)};
   if (auto it = ctx->local_vars.find(tk->Raw()); it != ctx->local_vars.end()) {
     node->value.lvar = it->second;
@@ -52,17 +57,9 @@ const map<Node::Kind, const char*> kUnaryOps{
   {Node::kDeref, "*"},
 };
 
-Type GetType(Node* type_spec) {
-  if (type_spec->token->kind != Token::kId) {
-    return {Type::kUndefined, 0};
-  }
-
-  Type type{Type::kUnknown, static_cast<unsigned int>(type_spec->value.i)};
-  if (type_spec->token->Raw() == "int") {
-    type.base = Type::kInt;
-  }
-  return type;
-}
+const map<string, Type::Kind> kTypes{
+  {"int", Type::kInt},
+};
 
 } // namespace
 
@@ -102,9 +99,8 @@ Node* FunctionDefinition() {
         params.push_back(param_name);
       } while (Consume(","));
       auto type_spec{TypeSpecifier()};
-      auto type{GetType(type_spec)};
       for (auto param_name : params) {
-        auto lvar{new LVar{cur_ctx, param_name, 0, type}};
+        auto lvar{new LVar{cur_ctx, param_name, 0, type_spec->type}};
         cur_ctx->params.push_back(lvar);
         AllocateLVar(cur_ctx, lvar);
       }
@@ -147,11 +143,11 @@ Node* Statement() {
     }
     Expect(";");
 
-    auto node{NewNodeLVar(cur_ctx, id, GetType(tspec))};
+    auto node{NewNodeLVar(cur_ctx, id, tspec->type)};
     ErrorRedefineLVar(node->value.lvar);
     AllocateLVar(cur_ctx, node->value.lvar);
     return new Node{Node::kDefVar, id, nullptr, tspec, node, init,
-                    {0}, GetType(tspec)};
+                    {0}, tspec->type};
   }
 
   return ExpressionStatement();
@@ -183,7 +179,7 @@ Node* SelectionStatement() {
     }
   }
   return new Node{Node::kIf, tk, nullptr, expr, body, body_else,
-                  {0}, {Type::kUndefined, 0}};
+                  {0}, NewType(Type::kUndefined)};
 }
 
 Node* IterationStatement() {
@@ -205,7 +201,7 @@ Node* IterationStatement() {
   }
   auto body{CompoundStatement()};
   return new Node{Node::kFor, tk, nullptr, cond, body, init,
-                  {0}, {Type::kUndefined, 0}};
+                  {0}, NewType(Type::kUndefined)};
 }
 
 Node* JumpStatement() {
@@ -253,9 +249,11 @@ Node* Equality() {
 
   for (;;) {
     if (auto op{Consume("==")}) {
-      node = NewNodeExpr(Node::kEqu, op, node, Relational(), {Type::kInt, 0});
+      node = NewNodeExpr(Node::kEqu, op, node, Relational(),
+                         NewType(Type::kInt));
     } else if (auto op{Consume("!=")}) {
-      node = NewNodeExpr(Node::kNEqu, op, node, Relational(), {Type::kInt, 0});
+      node = NewNodeExpr(Node::kNEqu, op, node, Relational(),
+                         NewType(Type::kInt));
     } else {
       return node;
     }
@@ -267,13 +265,13 @@ Node* Relational() {
 
   for (;;) {
     if (auto op{Consume("<")}) {
-      node = NewNodeExpr(Node::kLT, op, node, Additive(), {Type::kInt, 0});
+      node = NewNodeExpr(Node::kLT, op, node, Additive(), NewType(Type::kInt));
     } else if (auto op{Consume("<=")}) {
-      node = NewNodeExpr(Node::kLE, op, node, Additive(), {Type::kInt, 0});
+      node = NewNodeExpr(Node::kLE, op, node, Additive(), NewType(Type::kInt));
     } else if (auto op{Consume(">")}) {
-      node = NewNodeExpr(Node::kLT, op, Additive(), node, {Type::kInt, 0});
+      node = NewNodeExpr(Node::kLT, op, Additive(), node, NewType(Type::kInt));
     } else if (auto op{Consume(">=")}) {
-      node = NewNodeExpr(Node::kLE, op, Additive(), node, {Type::kInt, 0});
+      node = NewNodeExpr(Node::kLE, op, Additive(), node, NewType(Type::kInt));
     } else {
       return node;
     }
@@ -324,13 +322,13 @@ Node* Unary() {
       auto node{Unary()};
       auto type{node->type};
       if (k == Node::kDeref) {
-        if (node->type.pointer == 0) {
+        if (node->type->kind != Type::kPointer) {
           cerr << "try to dereference non-pointer" << endl;
           ErrorAt(node->token->loc);
         }
-        --type.pointer;
+        type = type->next;
       } else if (k == Node::kAddr) {
-        ++type.pointer;
+        type = new Type{Type::kPointer, type};
       }
       return NewNodeExpr(k, op, node, nullptr, type);
     }
@@ -357,7 +355,7 @@ Node* Postfix() {
         }
       }
       // TODO: get the return type of a function
-      node = NewNodeExpr(Node::kCall, op, node, head, {Type::kInt, 0});
+      node = NewNodeExpr(Node::kCall, op, node, head, NewType(Type::kInt));
     } else {
       return node;
     }
@@ -370,7 +368,7 @@ Node* Primary() {
     Expect(")");
     return node;
   } else if (auto tk = Consume(Token::kId)) {
-    return NewNodeLVar(cur_ctx, tk, {Type::kUndefined, 0});
+    return NewNodeLVar(cur_ctx, tk, NewType(Type::kUndefined));
   }
 
   auto tk{Expect(Token::kInt)};
@@ -378,12 +376,19 @@ Node* Primary() {
 }
 
 Node* TypeSpecifier() {
-  int64_t num_ptr{0};
+  auto base_type{NewType(Type::kUnknown)};
+  auto ptr_type{base_type};
   while (Consume("*")) {
-    ++num_ptr;
+    ptr_type = new Type{Type::kPointer, ptr_type};
   }
-  auto type{Expect(Token::kId)};
-  auto node{NewNode(Node::kType, type)};
-  node->value.i = num_ptr;
+  auto type_name{Expect(Token::kId)};
+  auto it{kTypes.find(type_name->Raw())};
+  if (it == kTypes.end()) {
+    cerr << "unknown type " << type_name->Raw() << endl;
+    ErrorAt(type_name->loc);
+  }
+  base_type->kind = it->second;
+  auto node{NewNode(Node::kType, type_name)};
+  node->type = ptr_type;
   return node;
 }
