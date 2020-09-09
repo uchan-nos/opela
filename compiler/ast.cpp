@@ -67,7 +67,9 @@ Type GetType(Node* type_spec) {
 } // namespace
 
 Node* Program() {
-  return DeclarationSequence();
+  auto node{DeclarationSequence()};
+  Expect(Token::kEOF);
+  return node;
 }
 
 Node* DeclarationSequence() {

@@ -26,7 +26,7 @@ function build_run() {
 }
 
 build_run 42 "func main() { 42; }"
-build_run 11 "func main() { 1+23 - 13; } }"
+build_run 11 "func main() { 1+23 - 13; }"
 build_run 2  "func main() { 12/2 - 2 * (3 - 1); }"
 build_run 5  "func main() { -3 + (+8); }"
 build_run 0  "func main() { 3 < 1; }"
