@@ -15,10 +15,18 @@ struct Type {
     kUnknown, // 未知の型
     kInt,
     kPointer,
+    kFunc,
   } kind;
 
-  // base == kPointer の場合: 指す先の型
+  // 線形リストの次の要素
+  // kind == kFunc の場合，引数リスト
   Type* next;
+
+  // ポインタのベース型
+  Type* base;
+
+  // 関数の戻り値型
+  Type* ret;
 };
 
 struct LVar {
@@ -64,6 +72,8 @@ struct Node {
     kDeref,
     kDefVar,
     kType,
+    kPList, // パラメータリスト
+    kParam,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -99,3 +109,4 @@ Node* Unary();
 Node* Postfix();
 Node* Primary();
 Node* TypeSpecifier();
+Node* ParameterDeclList();

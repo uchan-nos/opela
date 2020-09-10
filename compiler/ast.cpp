@@ -9,7 +9,11 @@ using namespace std;
 namespace {
 
 Type* NewType(Type::Kind kind) {
-  return new Type{kind, nullptr};
+  return new Type{kind, nullptr, nullptr, nullptr};
+}
+
+Type* NewTypePointer(Type* base_type) {
+  return new Type{Type::kPointer, base_type, nullptr, nullptr};
 }
 
 Node* NewNode(Node::Kind kind, Token* tk) {
@@ -91,24 +95,15 @@ Node* FunctionDefinition() {
   contexts[func_name] = cur_ctx;
 
   Expect("(");
-  if (!Consume(")")) {
-    for (;;) {
-      vector<Token*> params;
-      do {
-        auto param_name{Expect(Token::kId)};
-        params.push_back(param_name);
-      } while (Consume(","));
-      auto type_spec{TypeSpecifier()};
-      for (auto param_name : params) {
-        auto lvar{new LVar{cur_ctx, param_name, 0, type_spec->type}};
-        cur_ctx->params.push_back(lvar);
-        AllocateLVar(cur_ctx, lvar);
-      }
-      if (!Consume(",")) {
-        Expect(")");
-        break;
-      }
-    }
+  auto plist{ParameterDeclList()};
+  Expect(")");
+
+  auto param{plist->next};
+  while (param) {
+    auto lvar{new LVar{cur_ctx, param->token, 0, param->type}};
+    cur_ctx->params.push_back(lvar);
+    AllocateLVar(cur_ctx, lvar);
+    param = param->next;
   }
 
   auto body{CompoundStatement()};
@@ -326,9 +321,9 @@ Node* Unary() {
           cerr << "try to dereference non-pointer" << endl;
           ErrorAt(node->token->loc);
         }
-        type = type->next;
+        type = type->base;
       } else if (k == Node::kAddr) {
-        type = new Type{Type::kPointer, type};
+        type = NewTypePointer(type);
       }
       return NewNodeExpr(k, op, node, nullptr, type);
     }
@@ -379,7 +374,7 @@ Node* TypeSpecifier() {
   auto base_type{NewType(Type::kUnknown)};
   auto ptr_type{base_type};
   while (Consume("*")) {
-    ptr_type = new Type{Type::kPointer, ptr_type};
+    ptr_type = NewTypePointer(ptr_type);
   }
   auto type_name{Expect(Token::kId)};
   auto it{kTypes.find(type_name->Raw())};
@@ -391,4 +386,31 @@ Node* TypeSpecifier() {
   auto node{NewNode(Node::kType, type_name)};
   node->type = ptr_type;
   return node;
+}
+
+Node* ParameterDeclList() {
+  auto head{NewNode(Node::kPList, &*cur_token)};
+  auto cur{head};
+
+  vector<Node*> params_untyped;
+  for (;;) {
+    auto param_name{Consume(Token::kId)};
+    if (param_name == nullptr) {
+      return head;
+    }
+
+    cur->next = NewNode(Node::kParam, param_name);
+    cur = cur->next;
+    params_untyped.push_back(cur);
+
+    if (Consume(",")) {
+      continue;
+    }
+
+    auto type_spec{TypeSpecifier()};
+    for (auto param : params_untyped) {
+      param->type = type_spec->type;
+    }
+    params_untyped.clear();
+  }
 }
