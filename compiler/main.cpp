@@ -37,6 +37,16 @@ void LoadLVarAddr(ostream& os, Node* node) {
          << magic_enum::enum_name(node->kind) << endl;
     ErrorAt(node->token->loc);
   } else if (node->value.lvar->offset == 0) {
+    // グローバルなシンボルの場合は特別対応
+    if (auto sym_node{symbols[node->token->Raw()]}) {
+      if (sym_node->kind != Node::kExtern) {
+        cerr << "cannot load address for global symbol "
+             << magic_enum::enum_name(sym_node->kind) << endl;
+      }
+      os << "extern " << sym_node->token->Raw() << "\n";
+      os << "    mov rax, " << sym_node->token->Raw() << "\n";
+      return;
+    }
     cerr << "undefined variable '"
          << node->token->Raw() << "'" << endl;
     ErrorAt(node->token->loc);
@@ -149,7 +159,8 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
         }
         os << "    mov rax, " << fname << "\n";
       } else if (f->kind == Node::kLVar) {
-        LoadLVarAddr(os, f);
+        GenerateAsm(os, f);
+        os << "    pop rax\n";
       } else {
         GenerateAsm(os, f, true);
         os << "    pop rax\n";
@@ -191,6 +202,8 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       break;
     }
     os << "    push rax\n"; // dummy push
+    return;
+  case Node::kExtern:
     return;
   default: // caseが足りないという警告を抑制する
     break;

@@ -14,12 +14,13 @@ using namespace std;
 namespace {
 
 const map<Token::Kind, string> kKeywords{
-  {Token::kRet,  "return"},
-  {Token::kIf,   "if"},
-  {Token::kElse, "else"},
-  {Token::kFor,  "for"},
-  {Token::kFunc, "func"},
-  {Token::kVar,  "var"},
+  {Token::kRet,    "return"},
+  {Token::kIf,     "if"},
+  {Token::kElse,   "else"},
+  {Token::kFor,    "for"},
+  {Token::kFunc,   "func"},
+  {Token::kVar,    "var"},
+  {Token::kExtern, "extern"},
 };
 
 bool IsAlpha(char ch) {
@@ -28,6 +29,21 @@ bool IsAlpha(char ch) {
 
 bool IsAlNum(char ch) {
   return isalnum(ch) || ch == '_';
+}
+
+const char* FindStr(const char* p) {
+  if (*p != '"') {
+    return nullptr;
+  }
+
+  ++p;
+  while (*p && *p != '"') {
+    ++p;
+  }
+  if (*p == '"') {
+    ++p;
+  }
+  return p;
 }
 
 } // namespace
@@ -63,6 +79,14 @@ vector<Token> Tokenize(const char* p) {
       Token tk{Token::kReserved, p, 1, 0};
       tokens.push_back(tk);
       ++p;
+      continue;
+    }
+
+    if (*p == '"') {
+      auto str_end{FindStr(p)};
+      Token tk{Token::kStr, p, static_cast<size_t>(str_end - p), 0};
+      tokens.push_back(tk);
+      p = str_end;
       continue;
     }
 

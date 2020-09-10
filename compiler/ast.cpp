@@ -2,6 +2,7 @@
 
 #include <iostream>
 
+#include "magic_enum.hpp"
 #include "source.hpp"
 
 using namespace std;
@@ -13,7 +14,39 @@ Type* NewType(Type::Kind kind) {
 }
 
 Type* NewTypePointer(Type* base_type) {
-  return new Type{Type::kPointer, base_type, nullptr, nullptr};
+  return new Type{Type::kPointer, nullptr, base_type, nullptr};
+}
+
+[[maybe_unused]]
+ostream& operator<<(ostream& os, Type* t) {
+  if (t == nullptr) {
+    os << "NULL";
+    return os;
+  }
+  switch (t->kind) {
+  case Type::kInt:
+    os << "int";
+    return os;
+  case Type::kPointer:
+    os << '*' << t->base;
+    return os;
+  case Type::kFunc:
+    os << "func(";
+    for (auto p{t->next}; p; p = p->next) {
+      os << p;
+      if (p->next) {
+        os << ',';
+      }
+    }
+    os << ')' << t->ret;
+    return os;
+  default:
+    os << '{' << magic_enum::enum_name(t->kind)
+       << ",base=" << t->base
+       << ",next=" << t->next
+       << ",ret=" << t->ret << '}';
+    return os;
+  }
 }
 
 Node* NewNode(Node::Kind kind, Token* tk) {
@@ -79,6 +112,8 @@ Node* DeclarationSequence() {
   for (;;) {
     if (Peek(Token::kFunc)) {
       cur->next = FunctionDefinition();
+    } else if (Peek(Token::kExtern)) {
+      cur->next = ExternDeclaration();
     } else {
       return head;
     }
@@ -109,6 +144,25 @@ Node* FunctionDefinition() {
   auto body{CompoundStatement()};
   auto node{NewNode(Node::kDefFunc, name)};
   node->lhs = body;
+  symbols[name->Raw()] = node;
+  return node;
+}
+
+Node* ExternDeclaration() {
+  Expect(Token::kExtern);
+  auto attr{Expect(Token::kStr)};
+  if (attr->Raw() != R"("C")") {
+    cerr << "unknown attribute " << attr->Raw() << endl;
+    ErrorAt(attr->loc);
+  }
+
+  auto id{Expect(Token::kId)};
+  auto tspec{TypeSpecifier()};
+  Expect(";");
+
+  auto node{NewNode(Node::kExtern, id)};
+  node->type = tspec->type;
+  symbols[id->Raw()] = node;
   return node;
 }
 
@@ -371,20 +425,49 @@ Node* Primary() {
 }
 
 Node* TypeSpecifier() {
-  auto base_type{NewType(Type::kUnknown)};
+  // 型が読み取れなかったときは，nullptr ではなく Type::kUndefined を返す
+  auto base_type{NewType(Type::kUndefined)};
+
   auto ptr_type{base_type};
   while (Consume("*")) {
     ptr_type = NewTypePointer(ptr_type);
   }
-  auto type_name{Expect(Token::kId)};
-  auto it{kTypes.find(type_name->Raw())};
-  if (it == kTypes.end()) {
-    cerr << "unknown type " << type_name->Raw() << endl;
-    ErrorAt(type_name->loc);
-  }
-  base_type->kind = it->second;
-  auto node{NewNode(Node::kType, type_name)};
+
+  auto node{NewNode(Node::kType, nullptr)};
   node->type = ptr_type;
+
+  // ベース型を決める
+  if (auto tk{Consume(Token::kFunc)}) {
+    node->token = tk;
+    base_type->kind = Type::kFunc;
+
+    Expect("(");
+    auto plist{ParameterDeclList()};
+    Expect(")");
+
+    auto param{plist->next};
+    auto cur{base_type};
+    while (param) {
+      cur->next = param->type;
+      cur = cur->next;
+      param = param->next;
+    }
+
+    auto ret_tspec{TypeSpecifier()};
+    if (ret_tspec->type->kind != Type::kUndefined) {
+      base_type->ret = ret_tspec->type;
+    }
+  } else if (auto type_name{Consume(Token::kId)}) {
+    node->token = type_name;
+
+    auto it{kTypes.find(type_name->Raw())};
+    if (it == kTypes.end()) {
+      cerr << "unknown type " << type_name->Raw() << endl;
+      ErrorAt(type_name->loc);
+    }
+    base_type->kind = it->second;
+  }
+
   return node;
 }
 

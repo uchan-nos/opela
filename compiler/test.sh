@@ -60,6 +60,7 @@ build_run 14 "func main(){ i := 7; p := &i; q := &p; **q + *&i; }"
 build_run 3  "func main(){ i:=42; f(&i); i; } func f(p *int){ *p = 3; }"
 build_run 42 "func main() { -+-42; }"
 build_run 4  "func main() { var i int; var p *int = &i; i = 42; i = 3; *p + 1; }"
+build_run 42 'extern "C" funcfunc42 func() *func() int; func main() { var f *func() func() int; f = &funcfunc42; f()(); }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

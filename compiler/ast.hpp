@@ -45,6 +45,7 @@ struct Context {
 };
 
 inline std::map<std::string /* func name */, Context*> contexts;
+inline std::map<std::string /* id */, Node*> symbols;
 
 struct Node {
   enum Kind {
@@ -74,6 +75,7 @@ struct Node {
     kType,
     kPList, // パラメータリスト
     kParam,
+    kExtern,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -93,6 +95,7 @@ struct Node {
 Node* Program();
 Node* DeclarationSequence();
 Node* FunctionDefinition();
+Node* ExternDeclaration();
 Node* Statement();
 Node* CompoundStatement();
 Node* SelectionStatement();
