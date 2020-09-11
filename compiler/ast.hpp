@@ -29,23 +29,31 @@ struct Type {
   Type* ret;
 };
 
-struct LVar {
-  Context* ctx;
-  Token* token;
-  std::int64_t offset;
-  Type* type;
+struct Symbol {
+  enum Kind {
+    kLVar, // ローカル変数
+    kFunc, // 普通の（OpeLaで定義された）関数
+    kEVar, // 外部変数
+    kEFunc, // 外部関数
+  } kind;
+
+  Token* token; // シンボル名
+  Type* type; // シンボルの型
+
+  Context* ctx; // ローカル変数の場合の，定義されたコンテキスト（=関数）
+  std::int64_t offset; // ローカル変数の場合の，RBP オフセット
 };
 
 struct Context {
   std::string func_name;
-  std::map<std::string, LVar*> local_vars;
-  std::vector<LVar*> params;
+  std::map<std::string, Symbol*> local_vars;
+  std::vector<Symbol*> params;
 
   std::size_t StackSize() const { return local_vars.size() * 8; }
 };
 
-inline std::map<std::string /* func name */, Context*> contexts;
-inline std::map<std::string /* id */, Node*> symbols;
+inline std::map<std::string /* 関数名 */, Context*> contexts;
+inline std::map<std::string /* シンボル名 */, Symbol*> symbols;
 
 struct Node {
   enum Kind {
@@ -58,7 +66,7 @@ struct Node {
     kNEqu,
     kLT,
     kLE,
-    kLVar, // local variable
+    kId,
     kRet,
     kIf,
     kAssign,
@@ -86,7 +94,7 @@ struct Node {
 
   union {
     std::int64_t i;
-    LVar* lvar;
+    Symbol* sym;
   } value;
 
   Type* type;
@@ -113,3 +121,6 @@ Node* Postfix();
 Node* Primary();
 Node* TypeSpecifier();
 Node* ParameterDeclList();
+
+Symbol* LookupLVar(Context* ctx, const std::string& name);
+Symbol* LookupSymbol(Context* ctx, const std::string& name);

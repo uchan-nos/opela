@@ -30,29 +30,28 @@ void GenerateCmpSet(ostream& os, const char* cc) {
   os << "    movzx eax, al\n";
 }
 
-// ローカル変数のアドレスを rax に書く
-void LoadLVarAddr(ostream& os, Node* node) {
-  if (node->kind != Node::kLVar) {
-    cerr << "cannot load address for "
-         << magic_enum::enum_name(node->kind) << endl;
-    ErrorAt(node->token->loc);
-  } else if (node->value.lvar->offset == 0) {
-    // グローバルなシンボルの場合は特別対応
-    if (auto sym_node{symbols[node->token->Raw()]}) {
-      if (sym_node->kind != Node::kExtern) {
-        cerr << "cannot load address for global symbol "
-             << magic_enum::enum_name(sym_node->kind) << endl;
-      }
-      os << "extern " << sym_node->token->Raw() << "\n";
-      os << "    mov rax, " << sym_node->token->Raw() << "\n";
-      return;
-    }
-    cerr << "undefined variable '"
-         << node->token->Raw() << "'" << endl;
-    ErrorAt(node->token->loc);
+// シンボルのアドレスを rax に書く
+void LoadSymAddr(ostream& os, Token* sym_id) {
+  auto sym{LookupSymbol(cur_ctx, sym_id->Raw())};
+
+  if (sym == nullptr) {
+    cerr << "undeclared symbol '" << sym_id->Raw() << "'" << endl;
+    ErrorAt(sym_id->loc);
   }
 
-  os << "    lea rax, [rbp - " << node->value.lvar->offset << "]\n";
+  if (sym->kind == Symbol::kLVar) {
+    os << "    lea rax, [rbp - " << sym->offset << "]\n";
+    return;
+  }
+
+  if (sym->kind == Symbol::kFunc) {
+    os << "    mov rax, " << sym->token->Raw() << "\n";
+    return;
+  }
+
+  // グローバルなシンボル
+  os << "extern " << sym->token->Raw() << "\n";
+  os << "    mov rax, " << sym->token->Raw() << "\n";
 }
 
 void GenerateAsm(ostream& os, Node* node, bool lval = false) {
@@ -60,8 +59,8 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
   case Node::kInt:
     os << "    push qword " << node->value.i << '\n';
     return;
-  case Node::kLVar:
-    LoadLVarAddr(os, node);
+  case Node::kId:
+    LoadSymAddr(os, node->token);
     os << "    push " << (lval ? "rax" : "qword [rax]") << "\n";
     return;
   case Node::kRet:
@@ -149,20 +148,13 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
         ++num_arg;
       }
 
-      auto f{node->lhs};
-      if (f->kind == Node::kLVar && f->value.lvar->offset == 0) {
-        auto fname{f->token->Raw()};
-        auto f_ctx{contexts[fname]};
-        if (!f_ctx) {
-          // 未定義の関数なので，外部の関数だと仮定する
-          os << "extern " << fname << "\n";
+      if (node->lhs->kind == Node::kId) {
+        LoadSymAddr(os, node->lhs->token);
+        if (node->lhs->type->kind == Type::kPointer) {
+          os << "    mov rax, [rax]\n";
         }
-        os << "    mov rax, " << fname << "\n";
-      } else if (f->kind == Node::kLVar) {
-        GenerateAsm(os, f);
-        os << "    pop rax\n";
       } else {
-        GenerateAsm(os, f, true);
+        GenerateAsm(os, node->lhs);
         os << "    pop rax\n";
       }
 

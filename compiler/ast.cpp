@@ -49,6 +49,10 @@ ostream& operator<<(ostream& os, Type* t) {
   }
 }
 
+Symbol* NewSymbol(Symbol::Kind kind, Token* token, Type* type) {
+  return new Symbol{kind, token, type, nullptr, 0};
+}
+
 Node* NewNode(Node::Kind kind, Token* tk) {
   return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr,
                   {0}, NewType(Type::kUndefined)};
@@ -64,27 +68,23 @@ Node* NewNodeInt(Token* tk, int64_t value) {
                   {value}, NewType(Type::kInt)};
 }
 
-Node* NewNodeLVar(Context* ctx, Token* tk, Type* type) {
-  auto node{NewNode(Node::kLVar, tk)};
-  if (auto it = ctx->local_vars.find(tk->Raw()); it != ctx->local_vars.end()) {
-    node->value.lvar = it->second;
-  } else {
-    node->value.lvar = new LVar{ctx, tk, 0, type};
-  }
-  node->type = node->value.lvar->type;
-  return node;
+void SetNodeSym(Node* node, Symbol* sym) {
+  node->value.sym = sym;
+  node->type = sym->type;
 }
 
-void AllocateLVar(Context* ctx, LVar* lvar) {
-  ctx->local_vars[lvar->token->Raw()] = lvar;
+Symbol* AllocateLVar(Context* ctx, Token* lvar_id, Type* lvar_type) {
+  auto lvar{NewSymbol(Symbol::kLVar, lvar_id, lvar_type)};
+  ctx->local_vars[lvar_id->Raw()] = lvar;
+
+  lvar->ctx = ctx;
   lvar->offset = ctx->StackSize();
+  return lvar;
 }
 
-void ErrorRedefineLVar(LVar* lvar) {
-  if (lvar->offset != 0) {
-    cerr << "'" << lvar->token->Raw() << "' is redefined" << endl;
-    ErrorAt(lvar->token->loc);
-  }
+void ErrorRedefineLVar(Token* lvar_id) {
+  cerr << "'" << lvar_id->Raw() << "' is redefined" << endl;
+  ErrorAt(lvar_id->loc);
 }
 
 Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテキスト
@@ -135,16 +135,15 @@ Node* FunctionDefinition() {
 
   auto param{plist->next};
   while (param) {
-    auto lvar{new LVar{cur_ctx, param->token, 0, param->type}};
+    auto lvar{AllocateLVar(cur_ctx, param->token, param->type)};
     cur_ctx->params.push_back(lvar);
-    AllocateLVar(cur_ctx, lvar);
     param = param->next;
   }
 
   auto body{CompoundStatement()};
   auto node{NewNode(Node::kDefFunc, name)};
   node->lhs = body;
-  symbols[name->Raw()] = node;
+  symbols[name->Raw()] = NewSymbol(Symbol::kFunc, name, nullptr);
   return node;
 }
 
@@ -162,7 +161,11 @@ Node* ExternDeclaration() {
 
   auto node{NewNode(Node::kExtern, id)};
   node->type = tspec->type;
-  symbols[id->Raw()] = node;
+  if (tspec->type->kind == Type::kFunc) {
+    symbols[id->Raw()] = NewSymbol(Symbol::kEFunc, id, tspec->type);
+  } else {
+    symbols[id->Raw()] = NewSymbol(Symbol::kEVar, id, tspec->type);
+  }
   return node;
 }
 
@@ -192,9 +195,12 @@ Node* Statement() {
     }
     Expect(";");
 
-    auto node{NewNodeLVar(cur_ctx, id, tspec->type)};
-    ErrorRedefineLVar(node->value.lvar);
-    AllocateLVar(cur_ctx, node->value.lvar);
+    if (LookupLVar(cur_ctx, id->Raw())) {
+      ErrorRedefineLVar(id);
+    }
+    auto lvar{AllocateLVar(cur_ctx, id, tspec->type)};
+    auto node{NewNode(Node::kId, id)};
+    SetNodeSym(node, lvar);
     return new Node{Node::kDefVar, id, nullptr, tspec, node, init,
                     {0}, tspec->type};
   }
@@ -279,15 +285,18 @@ Node* Assignment() {
   if (auto op{Consume("=")}) {
     node = NewNodeExpr(Node::kAssign, op, node, Assignment(), node->type);
   } else if (auto op{Consume(":=")}) {
-    if (node->kind != Node::kLVar) {
+    if (node->kind == Node::kId) {
+      if (auto sym{node->value.sym}) {
+        ErrorRedefineLVar(sym->token);
+      }
+    } else {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ErrorAt(node->token->loc);
     }
-    ErrorRedefineLVar(node->value.lvar);
 
-    AllocateLVar(cur_ctx, node->value.lvar);
     auto init{Assignment()};
-    node->value.lvar->type = init->type;
+    auto lvar{AllocateLVar(cur_ctx, node->token, init->type)};
+    SetNodeSym(node, lvar);
     node = NewNodeExpr(Node::kAssign, op, node, init, init->type);
   }
   return node;
@@ -417,57 +426,68 @@ Node* Primary() {
     Expect(")");
     return node;
   } else if (auto tk = Consume(Token::kId)) {
-    return NewNodeLVar(cur_ctx, tk, NewType(Type::kUndefined));
+    if (auto lvar{LookupLVar(cur_ctx, tk->Raw())}) {
+      auto node{NewNode(Node::kId, lvar->token)};
+      SetNodeSym(node, lvar);
+      return node;
+    }
+    return NewNode(Node::kId, tk);
   }
 
   auto tk{Expect(Token::kInt)};
   return NewNodeInt(tk, tk->value);
 }
 
-Node* TypeSpecifier() {
-  // 型が読み取れなかったときは，nullptr ではなく Type::kUndefined を返す
-  auto base_type{NewType(Type::kUndefined)};
-
-  auto ptr_type{base_type};
-  while (Consume("*")) {
-    ptr_type = NewTypePointer(ptr_type);
+Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
+  auto func_type{NewType(Type::kFunc)};
+  if (ret_tspec->type->kind != Type::kUndefined) {
+    func_type->ret = ret_tspec->type;
   }
 
-  auto node{NewNode(Node::kType, nullptr)};
-  node->type = ptr_type;
+  auto param{param_list};
+  auto cur{func_type};
+  while (param) {
+    cur->next = param->type;
+    cur = cur->next;
+    param = param->next;
+  }
 
-  // ベース型を決める
+  return func_type;
+}
+
+Node* TypeSpecifier() {
+  if (auto tk{Consume("*")}) {
+    auto base_tspec{TypeSpecifier()};
+    auto node{NewNode(Node::kType, tk)};
+    node->type = NewTypePointer(base_tspec->type);
+    return node;
+  }
+
   if (auto tk{Consume(Token::kFunc)}) {
-    node->token = tk;
-    base_type->kind = Type::kFunc;
-
     Expect("(");
     auto plist{ParameterDeclList()};
     Expect(")");
-
-    auto param{plist->next};
-    auto cur{base_type};
-    while (param) {
-      cur->next = param->type;
-      cur = cur->next;
-      param = param->next;
-    }
-
     auto ret_tspec{TypeSpecifier()};
-    if (ret_tspec->type->kind != Type::kUndefined) {
-      base_type->ret = ret_tspec->type;
-    }
-  } else if (auto type_name{Consume(Token::kId)}) {
-    node->token = type_name;
 
+    auto node{NewNode(Node::kType, tk)};
+    node->type = NewTypeFunc(plist, ret_tspec);
+    return node;
+  }
+
+  if (auto type_name{Consume(Token::kId)}) {
     auto it{kTypes.find(type_name->Raw())};
     if (it == kTypes.end()) {
       cerr << "unknown type " << type_name->Raw() << endl;
       ErrorAt(type_name->loc);
     }
-    base_type->kind = it->second;
+    auto node{NewNode(Node::kType, type_name)};
+    node->type = NewType(it->second);
+    return node;
   }
 
+  // 型が読み取れなかったときは，nullptr ではなく Type::kUndefined を返す
+  auto node{NewNode(Node::kType, nullptr)};
+  node->type = NewType(Type::kUndefined);
   return node;
 }
 
@@ -496,4 +516,21 @@ Node* ParameterDeclList() {
     }
     params_untyped.clear();
   }
+}
+
+Symbol* LookupLVar(Context* ctx, const std::string& name) {
+  if (auto it{ctx->local_vars.find(name)}; it != ctx->local_vars.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+Symbol* LookupSymbol(Context* ctx, const std::string& name) {
+  if (auto it{ctx->local_vars.find(name)}; it != ctx->local_vars.end()) {
+    return it->second;
+  }
+  if (auto it{symbols.find(name)}; it != symbols.end()) {
+    return it->second;
+  }
+  return nullptr;
 }
