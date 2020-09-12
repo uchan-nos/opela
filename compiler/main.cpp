@@ -138,6 +138,28 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     return;
   case Node::kCall:
     {
+      if (node->lhs->type == nullptr) {
+        cerr << "node->lhs->type cannot be null" << endl;
+        ErrorAt(node->lhs->token->loc);
+      }
+      switch (node->lhs->type->kind) {
+      case Type::kFunc:
+        break;
+      case Type::kPointer:
+        if (node->lhs->type->base->kind != Type::kFunc) {
+          cerr << "cannot call non-function pointer" << endl;
+          ErrorAt(node->lhs->token->loc);
+        }
+        break;
+      default:
+        cerr << "node->lhs = "
+             << magic_enum::enum_name(node->lhs->kind)
+             << ", " << node->lhs->token->Raw() << endl;
+        cerr << "cannot call "
+             << magic_enum::enum_name(node->lhs->type->kind) << endl;
+        ErrorAt(node->lhs->token->loc);
+      }
+
       int num_arg{0};
       for (auto arg{node->rhs->next}; arg != nullptr; arg = arg->next) {
         if (num_arg == kArgRegs.size()) {
@@ -150,8 +172,13 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
 
       if (node->lhs->kind == Node::kId) {
         LoadSymAddr(os, node->lhs->token);
-        if (node->lhs->type->kind == Type::kPointer) {
+        auto func_sym{LookupSymbol(cur_ctx, node->lhs->token->Raw())};
+        if (func_sym->type->kind == Type::kPointer) {
           os << "    mov rax, [rax]\n";
+        } else if (func_sym->type->kind != Type::kFunc) {
+          cerr << "cannot call "
+               << magic_enum::enum_name(func_sym->type->kind) << endl;
+          ErrorAt(node->lhs->token->loc);
         }
       } else {
         GenerateAsm(os, node->lhs);
@@ -265,8 +292,12 @@ int main() {
   ReadAll(cin);
   auto tokens{Tokenize(&src[0])};
   cur_token = tokens.begin();
+  generate_mode = false;
+  Program();
 
   ostringstream oss;
+  cur_token = tokens.begin();
+  generate_mode = true;
   GenerateAsm(oss, Program());
 
   cout << "bits 64\nsection .text\n";

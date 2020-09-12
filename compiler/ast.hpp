@@ -16,6 +16,7 @@ struct Type {
     kInt,
     kPointer,
     kFunc,
+    kVoid,
   } kind;
 
   // 線形リストの次の要素
@@ -54,6 +55,10 @@ struct Context {
 
 inline std::map<std::string /* 関数名 */, Context*> contexts;
 inline std::map<std::string /* シンボル名 */, Symbol*> symbols;
+
+// false: シンボル情報を集めるモード
+// true: AST を生成するモード
+inline bool generate_mode;
 
 struct Node {
   enum Kind {

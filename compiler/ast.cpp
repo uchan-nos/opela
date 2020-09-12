@@ -17,6 +17,25 @@ Type* NewTypePointer(Type* base_type) {
   return new Type{Type::kPointer, nullptr, base_type, nullptr};
 }
 
+Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
+  auto func_type{NewType(Type::kFunc)};
+  if (ret_tspec->type->kind == Type::kUndefined) {
+    func_type->ret = NewType(Type::kVoid);
+  } else {
+    func_type->ret = ret_tspec->type;
+  }
+
+  auto param{param_list->next};
+  auto cur{func_type};
+  while (param) {
+    cur->next = param->type;
+    cur = cur->next;
+    param = param->next;
+  }
+
+  return func_type;
+}
+
 [[maybe_unused]]
 ostream& operator<<(ostream& os, Type* t) {
   if (t == nullptr) {
@@ -39,6 +58,9 @@ ostream& operator<<(ostream& os, Type* t) {
       }
     }
     os << ')' << t->ret;
+    return os;
+  case Type::kVoid:
+    os << "void";
     return os;
   default:
     os << '{' << magic_enum::enum_name(t->kind)
@@ -83,8 +105,10 @@ Symbol* AllocateLVar(Context* ctx, Token* lvar_id, Type* lvar_type) {
 }
 
 void ErrorRedefineLVar(Token* lvar_id) {
-  cerr << "'" << lvar_id->Raw() << "' is redefined" << endl;
-  ErrorAt(lvar_id->loc);
+  if (generate_mode) {
+    cerr << "'" << lvar_id->Raw() << "' is redefined" << endl;
+    ErrorAt(lvar_id->loc);
+  }
 }
 
 Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテキスト
@@ -132,6 +156,7 @@ Node* FunctionDefinition() {
   Expect("(");
   auto plist{ParameterDeclList()};
   Expect(")");
+  auto ret_tspec{TypeSpecifier()};
 
   auto param{plist->next};
   while (param) {
@@ -143,7 +168,9 @@ Node* FunctionDefinition() {
   auto body{CompoundStatement()};
   auto node{NewNode(Node::kDefFunc, name)};
   node->lhs = body;
-  symbols[name->Raw()] = NewSymbol(Symbol::kFunc, name, nullptr);
+
+  auto type{NewTypeFunc(plist, ret_tspec)};
+  symbols[name->Raw()] = NewSymbol(Symbol::kFunc, name, type);
   return node;
 }
 
@@ -321,15 +348,27 @@ Node* Equality() {
 Node* Relational() {
   auto node{Additive()};
 
+  auto check_types{[&](Node* rel_node){
+    if (generate_mode &&
+        rel_node->lhs->type->kind != rel_node->rhs->type->kind) {
+      cerr << "incompatible types for " << rel_node->token->Raw() << endl;
+      ErrorAt(rel_node->token->loc);
+    }
+  }};
+
   for (;;) {
     if (auto op{Consume("<")}) {
       node = NewNodeExpr(Node::kLT, op, node, Additive(), NewType(Type::kInt));
+      check_types(node);
     } else if (auto op{Consume("<=")}) {
       node = NewNodeExpr(Node::kLE, op, node, Additive(), NewType(Type::kInt));
+      check_types(node);
     } else if (auto op{Consume(">")}) {
       node = NewNodeExpr(Node::kLT, op, Additive(), node, NewType(Type::kInt));
+      check_types(node);
     } else if (auto op{Consume(">=")}) {
       node = NewNodeExpr(Node::kLE, op, Additive(), node, NewType(Type::kInt));
+      check_types(node);
     } else {
       return node;
     }
@@ -339,12 +378,27 @@ Node* Relational() {
 Node* Additive() {
   auto node{Multiplicative()};
 
+  auto merge_types{[&](Token* op, Type* rhs_type){
+    if (generate_mode &&
+        (node->type->kind != Type::kInt || rhs_type->kind != Type::kInt)) {
+      cerr << "not implemented expression 'x " << op->Raw()
+           << " y' for non-int operand" << endl;
+      ErrorAt(op->loc);
+    }
+    return rhs_type;
+  }};
+
   for (;;) {
     // TODO merge both types of lhs and rhs
+
     if (auto op{Consume("+")}) {
-      node = NewNodeExpr(Node::kAdd, op, node, Multiplicative(), node->type);
+      auto rhs{Multiplicative()};
+      auto result_type{merge_types(op, rhs->type)};
+      node = NewNodeExpr(Node::kAdd, op, node, rhs, result_type);
     } else if (auto op{Consume("-")}) {
-      node = NewNodeExpr(Node::kSub, op, node, Multiplicative(), node->type);
+      auto rhs{Multiplicative()};
+      auto result_type{merge_types(op, rhs->type)};
+      node = NewNodeExpr(Node::kSub, op, node, rhs, result_type);
     } else {
       return node;
     }
@@ -381,8 +435,10 @@ Node* Unary() {
       auto type{node->type};
       if (k == Node::kDeref) {
         if (node->type->kind != Type::kPointer) {
-          cerr << "try to dereference non-pointer" << endl;
-          ErrorAt(node->token->loc);
+          if (generate_mode) {
+            cerr << "try to dereference non-pointer" << endl;
+            ErrorAt(node->token->loc);
+          }
         }
         type = type->base;
       } else if (k == Node::kAddr) {
@@ -413,7 +469,21 @@ Node* Postfix() {
         }
       }
       // TODO: get the return type of a function
-      node = NewNodeExpr(Node::kCall, op, node, head, NewType(Type::kInt));
+      Type* ret_type{nullptr};
+      switch (node->type->kind) {
+      case Type::kFunc:
+        ret_type = node->type->ret;
+        break;
+      case Type::kPointer:
+        ret_type = node->type->base->ret;
+        break;
+      default:
+        if (generate_mode) {
+          cerr << "cannot call value type " << node->type << endl;
+          ErrorAt(node->token->loc);
+        }
+      }
+      node = NewNodeExpr(Node::kCall, op, node, head, ret_type);
     } else {
       return node;
     }
@@ -425,10 +495,10 @@ Node* Primary() {
     auto node{Expr()};
     Expect(")");
     return node;
-  } else if (auto tk = Consume(Token::kId)) {
-    if (auto lvar{LookupLVar(cur_ctx, tk->Raw())}) {
-      auto node{NewNode(Node::kId, lvar->token)};
-      SetNodeSym(node, lvar);
+  } else if (auto tk{Consume(Token::kId)}) {
+    if (auto sym{LookupSymbol(cur_ctx, tk->Raw())}) {
+      auto node{NewNode(Node::kId, sym->token)};
+      SetNodeSym(node, sym);
       return node;
     }
     return NewNode(Node::kId, tk);
@@ -436,23 +506,6 @@ Node* Primary() {
 
   auto tk{Expect(Token::kInt)};
   return NewNodeInt(tk, tk->value);
-}
-
-Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
-  auto func_type{NewType(Type::kFunc)};
-  if (ret_tspec->type->kind != Type::kUndefined) {
-    func_type->ret = ret_tspec->type;
-  }
-
-  auto param{param_list};
-  auto cur{func_type};
-  while (param) {
-    cur->next = param->type;
-    cur = cur->next;
-    param = param->next;
-  }
-
-  return func_type;
 }
 
 Node* TypeSpecifier() {
@@ -526,8 +579,10 @@ Symbol* LookupLVar(Context* ctx, const std::string& name) {
 }
 
 Symbol* LookupSymbol(Context* ctx, const std::string& name) {
-  if (auto it{ctx->local_vars.find(name)}; it != ctx->local_vars.end()) {
-    return it->second;
+  if (ctx != nullptr) {
+    if (auto it{ctx->local_vars.find(name)}; it != ctx->local_vars.end()) {
+      return it->second;
+    }
   }
   if (auto it{symbols.find(name)}; it != symbols.end()) {
     return it->second;
