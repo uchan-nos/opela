@@ -379,13 +379,25 @@ Node* Additive() {
   auto node{Multiplicative()};
 
   auto merge_types{[&](Token* op, Type* rhs_type){
-    if (generate_mode &&
-        (node->type->kind != Type::kInt || rhs_type->kind != Type::kInt)) {
-      cerr << "not implemented expression 'x " << op->Raw()
-           << " y' for non-int operand" << endl;
+    const auto l{node->type}, r{rhs_type};
+    if (!generate_mode) {
+      return l;
+    }
+    if (l->kind == Type::kInt && r->kind == Type::kInt) {
+      return l;
+    } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
+      return l;
+    } else if (op->Raw() == "+" &&
+               l->kind == Type::kInt && r->kind == Type::kPointer) {
+      return r;
+    } else if (op->Raw() == "-" &&
+               l->kind == Type::kPointer && r->kind == Type::kPointer) {
+      return NewType(Type::kInt);
+    } else {
+      cerr << "not implemented expression "
+           << l << ' ' << op->Raw() << ' ' << r << endl;
       ErrorAt(op->loc);
     }
-    return rhs_type;
   }};
 
   for (;;) {

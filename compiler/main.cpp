@@ -244,10 +244,28 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
 
   switch (node->kind) {
   case Node::kAdd:
-    os << "    add rax, rdi\n";
+    if (node->type->kind == Type::kInt) {
+      os << "    add rax, rdi\n";
+    } else if (node->type->kind == Type::kPointer) {
+      if (node->lhs->type->kind == Type::kPointer) { // ptr + int
+        os << "    lea rax, [rax + 8 * rdi]\n";
+      } else {                                       // int + ptr
+        os << "    lea rax, [rdi + 8 * rax]\n";
+      }
+    }
     break;
   case Node::kSub:
-    os << "    sub rax, rdi\n";
+    if (node->type->kind == Type::kInt) {
+      if (node->lhs->type->kind == Type::kPointer) { // ptr - ptr
+        os << "    sub rax, rdi\n";
+        os << "    shr rax, 3\n";
+      } else {                                       // int - int
+        os << "    sub rax, rdi\n";
+      }
+    } else if (node->type->kind == Type::kPointer) { // ptr - int
+      os << "    neg rdi\n";
+      os << "    lea rax, [rax + 8 * rdi]\n";
+    }
     break;
   case Node::kMul:
     os << "    imul rax, rdi\n";

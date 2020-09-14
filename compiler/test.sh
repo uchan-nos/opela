@@ -61,6 +61,9 @@ build_run 3  'func main(){ i:=42; f(&i); i; } func f(p *int){ *p = 3; }'
 build_run 42 'func main() { -+-42; }'
 build_run 4  'func main() { var i int; var p *int = &i; i = 42; i = 3; *p + 1; }'
 build_run 42 'extern "C" funcfunc42 func() *func() int; func main() { var f *func() func() int; f = &funcfunc42; f()(); }'
+build_run 16 'func main() { var p *int = 8; p+1; }'
+build_run 24 'func main() { var p *int = 32; p-1; }'
+build_run 2  'func main() { var p *int = 8; var q *int = 24; q-p; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
