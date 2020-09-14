@@ -10,11 +10,11 @@ using namespace std;
 namespace {
 
 Type* NewType(Type::Kind kind) {
-  return new Type{kind, nullptr, nullptr, nullptr};
+  return new Type{kind, nullptr, nullptr, nullptr, 0};
 }
 
 Type* NewTypePointer(Type* base_type) {
-  return new Type{Type::kPointer, nullptr, base_type, nullptr};
+  return new Type{Type::kPointer, nullptr, base_type, nullptr, 0};
 }
 
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
@@ -123,6 +123,14 @@ const map<string, Type::Kind> kTypes{
 };
 
 } // namespace
+
+std::size_t Context::StackSize() const {
+  size_t s{0};
+  for (auto [ name, sym ] : local_vars) {
+    s += Sizeof(sym->token, sym->type);
+  }
+  return s;
+}
 
 Node* Program() {
   auto node{DeclarationSequence()};
@@ -401,12 +409,17 @@ Node* Additive() {
   }};
 
   for (;;) {
-    // TODO merge both types of lhs and rhs
-
     if (auto op{Consume("+")}) {
       auto rhs{Multiplicative()};
       auto result_type{merge_types(op, rhs->type)};
-      node = NewNodeExpr(Node::kAdd, op, node, rhs, result_type);
+      if (generate_mode &&
+          result_type->kind == Type::kPointer &&
+          node->type->kind == Type::kInt) {
+        // 左辺にポインタ型の値を持ってくる
+        node = NewNodeExpr(Node::kAdd, op, rhs, node, result_type);
+      } else {
+        node = NewNodeExpr(Node::kAdd, op, node, rhs, result_type);
+      }
     } else if (auto op{Consume("-")}) {
       auto rhs{Multiplicative()};
       auto result_type{merge_types(op, rhs->type)};
@@ -518,6 +531,11 @@ Node* Postfix() {
         }
       }
       node = NewNodeExpr(Node::kCall, op, node, head, ret_type);
+    } else if (auto op{Consume("[")}) { // 配列
+      auto index{Expr()};
+      Expect("]");
+      auto base_type{generate_mode ? node->type->base : nullptr};
+      node = NewNodeExpr(Node::kSubscr, op, node, index, base_type);
     } else {
       return node;
     }
@@ -566,6 +584,15 @@ Node* TypeSpecifier() {
     if (it == kTypes.end()) {
       cerr << "unknown type " << type_name->Raw() << endl;
       ErrorAt(type_name->loc);
+    }
+    if (Consume("[")) { // 配列
+      auto num{Expect(Token::kInt)};
+      Expect("]");
+      auto node{NewNode(Node::kType, type_name)};
+      node->type = NewType(Type::kArray);
+      node->type->base = NewType(it->second);
+      node->type->num = num->value;
+      return node;
     }
     auto node{NewNode(Node::kType, type_name)};
     node->type = NewType(it->second);
@@ -622,4 +649,21 @@ Symbol* LookupSymbol(Context* ctx, const std::string& name) {
     return it->second;
   }
   return nullptr;
+}
+
+size_t Sizeof(Token* tk, Type* type) {
+  if (!generate_mode) {
+    return 0;
+  }
+
+  switch (type->kind) {
+  case Type::kInt:
+  case Type::kPointer:
+    return 8;
+  case Type::kArray:
+    return Sizeof(tk, type->base) * type->num;
+  default:
+    cerr << "cannot determine size of " << type << endl;
+    ErrorAt(tk->loc);
+  }
 }

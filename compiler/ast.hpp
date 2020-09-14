@@ -17,17 +17,21 @@ struct Type {
     kPointer,
     kFunc,
     kVoid,
+    kArray,
   } kind;
 
   // 線形リストの次の要素
   // kind == kFunc の場合，引数リスト
   Type* next;
 
-  // ポインタのベース型
+  // ポインタのベース型，配列の要素型
   Type* base;
 
   // 関数の戻り値型
   Type* ret;
+
+  // 配列の要素数
+  std::int64_t num;
 };
 
 struct Symbol {
@@ -50,7 +54,7 @@ struct Context {
   std::map<std::string, Symbol*> local_vars;
   std::vector<Symbol*> params;
 
-  std::size_t StackSize() const { return local_vars.size() * 8; }
+  std::size_t StackSize() const;
 };
 
 inline std::map<std::string /* 関数名 */, Context*> contexts;
@@ -89,6 +93,7 @@ struct Node {
     kPList, // パラメータリスト
     kParam,
     kExtern,
+    kSubscr, // 添え字
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -129,3 +134,4 @@ Node* ParameterDeclList();
 
 Symbol* LookupLVar(Context* ctx, const std::string& name);
 Symbol* LookupSymbol(Context* ctx, const std::string& name);
+std::size_t Sizeof(Token* tk, Type* type);
