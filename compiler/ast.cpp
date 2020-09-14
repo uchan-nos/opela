@@ -461,6 +461,27 @@ Node* Unary() {
     }
   }
 
+  if (auto op{Consume(Token::kSizeof)}) {
+    Expect("(");
+    auto token_pos{cur_token};
+    auto arg{TypeSpecifier()};
+    if (token_pos == cur_token) {
+      arg = Expr();
+    }
+    Expect(")");
+    size_t arg_size{0};
+    switch (arg->type->kind) {
+    case Type::kInt:
+    case Type::kPointer:
+      arg_size = 8;
+      break;
+    default:
+      cerr << "unknown size of " << arg->type << endl;
+      ErrorAt(arg->token->loc);
+    }
+    return NewNodeInt(op, arg_size);
+  }
+
   return Postfix();
 }
 
