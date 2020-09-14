@@ -205,6 +205,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    push rbp\n";
     os << "    mov rbp, rsp\n";
     os << "    sub rsp, " << cur_ctx->StackSize() << "\n";
+    os << "    xor rax, rax\n";
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
       os << "    mov [rbp - " << off << "], " << kArgRegs[i] << "\n";
