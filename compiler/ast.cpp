@@ -445,12 +445,13 @@ Node* Unary() {
     if (auto op{Consume(v)}) {
       auto node{Unary()};
       auto type{node->type};
+      if (!generate_mode) {
+        return NewNodeExpr(k, op, node, nullptr, type);
+      }
       if (k == Node::kDeref) {
         if (node->type->kind != Type::kPointer) {
-          if (generate_mode) {
-            cerr << "try to dereference non-pointer" << endl;
-            ErrorAt(node->token->loc);
-          }
+          cerr << "try to dereference non-pointer" << endl;
+          ErrorAt(node->token->loc);
         }
         type = type->base;
       } else if (k == Node::kAddr) {

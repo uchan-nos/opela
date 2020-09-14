@@ -64,6 +64,7 @@ build_run 42 'extern "C" funcfunc42 func() *func() int; func main() { var f *fun
 build_run 16 'func main() { var p *int = 8; p+1; }'
 build_run 24 'func main() { var p *int = 32; p-1; }'
 build_run 2  'func main() { var p *int = 8; var q *int = 24; q-p; }'
+build_run 4  'func main() { p:=alloc4(3,4,5,6); *(p+1); } extern "C" alloc4 func() *int;'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
