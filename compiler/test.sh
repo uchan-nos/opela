@@ -66,7 +66,8 @@ build_run 24 'func main() { var p *int = 32; p-1; }'
 build_run 2  'func main() { var p *int = 8; var q *int = 24; q-p; }'
 build_run 4  'func main() { p:=alloc4(3,4,5,6); *(p+1); } extern "C" alloc4 func() *int;'
 build_run 16 'func main() { var i int; 3*sizeof(int) - sizeof(42); }'
-build_run 4  'func main() { var arr int[3]; for i:=0; i<3; i=i+1 { arr[i]=i*2; } arr[2]; }'
+build_run 4  'func main() { var arr [3]int; for i:=0; i<3; i=i+1 { arr[i]=i*2; } arr[2]; }'
+build_run 7  'func main() { var arr [3]*func(a,b int); arr[1]=&add; arr[1](3,4); } extern "C" add func();'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

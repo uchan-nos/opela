@@ -9,33 +9,6 @@ using namespace std;
 
 namespace {
 
-Type* NewType(Type::Kind kind) {
-  return new Type{kind, nullptr, nullptr, nullptr, 0};
-}
-
-Type* NewTypePointer(Type* base_type) {
-  return new Type{Type::kPointer, nullptr, base_type, nullptr, 0};
-}
-
-Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
-  auto func_type{NewType(Type::kFunc)};
-  if (ret_tspec->type->kind == Type::kUndefined) {
-    func_type->ret = NewType(Type::kVoid);
-  } else {
-    func_type->ret = ret_tspec->type;
-  }
-
-  auto param{param_list->next};
-  auto cur{func_type};
-  while (param) {
-    cur->next = param->type;
-    cur = cur->next;
-    param = param->next;
-  }
-
-  return func_type;
-}
-
 [[maybe_unused]]
 ostream& operator<<(ostream& os, Type* t) {
   if (t == nullptr) {
@@ -69,6 +42,37 @@ ostream& operator<<(ostream& os, Type* t) {
        << ",ret=" << t->ret << '}';
     return os;
   }
+}
+
+Type* CopyType(Type* t) {
+  return new Type{t->kind, t->next, t->base, t->ret, t->num};
+}
+
+Type* NewType(Type::Kind kind) {
+  return new Type{kind, nullptr, nullptr, nullptr, 0};
+}
+
+Type* NewTypePointer(Type* base_type) {
+  return new Type{Type::kPointer, nullptr, base_type, nullptr, 0};
+}
+
+Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
+  auto func_type{NewType(Type::kFunc)};
+  if (ret_tspec->type->kind == Type::kUndefined) {
+    func_type->ret = NewType(Type::kVoid);
+  } else {
+    func_type->ret = ret_tspec->type;
+  }
+
+  auto param{param_list->next};
+  auto cur{func_type};
+  while (param) {
+    cur->next = CopyType(param->type);
+    cur = cur->next;
+    param = param->next;
+  }
+
+  return func_type;
 }
 
 Symbol* NewSymbol(Symbol::Kind kind, Token* token, Type* type) {
@@ -318,7 +322,19 @@ Node* Assignment() {
 
   // 代入演算は右結合
   if (auto op{Consume("=")}) {
-    node = NewNodeExpr(Node::kAssign, op, node, Assignment(), node->type);
+    auto rhs{Assignment()};
+    if (generate_mode) {
+      if (node->type->kind != rhs->type->kind) {
+        cerr << "cannot assign incompatible type " << rhs->type << endl;
+        ErrorAt(op->loc);
+      }
+      if (node->type->kind == Type::kPointer &&
+          node->type->base->kind != rhs->type->base->kind) {
+        cerr << "cannot assign incompatible pointer type " << rhs->type << endl;
+        ErrorAt(op->loc);
+      }
+    }
+    node = NewNodeExpr(Node::kAssign, op, node, rhs, node->type);
   } else if (auto op{Consume(":=")}) {
     if (node->kind == Node::kId) {
       if (auto sym{node->value.sym}) {
@@ -517,15 +533,15 @@ Node* Postfix() {
       }
       // TODO: get the return type of a function
       Type* ret_type{nullptr};
-      switch (node->type->kind) {
-      case Type::kFunc:
-        ret_type = node->type->ret;
-        break;
-      case Type::kPointer:
-        ret_type = node->type->base->ret;
-        break;
-      default:
-        if (generate_mode) {
+      if (generate_mode) {
+        switch (node->type->kind) {
+        case Type::kFunc:
+          ret_type = node->type->ret;
+          break;
+        case Type::kPointer:
+          ret_type = node->type->base->ret;
+          break;
+        default:
           cerr << "cannot call value type " << node->type << endl;
           ErrorAt(node->token->loc);
         }
@@ -561,6 +577,18 @@ Node* Primary() {
 }
 
 Node* TypeSpecifier() {
+  if (auto op{Consume("[")}) { // 配列
+    auto num{Expect(Token::kInt)};
+    Expect("]");
+    auto node{NewNode(Node::kType, op)};
+    node->type = NewType(Type::kArray);
+    node->type->num = num->value;
+
+    auto base_tspec{TypeSpecifier()};
+    node->type->base = base_tspec->type;
+    return node;
+  }
+
   if (auto tk{Consume("*")}) {
     auto base_tspec{TypeSpecifier()};
     auto node{NewNode(Node::kType, tk)};
@@ -584,15 +612,6 @@ Node* TypeSpecifier() {
     if (it == kTypes.end()) {
       cerr << "unknown type " << type_name->Raw() << endl;
       ErrorAt(type_name->loc);
-    }
-    if (Consume("[")) { // 配列
-      auto num{Expect(Token::kInt)};
-      Expect("]");
-      auto node{NewNode(Node::kType, type_name)};
-      node->type = NewType(Type::kArray);
-      node->type->base = NewType(it->second);
-      node->type->num = num->value;
-      return node;
     }
     auto node{NewNode(Node::kType, type_name)};
     node->type = NewType(it->second);
