@@ -40,6 +40,7 @@ struct Symbol {
     kFunc, // 普通の（OpeLaで定義された）関数
     kEVar, // 外部変数
     kEFunc, // 外部関数
+    kGVar, // グローバル変数
   } kind;
 
   Token* token; // シンボル名
@@ -131,6 +132,7 @@ Node* Postfix();
 Node* Primary();
 Node* TypeSpecifier();
 Node* ParameterDeclList();
+Node* VariableDefinition();
 
 Symbol* LookupLVar(Context* ctx, const std::string& name);
 Symbol* LookupSymbol(Context* ctx, const std::string& name);

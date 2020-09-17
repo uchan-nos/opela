@@ -108,10 +108,10 @@ Symbol* AllocateLVar(Context* ctx, Token* lvar_id, Type* lvar_type) {
   return lvar;
 }
 
-void ErrorRedefineLVar(Token* lvar_id) {
+void ErrorRedefineID(Token* id) {
   if (generate_mode) {
-    cerr << "'" << lvar_id->Raw() << "' is redefined" << endl;
-    ErrorAt(lvar_id->loc);
+    cerr << "'" << id->Raw() << "' is redefined" << endl;
+    ErrorAt(id->loc);
   }
 }
 
@@ -146,10 +146,13 @@ Node* DeclarationSequence() {
   auto head{NewNode(Node::kDeclSeq, nullptr)};
   auto cur{head};
   for (;;) {
+    cur_ctx = nullptr;
     if (Peek(Token::kFunc)) {
       cur->next = FunctionDefinition();
     } else if (Peek(Token::kExtern)) {
       cur->next = ExternDeclaration();
+    } else if (Peek(Token::kVar)) {
+      cur->next = VariableDefinition();
     } else {
       return head;
     }
@@ -225,23 +228,8 @@ Node* Statement() {
     return CompoundStatement();
   }
 
-  if (Consume(Token::kVar)) {
-    auto id{Expect(Token::kId)};
-    auto tspec{TypeSpecifier()};
-    Node* init{nullptr};
-    if (Consume("=")) {
-      init = Expr();
-    }
-    Expect(";");
-
-    if (LookupLVar(cur_ctx, id->Raw())) {
-      ErrorRedefineLVar(id);
-    }
-    auto lvar{AllocateLVar(cur_ctx, id, tspec->type)};
-    auto node{NewNode(Node::kId, id)};
-    SetNodeSym(node, lvar);
-    return new Node{Node::kDefVar, id, nullptr, tspec, node, init,
-                    {0}, tspec->type};
+  if (Peek(Token::kVar)) {
+    return VariableDefinition();
   }
 
   return ExpressionStatement();
@@ -338,7 +326,7 @@ Node* Assignment() {
   } else if (auto op{Consume(":=")}) {
     if (node->kind == Node::kId) {
       if (auto sym{node->value.sym}) {
-        ErrorRedefineLVar(sym->token);
+        ErrorRedefineID(sym->token);
       }
     } else {
       cerr << "lhs of ':=' must be an identifier" << endl;
@@ -649,6 +637,58 @@ Node* ParameterDeclList() {
     }
     params_untyped.clear();
   }
+}
+
+Node* VariableDefinition() {
+  Expect(Token::kVar);
+
+  auto one_def{[]{
+    auto id{Expect(Token::kId)};
+    auto tspec{TypeSpecifier()};
+    Type* var_type{tspec->type};
+    Node* init{nullptr};
+    if (Consume("=")) {
+      init = Expr();
+      if (tspec->type->kind == Type::kUndefined) {
+        var_type = init->type;
+      }
+    } else {
+      if (generate_mode && tspec->type->kind == Type::kUndefined) {
+        ErrorAt(id->loc);
+      }
+    }
+    Expect(";");
+
+    if (cur_ctx && LookupLVar(cur_ctx, id->Raw())) {
+      ErrorRedefineID(id);
+    } else if (!cur_ctx && !generate_mode && LookupSymbol(nullptr, id->Raw())) {
+      ErrorRedefineID(id);
+    }
+
+    auto node{NewNode(Node::kId, id)};
+    Symbol* sym;
+    if (cur_ctx) {
+      sym = AllocateLVar(cur_ctx, id, var_type);
+    } else {
+      sym = NewSymbol(Symbol::kGVar, id, var_type);
+      symbols[id->Raw()] = sym;
+    }
+    SetNodeSym(node, sym);
+    return new Node{Node::kDefVar, id, nullptr, tspec, node, init,
+                    {0}, var_type};
+  }};
+
+  Node head;
+  auto cur{&head};
+  if (Consume("(")) {
+    while (!Consume(")")) {
+      cur->next = one_def();
+      cur = cur->next;
+    }
+    return head.next;
+  }
+
+  return one_def();
 }
 
 Symbol* LookupLVar(Context* ctx, const std::string& name) {

@@ -22,6 +22,8 @@ const array<const char*, 6> kArgRegs{"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 
 Context* cur_ctx; // 現在コード生成中の関数を表すコンテキスト
 
+map<Symbol*, Node*> gvar_init_values;
+
 } // namespace
 
 void GenerateCmpSet(ostream& os, const char* cc) {
@@ -50,7 +52,6 @@ void LoadSymAddr(ostream& os, Token* sym_id) {
   }
 
   // グローバルなシンボル
-  os << "extern " << sym->token->Raw() << "\n";
   os << "    mov rax, " << sym->token->Raw() << "\n";
 }
 
@@ -218,6 +219,10 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    ret\n";
     return;
   case Node::kDefVar:
+    if (node->lhs->value.sym->kind == Symbol::kGVar) {
+      gvar_init_values[node->lhs->value.sym] = node->rhs;
+      return;
+    }
     if (node->rhs) { // 初期値付き変数定義
       break;
     }
@@ -321,14 +326,50 @@ int main() {
   GenerateAsm(oss, Program());
 
   cout << "bits 64\nsection .text\n";
-  //cout << "global main\n";
-  //cout << "main:\n";
-  //cout << "    push rbp\n";
-  //cout << "    mov rbp, rsp\n";
-  //cout << "    sub rsp, " << LVarBytes() << "\n";
   cout << oss.str();
-  //cout << "main_exit:\n";
-  //cout << "    mov rsp, rbp\n";
-  //cout << "    pop rbp\n";
-  //cout << "    ret\n";
+
+  for (auto [ name, sym ] : symbols) {
+    if (sym->kind == Symbol::kEVar || sym->kind == Symbol::kEFunc) {
+      cout << "extern " << name << "\n";
+    }
+  }
+
+  const std::array<const char*, 9> size_map{
+    nullptr,
+    "db",
+    "dw",
+    nullptr,
+    "dd",
+    nullptr,
+    nullptr,
+    nullptr,
+    "dq",
+  };
+
+  cout << "_init_opela:\n";
+  cout << "    push rbp\n";
+  cout << "    mov rbp, rsp\n";
+  for (auto [ sym, init ] : gvar_init_values) {
+    if (init && init->kind != Node::kInt) {
+      GenerateAsm(cout, init);
+      cout << "    pop rax\n";
+      cout << "    mov [" << sym->token->Raw() << "], rax\n";
+    }
+  }
+  cout << "    mov rsp, rbp\n";
+  cout << "    pop rbp\n";
+  cout << "    ret\n";
+  cout << "section .init_array\n";
+  cout << "    dq _init_opela\n";
+
+  cout << "section .data\n";
+  for (auto [ sym, init ] : gvar_init_values) {
+    cout << sym->token->Raw() << ":\n";
+    cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
+    if (init && init->kind == Node::kInt) {
+      cout << init->value.i << "\n";
+    } else {
+      cout << "0\n";
+    }
+  }
 }

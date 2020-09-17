@@ -9,7 +9,7 @@ function build_run() {
 
   echo "$input" | ./opelac > tmp.s
   nasm -f elf64 -o tmp.o tmp.s
-  cc -o tmp tmp.o cfunc.o
+  cc -no-pie -o tmp tmp.o cfunc.o
   ./tmp
   got=$?
 
@@ -68,6 +68,8 @@ build_run 4  'func main() { p:=alloc4(3,4,5,6); *(p+1); } extern "C" alloc4 func
 build_run 16 'func main() { var i int; 3*sizeof(int) - sizeof(42); }'
 build_run 4  'func main() { var arr [3]int; for i:=0; i<3; i=i+1 { arr[i]=i*2; } arr[2]; }'
 build_run 7  'func main() { var arr [3]*func(a,b int); arr[1]=&add; arr[1](3,4); } extern "C" add func();'
+build_run 42 'func main() { var (v int = val*3;) v; } var val int = 14;'
+build_run 10 'func main() { a=3; a+c; } var (a int; b = 6; c = b+1;)'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
