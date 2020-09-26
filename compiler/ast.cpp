@@ -5,6 +5,11 @@
 #include "magic_enum.hpp"
 #include "source.hpp"
 
+/*
+ * 構文解析（AST生成）時はローカル変数の型を一般に決定できない
+ * →スタックの減算量は，第2フェーズで型を決定してから。
+ */
+
 using namespace std;
 
 namespace {
@@ -58,7 +63,7 @@ Type* NewTypePointer(Type* base_type) {
 
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   auto func_type{NewType(Type::kFunc)};
-  if (ret_tspec->type->kind == Type::kUndefined) {
+  if (!ret_tspec) {
     func_type->ret = NewType(Type::kVoid);
   } else {
     func_type->ret = ret_tspec->type;
@@ -67,7 +72,7 @@ Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   auto param{param_list->next};
   auto cur{func_type};
   while (param) {
-    cur->next = CopyType(param->type);
+    cur->next = CopyType(param->tspec->type);
     cur = cur->next;
     param = param->next;
   }
@@ -75,44 +80,46 @@ Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   return func_type;
 }
 
-Symbol* NewSymbol(Symbol::Kind kind, Token* token, Type* type) {
-  return new Symbol{kind, token, type, nullptr, 0};
+Symbol* NewSymbol(Symbol::Kind kind, Token* token) {
+  return new Symbol{kind, token, nullptr, nullptr, 0};
 }
 
 Node* NewNode(Node::Kind kind, Token* tk) {
   return new Node{kind, tk, nullptr, nullptr, nullptr, nullptr,
-                  {0}, NewType(Type::kUndefined)};
+                  nullptr, {0}, nullptr};
 }
 
-Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs,
-                  Type* type) {
-  return new Node{kind, op, nullptr, nullptr, lhs, rhs, {0}, type};
+Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
+  return new Node{kind, op, nullptr, nullptr, lhs, rhs,
+                  nullptr, {0}, nullptr};
 }
 
 Node* NewNodeInt(Token* tk, int64_t value) {
   return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr,
-                  {value}, NewType(Type::kInt)};
+                  nullptr, {value}, NewType(Type::kInt)};
 }
 
-void SetNodeSym(Node* node, Symbol* sym) {
-  node->value.sym = sym;
-  node->type = sym->type;
+Node* NewNodeType(Token* tk, Type* type) {
+  return new Node{Node::kType, tk, nullptr, nullptr, nullptr, nullptr,
+                  nullptr, {0}, type};
 }
 
-Symbol* AllocateLVar(Context* ctx, Token* lvar_id, Type* lvar_type) {
-  auto lvar{NewSymbol(Symbol::kLVar, lvar_id, lvar_type)};
+Node* NewNodeCond(Node::Kind kind, Token* tk,
+                  Node* cond, Node* lhs, Node* rhs) {
+  return new Node{kind, tk, nullptr, cond, lhs, rhs,
+                  nullptr, {0}, nullptr};
+}
+
+Symbol* AllocateLVar(Context* ctx, Token* lvar_id) {
+  auto lvar{NewSymbol(Symbol::kLVar, lvar_id)};
   ctx->local_vars[lvar_id->Raw()] = lvar;
-
   lvar->ctx = ctx;
-  lvar->offset = ctx->StackSize();
   return lvar;
 }
 
 void ErrorRedefineID(Token* id) {
-  if (generate_mode) {
-    cerr << "'" << id->Raw() << "' is redefined" << endl;
-    ErrorAt(id->loc);
-  }
+  cerr << "'" << id->Raw() << "' is redefined" << endl;
+  ErrorAt(id->loc);
 }
 
 Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテキスト
@@ -125,6 +132,22 @@ const map<Node::Kind, const char*> kUnaryOps{
 const map<string, Type::Kind> kTypes{
   {"int", Type::kInt},
 };
+
+void RegisterSymbol(Symbol* sym) {
+  symbols[sym->token->Raw()] = sym;
+
+  auto it{undeclared_id_nodes.begin()};
+  while (it != undeclared_id_nodes.end()) {
+    auto node{*it};
+    if (sym->token->Raw() == node->token->Raw()) {
+      node->value.sym = sym;
+      node->type = sym->type;
+      it = undeclared_id_nodes.erase(it);
+    } else {
+      ++it;
+    }
+  }
+}
 
 } // namespace
 
@@ -161,7 +184,7 @@ Node* DeclarationSequence() {
 }
 
 Node* FunctionDefinition() {
-  Expect(Token::kFunc);
+  auto op{Expect(Token::kFunc)};
   auto name{Expect(Token::kId)};
 
   auto func_name{name->Raw()};
@@ -175,7 +198,8 @@ Node* FunctionDefinition() {
 
   auto param{plist->next};
   while (param) {
-    auto lvar{AllocateLVar(cur_ctx, param->token, param->type)};
+    auto lvar{AllocateLVar(cur_ctx, param->token)};
+    lvar->type = param->tspec->type;
     cur_ctx->params.push_back(lvar);
     param = param->next;
   }
@@ -183,9 +207,11 @@ Node* FunctionDefinition() {
   auto body{CompoundStatement()};
   auto node{NewNode(Node::kDefFunc, name)};
   node->lhs = body;
+  node->tspec = NewNodeType(op, NewTypeFunc(plist, ret_tspec));
 
-  auto type{NewTypeFunc(plist, ret_tspec)};
-  symbols[name->Raw()] = NewSymbol(Symbol::kFunc, name, type);
+  auto sym{NewSymbol(Symbol::kFunc, name)};
+  sym->type = node->tspec->type;
+  RegisterSymbol(sym);
   return node;
 }
 
@@ -199,15 +225,20 @@ Node* ExternDeclaration() {
 
   auto id{Expect(Token::kId)};
   auto tspec{TypeSpecifier()};
+  if (!tspec) {
+    cerr << "type must be specified" << endl;
+    ErrorAt(cur_token->loc);
+  }
+
   Expect(";");
 
   auto node{NewNode(Node::kExtern, id)};
-  node->type = tspec->type;
-  if (tspec->type->kind == Type::kFunc) {
-    symbols[id->Raw()] = NewSymbol(Symbol::kEFunc, id, tspec->type);
-  } else {
-    symbols[id->Raw()] = NewSymbol(Symbol::kEVar, id, tspec->type);
-  }
+  node->tspec = tspec;
+  node->value.sym = tspec->type->kind == Type::kFunc
+                    ? NewSymbol(Symbol::kEFunc, id)
+                    : NewSymbol(Symbol::kEVar, id);
+  node->value.sym->type = tspec->type;
+  RegisterSymbol(node->value.sym);
   return node;
 }
 
@@ -247,7 +278,7 @@ Node* CompoundStatement() {
 
 Node* SelectionStatement() {
   auto tk{Expect(Token::kIf)};
-  auto expr{Expr()};
+  auto cond{Expr()};
   auto body{CompoundStatement()};
   Node* body_else{nullptr};
   if (Consume(Token::kElse)) {
@@ -260,8 +291,7 @@ Node* SelectionStatement() {
       ErrorAt(cur_token->loc);
     }
   }
-  return new Node{Node::kIf, tk, nullptr, expr, body, body_else,
-                  {0}, NewType(Type::kUndefined)};
+  return NewNodeCond(Node::kIf, tk, cond, body, body_else);
 }
 
 Node* IterationStatement() {
@@ -282,8 +312,7 @@ Node* IterationStatement() {
     init->next = Expr();
   }
   auto body{CompoundStatement()};
-  return new Node{Node::kFor, tk, nullptr, cond, body, init,
-                  {0}, NewType(Type::kUndefined)};
+  return NewNodeCond(Node::kFor, tk, cond, body, init);
 }
 
 Node* JumpStatement() {
@@ -311,32 +340,23 @@ Node* Assignment() {
   // 代入演算は右結合
   if (auto op{Consume("=")}) {
     auto rhs{Assignment()};
-    if (generate_mode) {
-      if (node->type->kind != rhs->type->kind) {
-        cerr << "cannot assign incompatible type " << rhs->type << endl;
-        ErrorAt(op->loc);
-      }
-      if (node->type->kind == Type::kPointer &&
-          node->type->base->kind != rhs->type->base->kind) {
-        cerr << "cannot assign incompatible pointer type " << rhs->type << endl;
-        ErrorAt(op->loc);
-      }
-    }
-    node = NewNodeExpr(Node::kAssign, op, node, rhs, node->type);
+    node = NewNodeExpr(Node::kAssign, op, node, rhs);
   } else if (auto op{Consume(":=")}) {
     if (node->kind == Node::kId) {
       if (auto sym{node->value.sym}) {
         ErrorRedefineID(sym->token);
       }
+      std::erase(undeclared_id_nodes, node);
     } else {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ErrorAt(node->token->loc);
     }
 
     auto init{Assignment()};
-    auto lvar{AllocateLVar(cur_ctx, node->token, init->type)};
-    SetNodeSym(node, lvar);
-    node = NewNodeExpr(Node::kAssign, op, node, init, init->type);
+    auto lvar{AllocateLVar(cur_ctx, node->token)};
+    node->value.sym = lvar;
+    //node = NewNodeExpr(Node::kAssign, op, node, init, init->type);
+    node = NewNodeExpr(Node::kDefVar, op, node, init);
   }
   return node;
 }
@@ -346,11 +366,9 @@ Node* Equality() {
 
   for (;;) {
     if (auto op{Consume("==")}) {
-      node = NewNodeExpr(Node::kEqu, op, node, Relational(),
-                         NewType(Type::kInt));
+      node = NewNodeExpr(Node::kEqu, op, node, Relational());
     } else if (auto op{Consume("!=")}) {
-      node = NewNodeExpr(Node::kNEqu, op, node, Relational(),
-                         NewType(Type::kInt));
+      node = NewNodeExpr(Node::kNEqu, op, node, Relational());
     } else {
       return node;
     }
@@ -360,27 +378,15 @@ Node* Equality() {
 Node* Relational() {
   auto node{Additive()};
 
-  auto check_types{[&](Node* rel_node){
-    if (generate_mode &&
-        rel_node->lhs->type->kind != rel_node->rhs->type->kind) {
-      cerr << "incompatible types for " << rel_node->token->Raw() << endl;
-      ErrorAt(rel_node->token->loc);
-    }
-  }};
-
   for (;;) {
     if (auto op{Consume("<")}) {
-      node = NewNodeExpr(Node::kLT, op, node, Additive(), NewType(Type::kInt));
-      check_types(node);
+      node = NewNodeExpr(Node::kLT, op, node, Additive());
     } else if (auto op{Consume("<=")}) {
-      node = NewNodeExpr(Node::kLE, op, node, Additive(), NewType(Type::kInt));
-      check_types(node);
+      node = NewNodeExpr(Node::kLE, op, node, Additive());
     } else if (auto op{Consume(">")}) {
-      node = NewNodeExpr(Node::kLT, op, Additive(), node, NewType(Type::kInt));
-      check_types(node);
+      node = NewNodeExpr(Node::kLT, op, Additive(), node);
     } else if (auto op{Consume(">=")}) {
-      node = NewNodeExpr(Node::kLE, op, Additive(), node, NewType(Type::kInt));
-      check_types(node);
+      node = NewNodeExpr(Node::kLE, op, Additive(), node);
     } else {
       return node;
     }
@@ -390,44 +396,11 @@ Node* Relational() {
 Node* Additive() {
   auto node{Multiplicative()};
 
-  auto merge_types{[&](Token* op, Type* rhs_type){
-    const auto l{node->type}, r{rhs_type};
-    if (!generate_mode) {
-      return l;
-    }
-    if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      return l;
-    } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
-      return l;
-    } else if (op->Raw() == "+" &&
-               l->kind == Type::kInt && r->kind == Type::kPointer) {
-      return r;
-    } else if (op->Raw() == "-" &&
-               l->kind == Type::kPointer && r->kind == Type::kPointer) {
-      return NewType(Type::kInt);
-    } else {
-      cerr << "not implemented expression "
-           << l << ' ' << op->Raw() << ' ' << r << endl;
-      ErrorAt(op->loc);
-    }
-  }};
-
   for (;;) {
     if (auto op{Consume("+")}) {
-      auto rhs{Multiplicative()};
-      auto result_type{merge_types(op, rhs->type)};
-      if (generate_mode &&
-          result_type->kind == Type::kPointer &&
-          node->type->kind == Type::kInt) {
-        // 左辺にポインタ型の値を持ってくる
-        node = NewNodeExpr(Node::kAdd, op, rhs, node, result_type);
-      } else {
-        node = NewNodeExpr(Node::kAdd, op, node, rhs, result_type);
-      }
+      node = NewNodeExpr(Node::kAdd, op, node, Multiplicative());
     } else if (auto op{Consume("-")}) {
-      auto rhs{Multiplicative()};
-      auto result_type{merge_types(op, rhs->type)};
-      node = NewNodeExpr(Node::kSub, op, node, rhs, result_type);
+      node = NewNodeExpr(Node::kSub, op, node, Multiplicative());
     } else {
       return node;
     }
@@ -438,11 +411,10 @@ Node* Multiplicative() {
   auto node{Unary()};
 
   for (;;) {
-    // TODO merge both types of lhs and rhs
     if (auto op{Consume("*")}) {
-      node = NewNodeExpr(Node::kMul, op, node, Unary(), node->type);
+      node = NewNodeExpr(Node::kMul, op, node, Unary());
     } else if (auto op{Consume("/")}) {
-      node = NewNodeExpr(Node::kDiv, op, node, Unary(), node->type);
+      node = NewNodeExpr(Node::kDiv, op, node, Unary());
     } else {
       return node;
     }
@@ -455,34 +427,19 @@ Node* Unary() {
   } else if (auto op{Consume("-")}) {
     auto zero{NewNodeInt(nullptr, 0)};
     auto node{Unary()};
-    return NewNodeExpr(Node::kSub, op, zero, node, node->type);
+    return NewNodeExpr(Node::kSub, op, zero, node);
   }
 
   for (auto [ k, v ] : kUnaryOps) {
     if (auto op{Consume(v)}) {
-      auto node{Unary()};
-      auto type{node->type};
-      if (!generate_mode) {
-        return NewNodeExpr(k, op, node, nullptr, type);
-      }
-      if (k == Node::kDeref) {
-        if (node->type->kind != Type::kPointer) {
-          cerr << "try to dereference non-pointer" << endl;
-          ErrorAt(node->token->loc);
-        }
-        type = type->base;
-      } else if (k == Node::kAddr) {
-        type = NewTypePointer(type);
-      }
-      return NewNodeExpr(k, op, node, nullptr, type);
+      return NewNodeExpr(k, op, Unary(), nullptr);
     }
   }
 
   if (auto op{Consume(Token::kSizeof)}) {
     Expect("(");
-    auto token_pos{cur_token};
     auto arg{TypeSpecifier()};
-    if (token_pos == cur_token) {
+    if (arg == nullptr) {
       arg = Expr();
     }
     Expect(")");
@@ -519,27 +476,11 @@ Node* Postfix() {
           }
         }
       }
-      // TODO: get the return type of a function
-      Type* ret_type{nullptr};
-      if (generate_mode) {
-        switch (node->type->kind) {
-        case Type::kFunc:
-          ret_type = node->type->ret;
-          break;
-        case Type::kPointer:
-          ret_type = node->type->base->ret;
-          break;
-        default:
-          cerr << "cannot call value type " << node->type << endl;
-          ErrorAt(node->token->loc);
-        }
-      }
-      node = NewNodeExpr(Node::kCall, op, node, head, ret_type);
+      node = NewNodeExpr(Node::kCall, op, node, head);
     } else if (auto op{Consume("[")}) { // 配列
       auto index{Expr()};
       Expect("]");
-      auto base_type{generate_mode ? node->type->base : nullptr};
-      node = NewNodeExpr(Node::kSubscr, op, node, index, base_type);
+      node = NewNodeExpr(Node::kSubscr, op, node, index);
     } else {
       return node;
     }
@@ -552,12 +493,13 @@ Node* Primary() {
     Expect(")");
     return node;
   } else if (auto tk{Consume(Token::kId)}) {
+    auto node{NewNode(Node::kId, tk)};
     if (auto sym{LookupSymbol(cur_ctx, tk->Raw())}) {
-      auto node{NewNode(Node::kId, sym->token)};
-      SetNodeSym(node, sym);
-      return node;
+      node->value.sym = sym;
+    } else {
+      undeclared_id_nodes.push_back(node);
     }
-    return NewNode(Node::kId, tk);
+    return node;
   }
 
   auto tk{Expect(Token::kInt)};
@@ -573,12 +515,20 @@ Node* TypeSpecifier() {
     node->type->num = num->value;
 
     auto base_tspec{TypeSpecifier()};
+    if (!base_tspec) {
+      cerr << "array base type must be specified" << endl;
+      ErrorAt(cur_token->loc);
+    }
     node->type->base = base_tspec->type;
     return node;
   }
 
   if (auto tk{Consume("*")}) {
     auto base_tspec{TypeSpecifier()};
+    if (!base_tspec) {
+      cerr << "pointer base type must be specified" << endl;
+      ErrorAt(cur_token->loc);
+    }
     auto node{NewNode(Node::kType, tk)};
     node->type = NewTypePointer(base_tspec->type);
     return node;
@@ -606,10 +556,7 @@ Node* TypeSpecifier() {
     return node;
   }
 
-  // 型が読み取れなかったときは，nullptr ではなく Type::kUndefined を返す
-  auto node{NewNode(Node::kType, nullptr)};
-  node->type = NewType(Type::kUndefined);
-  return node;
+  return nullptr;
 }
 
 Node* ParameterDeclList() {
@@ -632,8 +579,12 @@ Node* ParameterDeclList() {
     }
 
     auto type_spec{TypeSpecifier()};
+    if (!type_spec) {
+      cerr << "type must be specified" << endl;
+      ErrorAt(cur_token->loc);
+    }
     for (auto param : params_untyped) {
-      param->type = type_spec->type;
+      param->tspec = type_spec;
     }
     params_untyped.clear();
   }
@@ -645,37 +596,31 @@ Node* VariableDefinition() {
   auto one_def{[]{
     auto id{Expect(Token::kId)};
     auto tspec{TypeSpecifier()};
-    Type* var_type{tspec->type};
     Node* init{nullptr};
     if (Consume("=")) {
       init = Expr();
-      if (tspec->type->kind == Type::kUndefined) {
-        var_type = init->type;
-      }
-    } else {
-      if (generate_mode && tspec->type->kind == Type::kUndefined) {
-        ErrorAt(id->loc);
-      }
     }
     Expect(";");
 
     if (cur_ctx && LookupLVar(cur_ctx, id->Raw())) {
       ErrorRedefineID(id);
-    } else if (!cur_ctx && !generate_mode && LookupSymbol(nullptr, id->Raw())) {
+    } else if (!cur_ctx && LookupSymbol(nullptr, id->Raw())) {
       ErrorRedefineID(id);
     }
 
     auto node{NewNode(Node::kId, id)};
     Symbol* sym;
     if (cur_ctx) {
-      sym = AllocateLVar(cur_ctx, id, var_type);
+      sym = NewSymbol(Symbol::kLVar, id);
+      cur_ctx->local_vars[id->Raw()] = sym;
     } else {
-      sym = NewSymbol(Symbol::kGVar, id, var_type);
-      symbols[id->Raw()] = sym;
+      sym = NewSymbol(Symbol::kGVar, id);
+      RegisterSymbol(sym);
     }
-    SetNodeSym(node, sym);
-    return new Node{Node::kDefVar, id, nullptr, tspec, node, init,
-                    {0}, var_type};
+    node->value.sym = sym;
+    node = NewNodeExpr(Node::kDefVar, id, node, init);
+    node->tspec = tspec;
+    return node;
   }};
 
   Node head;
@@ -711,10 +656,6 @@ Symbol* LookupSymbol(Context* ctx, const std::string& name) {
 }
 
 size_t Sizeof(Token* tk, Type* type) {
-  if (!generate_mode) {
-    return 0;
-  }
-
   switch (type->kind) {
   case Type::kInt:
   case Type::kPointer:
@@ -725,4 +666,242 @@ size_t Sizeof(Token* tk, Type* type) {
     cerr << "cannot determine size of " << type << endl;
     ErrorAt(tk->loc);
   }
+}
+
+bool SetSymbolType(Node* n) {
+  if (n->type) {
+    return false; // 既に型が付いてる
+  }
+
+  bool changed{false};
+  if (n->kind == Node::kAdd || n->kind == Node::kSub ||
+      n->kind == Node::kMul || n->kind == Node::kDiv ||
+      n->kind == Node::kEqu || n->kind == Node::kNEqu ||
+      n->kind == Node::kLT  || n->kind == Node::kLE ||
+      n->kind == Node::kAssign ||
+      n->kind == Node::kCall ||
+      n->kind == Node::kSubscr) {
+    changed |= SetSymbolType(n->lhs);
+    changed |= SetSymbolType(n->rhs);
+    if (!n->lhs->type || !n->rhs->type) {
+      return changed;
+    }
+  } else if (n->kind == Node::kRet ||
+             n->kind == Node::kLoop ||
+             n->kind == Node::kAddr ||
+             n->kind == Node::kDeref) {
+    changed |= SetSymbolType(n->lhs);
+    if (!n->lhs->type) {
+      return changed;
+    }
+  } else if (n->kind == Node::kFor) {
+    if (n->rhs) { // for init; cond; next {} の形
+      changed |= SetSymbolType(n->rhs);
+      changed |= SetSymbolType(n->rhs->next);
+    }
+    changed |= SetSymbolType(n->cond);
+    changed |= SetSymbolType(n->lhs); // body
+    if (!n->lhs->type ||
+        (n->rhs && (!n->rhs->type || !n->rhs->next->type))) {
+      return changed;
+    }
+  } else if (n->kind == Node::kIf) {
+    changed |= SetSymbolType(n->lhs);
+    if (n->rhs) {
+      changed |= SetSymbolType(n->rhs);
+    }
+    if (!n->lhs->type || (n->rhs && !n->rhs->type)) {
+      return changed;
+    }
+  } else if (n->kind == Node::kDefVar) {
+    // kDefVar: tspec か rhs から型を決める
+    Type* var_type;
+    if (n->tspec) {
+      var_type = n->tspec->type;
+    } else if (n->rhs) {
+      changed |= SetSymbolType(n->rhs);
+      if (!n->rhs->type) {
+        return changed;
+      }
+      var_type = n->rhs->type;
+    } else {
+      cerr << "at least either n->tspec or n->rhs must not be null" << endl;
+      ErrorAt(n->token->loc);
+    }
+    n->lhs->value.sym->type = var_type;
+    n->lhs->type = var_type;
+    n->type = var_type;
+    return true;
+  }
+  auto l{n->lhs ? n->lhs->type : nullptr},
+       r{n->rhs ? n->rhs->type : nullptr};
+
+  switch (n->kind) {
+  case Node::kAdd:
+    if (l->kind == Type::kInt && r->kind == Type::kInt) {
+      n->type = l;
+    } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
+      n->type = l;
+    } else if (l->kind == Type::kInt && r->kind == Type::kPointer) {
+      n->type = r;
+    } else {
+      cerr << "not implemented expression "
+           << l << ' ' << n->token->Raw() << ' ' << r << endl;
+      ErrorAt(n->token->loc);
+    }
+    break;
+  case Node::kSub:
+    if (l->kind == Type::kInt && r->kind == Type::kInt) {
+      n->type = l;
+    } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
+      n->type = l;
+    } else if (l->kind == Type::kPointer && r->kind == Type::kPointer) {
+      n->type = NewType(Type::kInt);
+    } else {
+      cerr << "not implemented expression "
+           << l << ' ' << n->token->Raw() << ' ' << r << endl;
+      ErrorAt(n->token->loc);
+    }
+    break;
+  case Node::kMul:
+  case Node::kDiv:
+    if (l->kind == Type::kInt && r->kind == Type::kInt) {
+      n->type = l;
+    } else {
+      cerr << "not implemented expression "
+           << l << ' ' << n->token->Raw() << ' ' << r << endl;
+      ErrorAt(n->token->loc);
+    }
+    break;
+  case Node::kInt:
+    n->type = NewType(Type::kInt);
+    break;
+  case Node::kEqu:
+  case Node::kNEqu:
+  case Node::kLT:
+  case Node::kLE:
+    if (l->kind == Type::kInt && r->kind == Type::kInt) {
+      n->type = l; // 本来は bool にしたい
+    } else {
+      cerr << "not implemented expression "
+           << l << ' ' << n->token->Raw() << ' ' << r << endl;
+      ErrorAt(n->token->loc);
+    }
+    break;
+  case Node::kId:
+    if (auto sym{n->value.sym}; sym && sym->type) {
+      n->type = sym->type;
+    } else {
+      return false;
+    }
+    break;
+  case Node::kRet:
+    n->type = l;
+    break;
+  case Node::kIf:
+    n->type = l;
+    if (!r) {
+      break;
+    }
+    if (l->kind != r->kind ||
+        (l->kind == Type::kPointer && l->base->kind != r->base->kind)) {
+      cerr << "if statement types (then and else) are incompatible" << endl;
+      ErrorAt(n->token->loc);
+    }
+    break;
+  case Node::kLoop:
+  case Node::kFor:
+    n->type = l;
+    break;
+  case Node::kAssign:
+    if (l->kind != r->kind) {
+      cerr << "cannot assign incompatible type " << r << endl;
+      ErrorAt(n->token->loc);
+    }
+    if (l->kind == Type::kPointer && l->base->kind != r->base->kind) {
+      cerr << "cannot assign incompatible pointer type " << r << endl;
+      ErrorAt(n->token->loc);
+    }
+    n->type = l;
+    break;
+  case Node::kBlock:
+    for (auto stmt{n->next}; stmt; stmt = stmt->next) {
+      changed |= SetSymbolType(stmt);
+      n->type = stmt->type;
+    }
+    return changed;
+  case Node::kCall:
+    if (l->kind == Type::kFunc) {
+      n->type = l->ret;
+    } else if (l->kind == Type::kPointer) {
+      if (l->base->kind != Type::kFunc) {
+        cerr << "cannot call non-function pointer" << endl;
+        ErrorAt(n->token->loc);
+      }
+      n->type = l->base->ret;
+    } else {
+      cerr << "cannot call value type " << l << endl;
+      ErrorAt(n->token->loc);
+    }
+    break;
+  case Node::kEList:
+    {
+      bool all_typed{true};
+      for (auto elem{n->next}; elem; elem = elem->next) {
+        changed |= SetSymbolType(elem);
+        all_typed &= (elem->type != nullptr);
+      }
+      if (all_typed) {
+        n->type = NewType(Type::kUndefined);
+        changed = true;
+      }
+    }
+    return changed;
+  case Node::kType:
+  case Node::kPList:
+  case Node::kExtern:
+    n->type = NewType(Type::kUndefined);
+    break;
+  case Node::kDeclSeq:
+    for (auto decl{n->next}; decl; decl = decl->next) {
+      if (decl->kind == Node::kDefFunc) {
+        changed |= SetSymbolType(decl);
+      } else if (decl->kind == Node::kExtern) {
+        changed |= SetSymbolType(decl);
+      } else if (decl->kind == Node::kDefVar) {
+        changed |= SetSymbolType(decl);
+      } else {
+        cerr << "not implemented" << endl;
+        ErrorAt(decl->token->loc);
+      }
+    }
+    return changed;
+  case Node::kDefFunc:
+    return SetSymbolType(n->lhs);
+  case Node::kAddr:
+    n->type = NewTypePointer(l);
+    break;
+  case Node::kDeref:
+    if (l->kind != Type::kPointer) {
+      cerr << "try to dereference non-pointer" << endl;
+      ErrorAt(n->token->loc);
+    }
+    n->type = l->base;
+    break;
+  case Node::kDefVar:
+    // pass
+    break;
+  case Node::kParam:
+    cerr << "COMPILER BUG: a parameter must be typed" << endl;
+    ErrorAt(n->token->loc);
+    break;
+  case Node::kSubscr:
+    if (l->kind != Type::kArray && l->kind != Type::kPointer) {
+      cerr << "subscription other than array and pointer" << endl;
+      ErrorAt(n->token->loc);
+    }
+    n->type = l->base;
+    break;
+  }
+  return true;
 }

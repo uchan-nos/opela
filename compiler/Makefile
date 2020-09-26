@@ -1,5 +1,5 @@
 CXX = clang++-10
-CXXFLAGS = -O3 -std=c++20 -Wall -Wextra -g
+CXXFLAGS = -O3 -std=c++20 -Wall -Wextra -g -stdlib=libc++
 CFLAGS = -O3 -std=c11 -Wall -Wextra
 
 opelac: main.cpp source.cpp token.cpp ast.cpp

@@ -317,13 +317,27 @@ int main() {
   ReadAll(cin);
   auto tokens{Tokenize(&src[0])};
   cur_token = tokens.begin();
-  generate_mode = false;
-  Program();
+  auto ast{Program()};
+  if (!undeclared_id_nodes.empty()) {
+    cerr << "There are undeclared ids" << endl;
+    for (auto node : undeclared_id_nodes) {
+      cerr << "NODE: kind = " << node->kind
+           << ", tok10 = " << string_view(node->token->loc, 10) << endl;
+    }
+    return 1;
+  }
+  while (SetSymbolType(ast));
+
+  for (auto [ name, ctx ] : contexts) {
+    size_t offset{0};
+    for (auto [ name, lvar ] : ctx->local_vars) {
+      offset += Sizeof(lvar->token, lvar->type);
+      lvar->offset = offset;
+    }
+  }
 
   ostringstream oss;
-  cur_token = tokens.begin();
-  generate_mode = true;
-  GenerateAsm(oss, Program());
+  GenerateAsm(oss, ast);
 
   cout << "bits 64\nsection .text\n";
   cout << oss.str();

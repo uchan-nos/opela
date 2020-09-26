@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <vector>
 
 #include "token.hpp"
 
@@ -60,10 +61,7 @@ struct Context {
 
 inline std::map<std::string /* 関数名 */, Context*> contexts;
 inline std::map<std::string /* シンボル名 */, Symbol*> symbols;
-
-// false: シンボル情報を集めるモード
-// true: AST を生成するモード
-inline bool generate_mode;
+inline std::vector<Node*> undeclared_id_nodes;
 
 struct Node {
   enum Kind {
@@ -102,12 +100,14 @@ struct Node {
   Node* cond; // 条件式がある文における条件式
   Node* lhs;
   Node* rhs;
+  Node* tspec; // 型定義がある場合の型
 
   union {
     std::int64_t i;
     Symbol* sym;
   } value;
 
+  // kind == kType 以外は第2フェーズで型が付く
   Type* type;
 };
 
@@ -137,3 +137,6 @@ Node* VariableDefinition();
 Symbol* LookupLVar(Context* ctx, const std::string& name);
 Symbol* LookupSymbol(Context* ctx, const std::string& name);
 std::size_t Sizeof(Token* tk, Type* type);
+
+// false: 変化無し，true: 変化あり
+bool SetSymbolType(Node* n);
