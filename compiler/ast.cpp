@@ -130,7 +130,8 @@ const map<Node::Kind, const char*> kUnaryOps{
 };
 
 const map<string, Type::Kind> kTypes{
-  {"int", Type::kInt},
+  {"int",  Type::kInt},
+  {"char", Type::kChar},
 };
 
 void RegisterSymbol(Symbol* sym) {
@@ -443,16 +444,7 @@ Node* Unary() {
       arg = Expr();
     }
     Expect(")");
-    size_t arg_size{0};
-    switch (arg->type->kind) {
-    case Type::kInt:
-    case Type::kPointer:
-      arg_size = 8;
-      break;
-    default:
-      cerr << "unknown size of " << arg->type << endl;
-      ErrorAt(arg->token->loc);
-    }
+    size_t arg_size{Sizeof(arg->token, arg->type)};
     return NewNodeInt(op, arg_size);
   }
 
@@ -662,6 +654,8 @@ size_t Sizeof(Token* tk, Type* type) {
     return 8;
   case Type::kArray:
     return Sizeof(tk, type->base) * type->num;
+  case Type::kChar:
+    return 1;
   default:
     cerr << "cannot determine size of " << type << endl;
     ErrorAt(tk->loc);

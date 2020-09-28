@@ -70,6 +70,7 @@ build_run 4  'func main() { var arr [3]int; for i:=0; i<3; i=i+1 { arr[i]=i*2; }
 build_run 7  'func main() { var arr [3]*func(a,b int); arr[1]=&add; arr[1](3,4); } extern "C" add func();'
 build_run 42 'func main() { var (v int = val*3;) v; } var val int = 14;'
 build_run 10 'func main() { a=3; a+c; } var (a int; b = 6; c = b+1;)'
+build_run 1  'func main() { sizeof(char); }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

@@ -19,6 +19,7 @@ struct Type {
     kFunc,
     kVoid,
     kArray,
+    kChar,
   } kind;
 
   // 線形リストの次の要素
