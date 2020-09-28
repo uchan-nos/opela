@@ -448,8 +448,7 @@ Node* Unary() {
       arg = Expr();
     }
     Expect(")");
-    size_t arg_size{Sizeof(arg->token, arg->type)};
-    return NewNodeInt(op, arg_size, 64);
+    return NewNodeExpr(Node::kSizeof, op, arg, nullptr);
   }
 
   return Postfix();
@@ -711,7 +710,8 @@ bool SetSymbolType(Node* n) {
   } else if (n->kind == Node::kRet ||
              n->kind == Node::kLoop ||
              n->kind == Node::kAddr ||
-             n->kind == Node::kDeref) {
+             n->kind == Node::kDeref ||
+             n->kind == Node::kSizeof) {
     changed |= SetSymbolType(n->lhs);
     if (!n->lhs->type) {
       return changed;
@@ -928,6 +928,9 @@ bool SetSymbolType(Node* n) {
     n->type = NewType(Type::kArray);
     n->type->base = NewTypeInt(8);
     n->type->num = n->value.str.len;
+    break;
+  case Node::kSizeof:
+    n->type = NewTypeInt(64);
     break;
   }
   return true;

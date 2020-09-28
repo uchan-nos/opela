@@ -269,6 +269,10 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       os << "    push rax\n";
     }
     return;
+  case Node::kSizeof:
+    os << "    push qword "
+       << Sizeof(node->lhs->token, node->lhs->type) << "\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -383,11 +387,11 @@ int main() {
   cur_token = tokens.begin();
   auto ast{Program()};
   if (!undeclared_id_nodes.empty()) {
-    cerr << "There are undeclared ids" << endl;
+    cerr << "undeclared ids are used:";
     for (auto node : undeclared_id_nodes) {
-      cerr << "NODE: kind = " << node->kind
-           << ", tok10 = " << string_view(node->token->loc, 10) << endl;
+      cerr << ' ' << node->token->Raw();
     }
+    cerr << endl;
     return 1;
   }
   while (SetSymbolType(ast));

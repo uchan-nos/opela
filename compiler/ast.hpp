@@ -95,6 +95,7 @@ struct Node {
     kExtern,
     kSubscr, // 添え字
     kStr,
+    kSizeof,
   } kind;
 
   Token* token; // このノードを代表するトークン

@@ -79,6 +79,8 @@ build_run 4  'func main() { var arr [3]int8; arr[0]=-1; arr[1]=5; arr[2]=arr[0]+
 build_run 10 'func main() { var p *int16 = 8; p+1; }'
 build_run 28 'func main() { var p *int32 = 32; p-1; }'
 build_run 33 'func main() { "abc!def"[3]; }'
+build_run 5  'func main() { strlen("world"); } extern "C" strlen func(s *int8)int64;'
+build_run 6  'func main() { sizeof("abcdef"); }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
