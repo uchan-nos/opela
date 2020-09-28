@@ -281,7 +281,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     if (node->type->kind == Type::kInt) {
       os << "    add rax, rdi\n";
     } else if (node->type->kind == Type::kPointer) {
-      const auto scale{Sizeof(node->token, node->rhs->type)};
+      const auto scale{Sizeof(node->token, node->type->base)};
       os << "    lea rax, [rax + " << scale << " * rdi]\n";
     }
     break;
@@ -294,8 +294,9 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
         os << "    sub rax, rdi\n";
       }
     } else if (node->type->kind == Type::kPointer) { // ptr - int
+      const auto scale{Sizeof(node->token, node->type->base)};
       os << "    neg rdi\n";
-      os << "    lea rax, [rax + 8 * rdi]\n";
+      os << "    lea rax, [rax + " << scale << " * rdi]\n";
     }
     break;
   case Node::kMul:
@@ -351,7 +352,11 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     }
     break;
   case Node::kSubscr:
-    os << "    " << (lval ? "lea" : "mov") << " rax, [rax + 8 * rdi]\n";
+    {
+      auto scale{Sizeof(node->token, node->type)};
+      os << "    " << (lval ? "lea" : "mov") << " rax, [rax + "
+         << scale << " * rdi]\n";
+    }
     break;
   default: // caseが足りないという警告を抑制する
     break;
