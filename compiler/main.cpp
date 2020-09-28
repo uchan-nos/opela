@@ -1,6 +1,8 @@
 #include <array>
 #include <iostream>
 #include <sstream>
+#include <string>
+#include <string_view>
 
 #include "ast.hpp"
 #include "source.hpp"
@@ -23,6 +25,7 @@ const array<const char*, 6> kArgRegs{"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
 Context* cur_ctx; // 現在コード生成中の関数を表すコンテキスト
 
 map<Symbol*, Node*> gvar_init_values;
+vector<Node*> string_literal_nodes;
 
 } // namespace
 
@@ -257,6 +260,15 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     return;
   case Node::kExtern:
     return;
+  case Node::kStr:
+    {
+      ostringstream oss;
+      oss << "STR" << string_literal_nodes.size();
+      string_literal_nodes.push_back(node);
+      os << "    mov rax, " << oss.str() << "\n";
+      os << "    push rax\n";
+    }
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -437,5 +449,10 @@ int main() {
     } else {
       cout << "0\n";
     }
+  }
+  for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
+    auto node{string_literal_nodes[i]};
+    cout << "STR" << i << ":\n";
+    cout << "    db \"" << node->value.str.data << "\", 0\n";
   }
 }

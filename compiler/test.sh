@@ -78,6 +78,7 @@ build_run 2  'func main() { var c char = 255; i:=c+1; i/100; }'
 build_run 4  'func main() { var arr [3]int8; arr[0]=-1; arr[1]=5; arr[2]=arr[0]+arr[1]; }'
 build_run 10 'func main() { var p *int16 = 8; p+1; }'
 build_run 28 'func main() { var p *int32 = 32; p-1; }'
+build_run 33 'func main() { "abc!def"[3]; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

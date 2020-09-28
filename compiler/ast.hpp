@@ -94,6 +94,7 @@ struct Node {
     kParam,
     kExtern,
     kSubscr, // 添え字
+    kStr,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -106,6 +107,10 @@ struct Node {
   union {
     std::int64_t i;
     Symbol* sym;
+    struct {
+      char* data;
+      std::size_t len;
+    } str;
   } value;
 
   // kind == kType 以外は第2フェーズで型が付く

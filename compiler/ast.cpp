@@ -496,6 +496,18 @@ Node* Primary() {
       undeclared_id_nodes.push_back(node);
     }
     return node;
+  } else if (auto tk{Consume(Token::kStr)}) {
+    auto s{tk->Raw()};
+    if (s.starts_with("\"") && s.ends_with("\"")) {
+      auto node{NewNode(Node::kStr, tk)};
+      node->value.str.len = s.length() - 2;
+      node->value.str.data = new char[node->value.str.len + 1];
+      memcpy(node->value.str.data, s.c_str() + 1, node->value.str.len);
+      node->value.str.data[node->value.str.len] = '\0';
+      return node;
+    }
+    cerr << "invalid string literal" << endl;
+    ErrorAt(tk->loc);
   }
 
   auto tk{Expect(Token::kInt)};
@@ -911,6 +923,11 @@ bool SetSymbolType(Node* n) {
       ErrorAt(n->token->loc);
     }
     n->type = l->base;
+    break;
+  case Node::kStr:
+    n->type = NewType(Type::kArray);
+    n->type->base = NewTypeInt(8);
+    n->type->num = n->value.str.len;
     break;
   }
   return true;
