@@ -456,7 +456,10 @@ int main() {
   }
   for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
     auto node{string_literal_nodes[i]};
-    cout << "STR" << i << ":\n";
-    cout << "    db \"" << node->value.str.data << "\", 0\n";
+    cout << "STR" << i << ":\n    db ";
+    for (size_t j{0}; j < node->value.str.len; ++j) {
+      cout << static_cast<int>(node->value.str.data[j]) << ',';
+    }
+    cout << "0\n";
   }
 }

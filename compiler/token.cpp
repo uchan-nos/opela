@@ -39,8 +39,13 @@ const char* FindStr(const char* p) {
 
   ++p;
   while (*p && *p != '"') {
-    ++p;
+    if (*p == '\\') {
+      p += 2;
+    } else {
+      ++p;
+    }
   }
+
   if (*p == '"') {
     ++p;
   }

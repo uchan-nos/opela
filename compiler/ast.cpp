@@ -154,6 +154,40 @@ void RegisterSymbol(Symbol* sym) {
   }
 }
 
+pair<char*, size_t> DecodeEscapeSequence(Token* tk_str) {
+  auto s{tk_str->Raw()};
+  if (s[0] != '"') {
+    cerr << "invalid string literal" << endl;
+    ErrorAt(tk_str->loc);
+  }
+
+  auto decoded{new char[s.length() - 2]};
+  auto p{decoded};
+
+  for (size_t i{1};;) {
+    if (i >= s.length()) {
+      cerr << "string literal is not closed" << endl;
+      ErrorAt(tk_str->loc + i);
+    }
+    if (s[i] == '"') {
+      return {decoded, static_cast<size_t>(p - decoded)};
+    }
+    if (s[i] != '\\') {
+      *p++ = s[i++];
+      continue;
+    }
+    switch (s[i + 1]) {
+    case 'n':
+      *p++ = '\n';
+      break;
+    default:
+      cerr << "unknown escape sequence" << endl;
+      ErrorAt(tk_str->loc + i + 1);
+    }
+    i += 2;
+  }
+}
+
 } // namespace
 
 std::size_t Context::StackSize() const {
@@ -496,17 +530,11 @@ Node* Primary() {
     }
     return node;
   } else if (auto tk{Consume(Token::kStr)}) {
-    auto s{tk->Raw()};
-    if (s.starts_with("\"") && s.ends_with("\"")) {
-      auto node{NewNode(Node::kStr, tk)};
-      node->value.str.len = s.length() - 2;
-      node->value.str.data = new char[node->value.str.len + 1];
-      memcpy(node->value.str.data, s.c_str() + 1, node->value.str.len);
-      node->value.str.data[node->value.str.len] = '\0';
-      return node;
-    }
-    cerr << "invalid string literal" << endl;
-    ErrorAt(tk->loc);
+    auto decoded{DecodeEscapeSequence(tk)};
+    auto node{NewNode(Node::kStr, tk)};
+    node->value.str.data = decoded.first;
+    node->value.str.len = decoded.second;
+    return node;
   }
 
   auto tk{Expect(Token::kInt)};
