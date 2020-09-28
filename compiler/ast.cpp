@@ -542,13 +542,22 @@ Node* TypeSpecifier() {
   }
 
   if (auto type_name{Consume(Token::kId)}) {
-    auto it{kTypes.find(type_name->Raw())};
-    if (it == kTypes.end()) {
+    auto node{NewNode(Node::kType, type_name)};
+    auto name{type_name->Raw()};
+    if (auto it{kTypes.find(name)}; it != kTypes.end()) {
+      node->type = it->second;
+    } else if (name.starts_with("int")) {
+      char* endp{nullptr};
+      long num_bits{strtol(name.c_str() + 3, &endp, 10)};
+      if (*endp != '\0') {
+        cerr << "integer width must be 10-digits" << endl;
+        ErrorAt(type_name->loc + 3);
+      }
+      node->type = NewTypeInt(num_bits);
+    } else {
       cerr << "unknown type " << type_name->Raw() << endl;
       ErrorAt(type_name->loc);
     }
-    auto node{NewNode(Node::kType, type_name)};
-    node->type = it->second;
     return node;
   }
 
