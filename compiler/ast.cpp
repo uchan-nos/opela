@@ -603,6 +603,9 @@ Node* ParameterDeclList() {
       param->tspec = type_spec;
     }
     params_untyped.clear();
+    if (!Consume(",")) {
+      return head;
+    }
   }
 }
 
