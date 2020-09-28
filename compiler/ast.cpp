@@ -22,7 +22,7 @@ ostream& operator<<(ostream& os, Type* t) {
   }
   switch (t->kind) {
   case Type::kInt:
-    os << "int";
+    os << "int" << t->num;
     return os;
   case Type::kPointer:
     os << '*' << t->base;
@@ -61,6 +61,10 @@ Type* NewTypePointer(Type* base_type) {
   return new Type{Type::kPointer, nullptr, base_type, nullptr, 0};
 }
 
+Type* NewTypeInt(int64_t num_bits) {
+  return new Type{Type::kInt, nullptr, nullptr, nullptr, num_bits};
+}
+
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   auto func_type{NewType(Type::kFunc)};
   if (!ret_tspec) {
@@ -94,9 +98,9 @@ Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
                   nullptr, {0}, nullptr};
 }
 
-Node* NewNodeInt(Token* tk, int64_t value) {
+Node* NewNodeInt(Token* tk, int64_t value, int64_t num_bits) {
   return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr,
-                  nullptr, {value}, NewType(Type::kInt)};
+                  nullptr, {value}, NewTypeInt(num_bits)};
 }
 
 Node* NewNodeType(Token* tk, Type* type) {
@@ -129,9 +133,9 @@ const map<Node::Kind, const char*> kUnaryOps{
   {Node::kDeref, "*"},
 };
 
-const map<string, Type::Kind> kTypes{
-  {"int",  Type::kInt},
-  {"char", Type::kChar},
+const map<string, Type*> kTypes{
+  {"int",  NewTypeInt(64)},
+  {"char", NewTypeInt(8)},
 };
 
 void RegisterSymbol(Symbol* sym) {
@@ -426,7 +430,7 @@ Node* Unary() {
   if (Consume("+")) {
     return Unary();
   } else if (auto op{Consume("-")}) {
-    auto zero{NewNodeInt(nullptr, 0)};
+    auto zero{NewNodeInt(nullptr, 0, 64)};
     auto node{Unary()};
     return NewNodeExpr(Node::kSub, op, zero, node);
   }
@@ -445,7 +449,7 @@ Node* Unary() {
     }
     Expect(")");
     size_t arg_size{Sizeof(arg->token, arg->type)};
-    return NewNodeInt(op, arg_size);
+    return NewNodeInt(op, arg_size, 64);
   }
 
   return Postfix();
@@ -495,7 +499,7 @@ Node* Primary() {
   }
 
   auto tk{Expect(Token::kInt)};
-  return NewNodeInt(tk, tk->value);
+  return NewNodeInt(tk, tk->value, 64);
 }
 
 Node* TypeSpecifier() {
@@ -544,7 +548,7 @@ Node* TypeSpecifier() {
       ErrorAt(type_name->loc);
     }
     auto node{NewNode(Node::kType, type_name)};
-    node->type = NewType(it->second);
+    node->type = it->second;
     return node;
   }
 
@@ -650,12 +654,15 @@ Symbol* LookupSymbol(Context* ctx, const std::string& name) {
 size_t Sizeof(Token* tk, Type* type) {
   switch (type->kind) {
   case Type::kInt:
+    if (type->num == 0 || (type->num % 8) != 0) {
+      cerr << "cannot determine size of non-byte integer " << endl;
+      ErrorAt(tk->loc);
+    }
+    return type->num / 8;
   case Type::kPointer:
     return 8;
   case Type::kArray:
     return Sizeof(tk, type->base) * type->num;
-  case Type::kChar:
-    return 1;
   default:
     cerr << "cannot determine size of " << type << endl;
     ErrorAt(tk->loc);

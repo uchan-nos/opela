@@ -19,7 +19,6 @@ struct Type {
     kFunc,
     kVoid,
     kArray,
-    kChar,
   } kind;
 
   // 線形リストの次の要素
@@ -32,7 +31,8 @@ struct Type {
   // 関数の戻り値型
   Type* ret;
 
-  // 配列の要素数
+  // kind == kArray の場合，要素数
+  // kind == kInt の場合，ビット数
   std::int64_t num;
 };
 

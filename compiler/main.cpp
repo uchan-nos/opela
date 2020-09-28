@@ -62,7 +62,34 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     return;
   case Node::kId:
     LoadSymAddr(os, node->token);
-    os << "    push " << (lval ? "rax" : "qword [rax]") << "\n";
+    if (lval) {
+      os << "    push rax\n";
+    } else if (node->value.sym->type->kind != Type::kInt) {
+      os << "    push qword [rax]\n";
+    } else {
+      switch (node->value.sym->type->num) {
+      case 8:
+        os << "    xor edi, edi\n";
+        os << "    mov dil, [rax]\n";
+        os << "    push rdi\n";
+        break;
+      case 16:
+        os << "    xor edi, edi\n";
+        os << "    mov di [rax]\n";
+        os << "    push rdi\n";
+        break;
+      case 32:
+        os << "    mov edi, [rax]\n";
+        os << "    push rdi\n";
+        break;
+      case 64:
+        os << "    push qword [rax]\n";
+        break;
+      default:
+        cerr << "loading non-standard size integer is not supported" << endl;
+        ErrorAt(node->token->loc);
+      }
+    }
     return;
   case Node::kRet:
     GenerateAsm(os, node->lhs);
@@ -292,7 +319,27 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     break;
   case Node::kAssign:
   case Node::kDefVar:
-    os << "    mov [rax], rdi\n";
+    if (node->lhs->type->kind != Type::kInt) {
+      os << "    mov [rax], rdi\n";
+    } else {
+      switch (node->lhs->type->num) {
+      case 8:
+        os << "    mov [rax], dil\n";
+        break;
+      case 16:
+        os << "    mov [rax], di\n";
+        break;
+      case 32:
+        os << "    mov [rax], edi\n";
+        break;
+      case 64:
+        os << "    mov [rax], rdi\n";
+        break;
+      default:
+        cerr << "non-standard size assignment is not supported" << endl;
+        ErrorAt(node->token->loc);
+      }
+    }
     os << "    push " << (lval ? "rax" : "rdi") << "\n";
     return;
   case Node::kAddr:
