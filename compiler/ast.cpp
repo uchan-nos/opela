@@ -740,7 +740,7 @@ bool SetSymbolType(Node* n) {
   switch (n->kind) {
   case Node::kAdd:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = l;
+      n->type = NewTypeInt(64);
     } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kInt && r->kind == Type::kPointer) {
@@ -753,11 +753,11 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kSub:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = l;
+      n->type = NewTypeInt(64);
     } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kPointer && r->kind == Type::kPointer) {
-      n->type = NewType(Type::kInt);
+      n->type = NewTypeInt(64);
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -767,7 +767,7 @@ bool SetSymbolType(Node* n) {
   case Node::kMul:
   case Node::kDiv:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = l;
+      n->type = NewTypeInt(64);
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -775,14 +775,14 @@ bool SetSymbolType(Node* n) {
     }
     break;
   case Node::kInt:
-    n->type = NewType(Type::kInt);
+    n->type = NewTypeInt(64);
     break;
   case Node::kEqu:
   case Node::kNEqu:
   case Node::kLT:
   case Node::kLE:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = l; // 本来は bool にしたい
+      n->type = NewTypeInt(64); // 本来は bool にしたい
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;

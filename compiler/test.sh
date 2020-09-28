@@ -74,6 +74,7 @@ build_run 1  'func main() { sizeof(char); }'
 build_run 43 'func main() { var c char = 42; c+1; }'
 build_run 2  'func main() { var c int = 255; c=c+1; c/100; }'
 build_run 0  'func main() { var c char = 255; c=c+1; c/100; }'
+build_run 2  'func main() { var c char = 255; i:=c+1; i/100; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
