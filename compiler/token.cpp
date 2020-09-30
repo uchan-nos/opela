@@ -87,6 +87,17 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
+    if (p[0] == '\'') {
+      if (p[1] != '\\' && p[2] == '\'') {
+        tokens.push_back(Token{Token::kChar, p, 3, p[1]});
+        p += 3;
+      } else if (p[1] == '\\' && p[3] == '\'') {
+        tokens.push_back(Token{Token::kChar, p, 4, GetEscapeValue(p[2])});
+        p += 4;
+      }
+      continue;
+    }
+
     if (*p == '"') {
       auto str_end{FindStr(p)};
       Token tk{Token::kStr, p, static_cast<size_t>(str_end - p), 0};
@@ -181,4 +192,18 @@ Token* Expect(const string& raw) {
 
 bool AtEOF() {
   return cur_token->kind == Token::kEOF;
+}
+
+char GetEscapeValue(char escape_char) {
+  switch (escape_char) {
+  case '0': return 0;
+  case 'a': return '\a';
+  case 'b': return '\b';
+  case 't': return '\t';
+  case 'n': return '\n';
+  case 'v': return '\v';
+  case 'f': return '\f';
+  case 'r': return '\r';
+  default: return escape_char;
+  }
 }

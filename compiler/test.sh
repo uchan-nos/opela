@@ -109,6 +109,7 @@ test_exit 33 'func main() { p := &" !"[0]; p[1]; }'
 test_exit 1  'func main() { p := &" !"[0]; if p[0]==32 { 1; } else { 2; } }'
 test_exit 1  'func main() { var a [1]int8; var b int8 = a[0]; a[0]=1; b=2; a[0]; }'
 test_exit 12 'func main() { i := 1; i += 2; j := 3; i *= 1 + j; }'
+test_exit 33 "func main() { '!' + '\t' - 9; }"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

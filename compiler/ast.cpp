@@ -176,14 +176,7 @@ pair<char*, size_t> DecodeEscapeSequence(Token* tk_str) {
       *p++ = s[i++];
       continue;
     }
-    switch (s[i + 1]) {
-    case 'n':
-      *p++ = '\n';
-      break;
-    default:
-      cerr << "unknown escape sequence" << endl;
-      ErrorAt(tk_str->loc + i + 1);
-    }
+    *p++ = GetEscapeValue(s[i + 1]);
     i += 2;
   }
 }
@@ -546,6 +539,8 @@ Node* Primary() {
     node->value.str.data = decoded.first;
     node->value.str.len = decoded.second;
     return node;
+  } else if (auto tk{Consume(Token::kChar)}) {
+    return NewNodeInt(tk, tk->value, 8);
   }
 
   auto tk{Expect(Token::kInt)};

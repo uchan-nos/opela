@@ -19,8 +19,9 @@ struct Token {
     kFunc,
     kVar,
     kExtern,
-    kStr,
+    kStr,  // 文字列リテラル
     kSizeof,
+    kChar, // 文字リテラル
   } kind;
 
   const char* loc; // src の中を指すポインタ
@@ -43,3 +44,5 @@ Token* Consume(const std::string& raw);
 Token* Expect(Token::Kind kind);
 Token* Expect(const std::string& raw);
 bool AtEOF();
+
+char GetEscapeValue(char escape_char);
