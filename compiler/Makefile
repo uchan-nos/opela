@@ -13,7 +13,9 @@ test: opelac cfunc.o
 clean:
 	rm -rf opelac *.o
 
-%.out: %.opl
+%.o: %.opl opelac
 	./opelac < $< > $*.s
 	nasm -f elf64 -o $*.o $*.s
-	cc -no-pie -o $@ $*.o cfunc.o
+
+rpn.out: rpn.o
+	cc -no-pie -o $@ $^

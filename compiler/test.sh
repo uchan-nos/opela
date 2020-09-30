@@ -106,6 +106,8 @@ test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd in
 test_exit 10 'func main() { "\n"[0]; }'
 test_exit 4  'func main() { var x [2]int8; x[0]=1; x[1]=2; p:=&x[0]; p[1]=3; x[1]+1; }'
 test_exit 33 'func main() { p := &" !"[0]; p[1]; }'
+test_exit 1  'func main() { p := &" !"[0]; if p[0]==32 { 1; } else { 2; } }'
+test_exit 1  'func main() { var a [1]int8; var b int8 = a[0]; a[0]=1; b=2; a[0]; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

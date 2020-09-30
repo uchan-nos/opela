@@ -235,7 +235,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << cur_ctx->func_name << ":\n";
     os << "    push rbp\n";
     os << "    mov rbp, rsp\n";
-    os << "    sub rsp, " << cur_ctx->StackSize() << "\n";
+    os << "    sub rsp, " << ((cur_ctx->StackSize() + 15) & 0xfffffff0) << "\n";
     os << "    xor rax, rax\n";
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
@@ -370,8 +370,22 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
   case Node::kSubscr:
     {
       auto scale{Sizeof(node->token, node->type)};
-      os << "    " << (lval ? "lea" : "mov") << " rax, [rax + "
-         << scale << " * rdi]\n";
+      if (lval) {
+        os << "    lea rax, [rax + " << scale << " * rdi]\n";
+      } else {
+        if (scale == 1) {
+          os << "    movzx eax, byte [rax + " << scale << " * rdi]\n";
+        } else if (scale == 2) {
+          os << "    movzx eax, word [rax + " << scale << " * rdi]\n";
+        } else if (scale == 4) {
+          os << "    mov eax, [rax + " << scale << " * rdi]\n";
+        } else if (scale == 8) {
+          os << "    mov rax, [rax + " << scale << " * rdi]\n";
+        } else {
+          cerr << "non-standard scale is not supported: " << scale << endl;
+          ErrorAt(node->token->loc);
+        }
+      }
     }
     break;
   default: // caseが足りないという警告を抑制する

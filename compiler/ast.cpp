@@ -759,6 +759,7 @@ bool SetSymbolType(Node* n) {
       return changed;
     }
   } else if (n->kind == Node::kIf) {
+    changed |= SetSymbolType(n->cond);
     changed |= SetSymbolType(n->lhs);
     if (n->rhs) {
       changed |= SetSymbolType(n->rhs);
@@ -769,13 +770,15 @@ bool SetSymbolType(Node* n) {
   } else if (n->kind == Node::kDefVar) {
     // kDefVar: tspec か rhs から型を決める
     Type* var_type;
-    if (n->tspec) {
-      var_type = n->tspec->type;
-    } else if (n->rhs) {
+    if (n->rhs) {
       changed |= SetSymbolType(n->rhs);
       if (!n->rhs->type) {
         return changed;
       }
+    }
+    if (n->tspec) {
+      var_type = n->tspec->type;
+    } else if (n->rhs) {
       var_type = n->rhs->type;
     } else {
       cerr << "at least either n->tspec or n->rhs must not be null" << endl;
