@@ -104,7 +104,6 @@ test_exit 5  'func main() { strlen("world"); } extern "C" strlen func(s *int8)in
 test_exit 6  'func main() { sizeof("abcdef"); }'
 test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *char,n int64);'
 test_exit 10 'func main() { "\n"[0]; }'
-test_exit 10 'func main() { "\'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
