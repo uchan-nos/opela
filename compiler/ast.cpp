@@ -376,9 +376,20 @@ Node* Expr() {
 Node* Assignment() {
   auto node{Equality()};
 
+  const map<string_view, Node::Kind> opmap{
+    {"+=", Node::kAdd},
+    {"-=", Node::kSub},
+    {"*=", Node::kMul},
+    {"/=", Node::kDiv},
+  };
+
   // 代入演算は右結合
   if (auto op{Consume("=")}) {
     auto rhs{Assignment()};
+    node = NewNodeExpr(Node::kAssign, op, node, rhs);
+  } else if (auto it{opmap.find(cur_token->Raw())}; it != opmap.end()) {
+    ++cur_token;
+    auto rhs{NewNodeExpr(it->second, op, node, Assignment())};
     node = NewNodeExpr(Node::kAssign, op, node, rhs);
   } else if (auto op{Consume(":=")}) {
     if (node->kind == Node::kId) {

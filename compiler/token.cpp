@@ -73,8 +73,7 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (string op{p, 2};
-        op == "==" || op == "!=" || op == "<=" || op == ">=" || op == ":=") {
+    if (p[1] == '=' && strchr("=!<>:+-*/", p[0])) {
       Token tk{Token::kReserved, p, 2, 0};
       tokens.push_back(tk);
       p += 2;
