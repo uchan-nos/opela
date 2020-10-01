@@ -112,6 +112,7 @@ test_exit 12 'func main() { i := 1; i += 2; j := 3; i *= 1 + j; }'
 test_exit 33 "func main() { '!' + '\t' - 9; }"
 test_exit 4  'func main() { i := 3; if i==1 && 2==1 || i==3 { 4; } else { 5; } }'
 test_exit 1  'func main() { v := 5 && 6 || 7; }'
+test_exit 2  'func main() { v := 2; 42 || (v = 3); v; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
