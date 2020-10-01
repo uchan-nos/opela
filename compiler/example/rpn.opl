@@ -1,12 +1,16 @@
 func main() {
   var stk [128]int;
   stk_i := 0;
-  p := &"3 4 + 2 /"[0];
   var a int;
   var b int;
 
-  for i := 0; i < 9; i += 1 {
+  var buf [128]char;
+  bytes := read(0, &buf[0], 128);
+  p := &buf[0];
+
+  for i := 0; i < bytes; i += 1 {
     if p[i] == ' ' {
+    } else if p[i] == '\n' {
     } else if p[i] == '+' {
       b = stk[stk_i];
       a = stk[stk_i - 1];
@@ -39,4 +43,5 @@ func main() {
   write(1, &s[0], 2);
 }
 
-extern "C" write func(fd int, s *char, n int);
+extern "C" read func(fd int, s *char, n int) int;
+extern "C" write func(fd int, s *char, n int) int;
