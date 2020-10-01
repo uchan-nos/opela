@@ -9,8 +9,7 @@ func main() {
   p := &buf[0];
 
   for i := 0; i < bytes; i += 1 {
-    if p[i] == ' ' {
-    } else if p[i] == '\n' {
+    if p[i] == ' ' || p[i] == '\n' {
     } else if p[i] == '+' {
       b = stk[stk_i];
       a = stk[stk_i - 1];

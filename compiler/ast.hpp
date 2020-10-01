@@ -96,6 +96,8 @@ struct Node {
     kSubscr, // 添え字
     kStr,
     kSizeof,
+    kLOr,
+    kLAnd,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -130,6 +132,8 @@ Node* JumpStatement();
 Node* ExpressionStatement();
 Node* Expr();
 Node* Assignment();
+Node* LogicalOr();
+Node* LogicalAnd();
 Node* Equality();
 Node* Relational();
 Node* Additive();

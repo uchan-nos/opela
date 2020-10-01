@@ -367,7 +367,7 @@ Node* Expr() {
 }
 
 Node* Assignment() {
-  auto node{Equality()};
+  auto node{LogicalOr()};
 
   const map<string_view, Node::Kind> opmap{
     {"+=", Node::kAdd},
@@ -402,6 +402,30 @@ Node* Assignment() {
     node = NewNodeExpr(Node::kDefVar, op, node, init);
   }
   return node;
+}
+
+Node* LogicalOr() {
+  auto node{LogicalAnd()};
+
+  for (;;) {
+    if (auto op{Consume("||")}) {
+      node = NewNodeExpr(Node::kLOr, op, node, LogicalAnd());
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* LogicalAnd() {
+  auto node{Equality()};
+
+  for (;;) {
+    if (auto op{Consume("&&")}) {
+      node = NewNodeExpr(Node::kLAnd, op, node, Equality());
+    } else {
+      return node;
+    }
+  }
 }
 
 Node* Equality() {
@@ -738,7 +762,8 @@ bool SetSymbolType(Node* n) {
       n->kind == Node::kLT  || n->kind == Node::kLE ||
       n->kind == Node::kAssign ||
       n->kind == Node::kCall ||
-      n->kind == Node::kSubscr) {
+      n->kind == Node::kSubscr ||
+      n->kind == Node::kLOr || n->kind == Node::kLAnd) {
     changed |= SetSymbolType(n->lhs);
     changed |= SetSymbolType(n->rhs);
     if (!n->lhs->type || !n->rhs->type) {
@@ -970,6 +995,12 @@ bool SetSymbolType(Node* n) {
     n->type->num = n->value.str.len;
     break;
   case Node::kSizeof:
+    n->type = NewTypeInt(64);
+    break;
+  case Node::kLOr:
+    n->type = NewTypeInt(64);
+    break;
+  case Node::kLAnd:
     n->type = NewTypeInt(64);
     break;
   }

@@ -273,6 +273,40 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    push qword "
        << Sizeof(node->lhs->token, node->lhs->type) << "\n";
     return;
+  case Node::kLOr:
+    {
+      auto label_true{GenerateLabel()};
+      auto label_false{GenerateLabel()};
+      GenerateAsm(os, node->lhs);
+      os << "    pop rax\n";
+      os << "    test rax, rax\n";
+      os << "    jnz " << label_true << "\n";
+      GenerateAsm(os, node->rhs);
+      os << "    pop rax\n";
+      os << "    test rax, rax\n";
+      os << "    jz " << label_false << "\n";
+      os << label_true << ":\n";
+      os << "    mov rax, 1\n";
+      os << label_false << ":\n";
+      os << "    push rax\n";
+    }
+    return;
+  case Node::kLAnd:
+    {
+      auto label_false{GenerateLabel()};
+      GenerateAsm(os, node->lhs);
+      os << "    pop rax\n";
+      os << "    test rax, rax\n";
+      os << "    jz " << label_false << "\n";
+      GenerateAsm(os, node->rhs);
+      os << "    pop rax\n";
+      os << "    test rax, rax\n";
+      os << "    jz " << label_false << "\n";
+      os << "    mov rax, 1\n";
+      os << label_false << ":\n";
+      os << "    push rax\n";
+    }
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

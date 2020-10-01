@@ -5,6 +5,7 @@
 #include <cstring>
 #include <iostream>
 #include <map>
+#include <string_view>
 
 #include "magic_enum.hpp"
 #include "source.hpp"
@@ -76,6 +77,12 @@ vector<Token> Tokenize(const char* p) {
     if (p[1] == '=' && strchr("=!<>:+-*/", p[0])) {
       Token tk{Token::kReserved, p, 2, 0};
       tokens.push_back(tk);
+      p += 2;
+      continue;
+    }
+
+    if (string_view op{p, 2}; op == "||" || op == "&&") {
+      tokens.push_back(Token{Token::kReserved, p, 2, 0});
       p += 2;
       continue;
     }
