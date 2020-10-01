@@ -113,6 +113,7 @@ test_exit 33 "func main() { '!' + '\t' - 9; }"
 test_exit 4  'func main() { i := 3; if i==1 && 2==1 || i==3 { 4; } else { 5; } }'
 test_exit 1  'func main() { v := 5 && 6 || 7; }'
 test_exit 2  'func main() { v := 2; 42 || (v = 3); v; }'
+test_exit 2  '/* main func */ func main() { 2; } // comment'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

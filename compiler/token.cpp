@@ -64,6 +64,22 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
+    if (p[0] == '/') {
+      if (p[1] == '/') {
+        if (auto lf{strchr(p + 2, '\n')}) {
+          p = lf + 1;
+          continue;
+        }
+        break;
+      } else if (p[1] == '*') {
+        if (auto delim{strstr(p + 2, "*/")}) {
+          p = delim + 2;
+          continue;
+        }
+        break;
+      }
+    }
+
     if (isdigit(*p)) {
       char* non_digit;
       long v{strtol(p, &non_digit, 0)};
