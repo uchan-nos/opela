@@ -12,10 +12,3 @@ test: opelac cfunc.o
 .PHONY: clean
 clean:
 	rm -rf opelac *.o
-
-%.o: %.opl opelac
-	./opelac < $< > $*.s
-	nasm -f elf64 -o $*.o $*.s
-
-rpn.out: rpn.o
-	cc -no-pie -o $@ $^
