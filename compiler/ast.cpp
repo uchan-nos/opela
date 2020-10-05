@@ -282,8 +282,8 @@ Node* ExternDeclaration() {
 }
 
 Node* Statement() {
-  if (Peek(Token::kRet)) {
-    return JumpStatement();
+  if (auto stmt{JumpStatement()}) {
+    return stmt;
   }
 
   if (Peek(Token::kIf)) {
@@ -355,12 +355,20 @@ Node* IterationStatement() {
 }
 
 Node* JumpStatement() {
-  auto tk{Expect(Token::kRet)};
-  auto expr{Expr()};
-  Expect(";");
-  auto node{NewNode(Node::kRet, tk)};
-  node->lhs = expr;
-  return node;
+  if (auto tk{Consume(Token::kRet)}) {
+    auto expr{Expr()};
+    Expect(";");
+    auto node{NewNode(Node::kRet, tk)};
+    node->lhs = expr;
+    return node;
+  }
+
+  if (auto tk{Consume(Token::kBreak)}) {
+    Expect(";");
+    return NewNode(Node::kBreak, tk);
+  }
+
+  return nullptr;
 }
 
 Node* ExpressionStatement() {
@@ -927,6 +935,7 @@ bool SetSymbolType(Node* n) {
   case Node::kType:
   case Node::kPList:
   case Node::kExtern:
+  case Node::kBreak:
     n->type = NewType(Type::kUndefined);
     break;
   case Node::kDeclSeq:

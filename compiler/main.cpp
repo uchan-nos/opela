@@ -58,7 +58,9 @@ void LoadSymAddr(ostream& os, Token* sym_id) {
   os << "    mov rax, " << sym->token->Raw() << "\n";
 }
 
-void GenerateAsm(ostream& os, Node* node, bool lval = false) {
+void GenerateAsm(ostream& os, Node* node,
+                 string_view label_break, string_view label_cont,
+                 bool lval = false) {
   switch (node->kind) {
   case Node::kInt:
     os << "    push qword " << node->value.i << '\n';
@@ -95,7 +97,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     }
     return;
   case Node::kRet:
-    GenerateAsm(os, node->lhs);
+    GenerateAsm(os, node->lhs, label_break, label_cont);
     os << "    pop rax\n";
     os << "    jmp " << cur_ctx->func_name << "_exit\n";
     return;
@@ -104,16 +106,16 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       auto label_else{GenerateLabel()};
       auto label_exit{GenerateLabel()};
       os << "    push rax\n";
-      GenerateAsm(os, node->cond);
+      GenerateAsm(os, node->cond, label_break, label_cont);
       os << "    pop rax\n";
       os << "    test rax, rax\n";
       os << "    jz " << label_else << "\n";
       os << "    pop rax\n";
-      GenerateAsm(os, node->lhs);
+      GenerateAsm(os, node->lhs, label_break, label_cont);
       os << "    jmp " << label_exit << "\n";
       os << label_else << ":\n";
       if (node->rhs) {
-        GenerateAsm(os, node->rhs);
+        GenerateAsm(os, node->rhs, label_break, label_cont);
       }
       os << label_exit << ":\n";
     }
@@ -121,10 +123,12 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
   case Node::kLoop:
     {
       auto label_loop{GenerateLabel()};
+      auto label_end{GenerateLabel()};
       os << label_loop << ":\n";
-      GenerateAsm(os, node->lhs);
+      GenerateAsm(os, node->lhs, label_end, label_loop);
       os << "    pop rax\n";
       os << "    jmp " << label_loop << "\n";
+      os << label_end << ":\n";
     }
     return;
   case Node::kFor:
@@ -135,24 +139,26 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     {
       auto label_loop{GenerateLabel()};
       auto label_cond{GenerateLabel()};
+      auto label_end{GenerateLabel()};
       if (node->rhs) {
-        GenerateAsm(os, node->rhs);
+        GenerateAsm(os, node->rhs, label_end, label_cond);
         os << "    pop rax\n";
       }
       os << "    push qword [rsp]\n";
       os << "    jmp " << label_cond << "\n";
       os << label_loop << ":\n";
       os << "    pop rax\n";
-      GenerateAsm(os, node->lhs);
+      GenerateAsm(os, node->lhs, label_end, label_cond);
       if (node->rhs) {
-        GenerateAsm(os, node->rhs->next);
+        GenerateAsm(os, node->rhs->next, label_end, label_cond);
         os << "    pop rax\n";
       }
       os << label_cond << ":\n";
-      GenerateAsm(os, node->cond);
+      GenerateAsm(os, node->cond, label_end, label_cond);
       os << "    pop rax\n";
       os << "    test rax, rax\n";
       os << "    jnz " << label_loop << "\n";
+      os << label_end << ":\n";
     }
     return;
   case Node::kBlock:
@@ -161,7 +167,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       return;
     }
     for (node = node->next; node != nullptr; node = node->next) {
-      GenerateAsm(os, node);
+      GenerateAsm(os, node, label_break, label_cont);
       if (node->next) {
         os << "    pop rax\n";
       }
@@ -197,7 +203,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
           cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
           ErrorAt(arg->token->loc);
         }
-        GenerateAsm(os, arg);
+        GenerateAsm(os, arg, label_break, label_cont);
         ++num_arg;
       }
 
@@ -212,7 +218,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
           ErrorAt(node->lhs->token->loc);
         }
       } else {
-        GenerateAsm(os, node->lhs);
+        GenerateAsm(os, node->lhs, label_break, label_cont);
         os << "    pop rax\n";
       }
 
@@ -227,7 +233,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
   case Node::kDeclSeq:
     for (auto decl{node->next}; decl != nullptr; decl = decl->next) {
       cur_ctx = contexts[decl->token->Raw()];
-      GenerateAsm(os, decl);
+      GenerateAsm(os, decl, label_break, label_cont);
     }
     return;
   case Node::kDefFunc:
@@ -241,7 +247,7 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
       auto off{cur_ctx->params[i]->offset};
       os << "    mov [rbp - " << off << "], " << kArgRegs[i] << "\n";
     }
-    GenerateAsm(os, node->lhs); // 関数ボディ
+    GenerateAsm(os, node->lhs, label_break, label_cont); // 関数ボディ
     os << "    pop rax\n";
     os << cur_ctx->func_name << "_exit:\n";
     os << "    mov rsp, rbp\n";
@@ -273,6 +279,10 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     os << "    push qword "
        << Sizeof(node->lhs->token, node->lhs->type) << "\n";
     return;
+  case Node::kBreak:
+    os << "    push rax\n";
+    os << "    jmp " << label_break << "\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -284,10 +294,10 @@ void GenerateAsm(ostream& os, Node* node, bool lval = false) {
     (node->kind == Node::kSubscr && node->lhs->type->kind == Type::kArray)
   };
 
-  GenerateAsm(os, node->lhs, request_lval);
+  GenerateAsm(os, node->lhs, label_break, label_cont, request_lval);
   if (node->rhs) {
     // 単項演算子の場合は rhs が null の場合がある
-    GenerateAsm(os, node->rhs);
+    GenerateAsm(os, node->rhs, label_break, label_cont);
     os << "    pop rdi\n";
   }
   os << "    pop rax\n";
@@ -419,7 +429,7 @@ int main() {
   }
 
   ostringstream oss;
-  GenerateAsm(oss, ast);
+  GenerateAsm(oss, ast, "", "");
 
   cout << "bits 64\nsection .text\n";
   cout << oss.str();
@@ -447,7 +457,7 @@ int main() {
   cout << "    mov rbp, rsp\n";
   for (auto [ sym, init ] : gvar_init_values) {
     if (init && init->kind != Node::kInt) {
-      GenerateAsm(cout, init);
+      GenerateAsm(cout, init, "", "");
       cout << "    pop rax\n";
       cout << "    mov [" << sym->token->Raw() << "], rax\n";
     }
