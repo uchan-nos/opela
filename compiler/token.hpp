@@ -21,6 +21,8 @@ struct Token {
     kExtern,
     kStr,
     kSizeof,
+    kBreak,
+    kCont,
   } kind;
 
   const char* loc; // src の中を指すポインタ
