@@ -123,9 +123,11 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kLoop:
     {
       auto label_loop{GenerateLabel()};
+      auto label_next{GenerateLabel()};
       auto label_end{GenerateLabel()};
       os << label_loop << ":\n";
-      GenerateAsm(os, node->lhs, label_end, label_loop);
+      GenerateAsm(os, node->lhs, label_end, label_next);
+      os << label_next << ":\n";
       os << "    pop rax\n";
       os << "    jmp " << label_loop << "\n";
       os << label_end << ":\n";
@@ -139,22 +141,24 @@ void GenerateAsm(ostream& os, Node* node,
     {
       auto label_loop{GenerateLabel()};
       auto label_cond{GenerateLabel()};
+      auto label_next{GenerateLabel()};
       auto label_end{GenerateLabel()};
       if (node->rhs) {
-        GenerateAsm(os, node->rhs, label_end, label_cond);
+        GenerateAsm(os, node->rhs, label_end, label_next);
         os << "    pop rax\n";
       }
       os << "    push qword [rsp]\n";
       os << "    jmp " << label_cond << "\n";
       os << label_loop << ":\n";
       os << "    pop rax\n";
-      GenerateAsm(os, node->lhs, label_end, label_cond);
+      GenerateAsm(os, node->lhs, label_end, label_next);
+      os << label_next << ":\n";
       if (node->rhs) {
-        GenerateAsm(os, node->rhs->next, label_end, label_cond);
+        GenerateAsm(os, node->rhs->next, label_end, label_next);
         os << "    pop rax\n";
       }
       os << label_cond << ":\n";
-      GenerateAsm(os, node->cond, label_end, label_cond);
+      GenerateAsm(os, node->cond, label_end, label_next);
       os << "    pop rax\n";
       os << "    test rax, rax\n";
       os << "    jnz " << label_loop << "\n";
