@@ -283,6 +283,10 @@ void GenerateAsm(ostream& os, Node* node,
     os << "    push rax\n";
     os << "    jmp " << label_break << "\n";
     return;
+  case Node::kCont:
+    os << "    push rax\n";
+    os << "    jmp " << label_cont << "\n";
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

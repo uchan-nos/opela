@@ -368,6 +368,11 @@ Node* JumpStatement() {
     return NewNode(Node::kBreak, tk);
   }
 
+  if (auto tk{Consume(Token::kCont)}) {
+    Expect(";");
+    return NewNode(Node::kCont, tk);
+  }
+
   return nullptr;
 }
 
@@ -936,6 +941,7 @@ bool SetSymbolType(Node* n) {
   case Node::kPList:
   case Node::kExtern:
   case Node::kBreak:
+  case Node::kCont:
     n->type = NewType(Type::kUndefined);
     break;
   case Node::kDeclSeq:
