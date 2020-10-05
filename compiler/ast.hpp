@@ -98,6 +98,8 @@ struct Node {
     kSizeof,
     kLOr,
     kLAnd,
+    kBreak,
+    kCont,
   } kind;
 
   Token* token; // このノードを代表するトークン

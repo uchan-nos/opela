@@ -114,6 +114,11 @@ test_exit 4  'func main() { i := 3; if i==1 && 2==1 || i==3 { 4; } else { 5; } }
 test_exit 1  'func main() { v := 5 && 6 || 7; }'
 test_exit 2  'func main() { v := 2; 42 || (v = 3); v; }'
 test_exit 2  '/* main func */ func main() { 2; } // comment'
+test_exit 3  'func main() { i := 1; for i < 10 { if i == 3 { break; } i += 1; } i; }'
+test_exit 10 'func main() { i := 1; for i < 10 { i = 10; continue; i = 42; } i; }'
+test_exit 12 'func main() { i := 1; for i = 1; i < 12; i += 1 { continue; } i; }'
+test_exit 10 'func main() { i := 1; for { if i >= 10 { break; } i = 10; continue; i = 42; } i; }'
+test_exit 42 'func main() { i := 1; for { if i >= 42 { break; } i += 1; continue; } i; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
