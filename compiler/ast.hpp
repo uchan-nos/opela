@@ -19,6 +19,7 @@ struct Type {
     kFunc,
     kVoid,
     kArray,
+    kUser,
   } kind;
 
   // 線形リストの次の要素
@@ -63,6 +64,7 @@ struct Context {
 inline std::map<std::string /* 関数名 */, Context*> contexts;
 inline std::map<std::string /* シンボル名 */, Symbol*> symbols;
 inline std::vector<Node*> undeclared_id_nodes;
+inline std::map<std::string /* 型名 */, Type*> types;
 
 struct Node {
   enum Kind {
@@ -100,6 +102,7 @@ struct Node {
     kLAnd,
     kBreak,
     kCont,
+    kTypedef,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -146,6 +149,7 @@ Node* Primary();
 Node* TypeSpecifier();
 Node* ParameterDeclList();
 Node* VariableDefinition();
+Node* TypeDeclaration();
 
 Symbol* LookupLVar(Context* ctx, const std::string& name);
 Symbol* LookupSymbol(Context* ctx, const std::string& name);

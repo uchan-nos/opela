@@ -25,6 +25,7 @@ const map<Token::Kind, string> kKeywords{
   {Token::kSizeof, "sizeof"},
   {Token::kBreak,  "break"},
   {Token::kCont,   "continue"},
+  {Token::kType,   "type"},
 };
 
 bool IsAlpha(char ch) {

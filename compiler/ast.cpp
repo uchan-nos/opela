@@ -208,6 +208,8 @@ Node* DeclarationSequence() {
       cur->next = ExternDeclaration();
     } else if (Peek(Token::kVar)) {
       cur->next = VariableDefinition();
+    } else if (Peek(Token::kType)) {
+      cur->next = TypeDeclaration();
     } else {
       return head;
     }
@@ -637,8 +639,7 @@ Node* TypeSpecifier() {
       }
       node->type = NewTypeInt(num_bits);
     } else {
-      cerr << "unknown type " << type_name->Raw() << endl;
-      ErrorAt(type_name->loc);
+      node->type = NewType(Type::kUnknown);
     }
     return node;
   }
@@ -726,6 +727,19 @@ Node* VariableDefinition() {
   return one_def();
 }
 
+Node* TypeDeclaration() {
+  Expect(Token::kType);
+  auto name_token{Expect(Token::kId)};
+  auto tspec{TypeSpecifier()};
+  Expect(";");
+
+  types[name_token->Raw()] = tspec->type;
+
+  auto node{NewNode(Node::kTypedef, name_token)};
+  node->tspec = tspec;
+  return node;
+}
+
 Symbol* LookupLVar(Context* ctx, const std::string& name) {
   if (auto it{ctx->local_vars.find(name)}; it != ctx->local_vars.end()) {
     return it->second;
@@ -757,6 +771,8 @@ size_t Sizeof(Token* tk, Type* type) {
     return 8;
   case Type::kArray:
     return Sizeof(tk, type->base) * type->num;
+  case Type::kUser:
+    return Sizeof(tk, type->base);
   default:
     cerr << "cannot determine size of " << type << endl;
     ErrorAt(tk->loc);
@@ -765,6 +781,10 @@ size_t Sizeof(Token* tk, Type* type) {
 
 bool SetSymbolType(Node* n) {
   if (n->type) {
+    if (n->type->kind == Type::kUnknown && types[n->token->Raw()]) {
+      n->type = NewType(Type::kUser);
+      n->type->base = types[n->token->Raw()];
+    }
     return false; // 既に型が付いてる
   }
 
@@ -962,6 +982,7 @@ bool SetSymbolType(Node* n) {
   case Node::kExtern:
   case Node::kBreak:
   case Node::kCont:
+  case Node::kTypedef:
     n->type = NewType(Type::kUndefined);
     break;
   case Node::kDeclSeq:
@@ -971,6 +992,8 @@ bool SetSymbolType(Node* n) {
       } else if (decl->kind == Node::kExtern) {
         changed |= SetSymbolType(decl);
       } else if (decl->kind == Node::kDefVar) {
+        changed |= SetSymbolType(decl);
+      } else if (decl->kind == Node::kTypedef) {
         changed |= SetSymbolType(decl);
       } else {
         cerr << "not implemented" << endl;
