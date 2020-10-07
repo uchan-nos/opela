@@ -22,6 +22,9 @@ struct Type {
     kUser,
   } kind;
 
+  // 型名
+  Token* name;
+
   // 線形リストの次の要素
   // kind == kFunc の場合，引数リスト
   Type* next;

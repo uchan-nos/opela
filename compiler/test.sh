@@ -120,6 +120,7 @@ test_exit 12 'func main() { i := 1; for i = 1; i < 12; i += 1 { continue; } i; }
 test_exit 10 'func main() { i := 1; for { if i >= 10 { break; } i = 10; continue; i = 42; } i; }'
 test_exit 42 'func main() { i := 1; for { if i >= 42 { break; } i += 1; continue; } i; }'
 test_exit 4  'type myInt int32; func main() { sizeof(myInt); }'
+test_exit 5  'type myInt int32; func main() { var v myInt; v = myInt(3); v + myInt(2); }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

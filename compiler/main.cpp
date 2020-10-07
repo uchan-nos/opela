@@ -179,6 +179,12 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kCall:
     {
+      if (node->lhs->kind == Node::kId && types[node->lhs->token->Raw()]) {
+        // 型変換
+        GenerateAsm(os, node->rhs->next, label_break, label_cont);
+        return;
+      }
+
       if (node->lhs->type == nullptr) {
         cerr << "node->lhs->type cannot be null" << endl;
         ErrorAt(node->lhs->token->loc);
@@ -353,6 +359,9 @@ void GenerateAsm(ostream& os, Node* node,
     } else if (node->type->kind == Type::kPointer) {
       const auto scale{Sizeof(node->token, node->type->base)};
       os << "    lea rax, [rax + " << scale << " * rdi]\n";
+    } else if (node->type->kind == Type::kUser &&
+               node->type->base->kind == Type::kInt) {
+      os << "    add rax, rdi\n";
     }
     break;
   case Node::kSub:
@@ -367,6 +376,9 @@ void GenerateAsm(ostream& os, Node* node,
       const auto scale{Sizeof(node->token, node->type->base)};
       os << "    neg rdi\n";
       os << "    lea rax, [rax + " << scale << " * rdi]\n";
+    } else if (node->type->kind == Type::kUser &&
+               node->type->base->kind == Type::kInt) {
+      os << "    sub rax, rdi\n";
     }
     break;
   case Node::kMul:
@@ -454,6 +466,20 @@ int main() {
   auto tokens{Tokenize(&src[0])};
   cur_token = tokens.begin();
   auto ast{Program()};
+
+  for (auto [ type_name, type ] : types) {
+    auto it{undeclared_id_nodes.begin()};
+    while (it != undeclared_id_nodes.end()) {
+      auto node{*it};
+      if (type_name == node->token->Raw()) {
+        node->type = type;
+        it = undeclared_id_nodes.erase(it);
+      } else {
+        ++it;
+      }
+    }
+  }
+
   if (!undeclared_id_nodes.empty()) {
     cerr << "undeclared ids are used:";
     for (auto node : undeclared_id_nodes) {

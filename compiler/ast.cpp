@@ -42,6 +42,7 @@ ostream& operator<<(ostream& os, Type* t) {
     return os;
   default:
     os << '{' << magic_enum::enum_name(t->kind)
+       << ",name=" << (t->name ? t->name->Raw() : "NULL")
        << ",base=" << t->base
        << ",next=" << t->next
        << ",ret=" << t->ret << '}';
@@ -50,25 +51,25 @@ ostream& operator<<(ostream& os, Type* t) {
 }
 
 Type* CopyType(Type* t) {
-  return new Type{t->kind, t->next, t->base, t->ret, t->num};
+  return new Type{t->kind, t->name, t->next, t->base, t->ret, t->num};
 }
 
-Type* NewType(Type::Kind kind) {
-  return new Type{kind, nullptr, nullptr, nullptr, 0};
+Type* NewType(Type::Kind kind, Token* name) {
+  return new Type{kind, name, nullptr, nullptr, nullptr, 0};
 }
 
-Type* NewTypePointer(Type* base_type) {
-  return new Type{Type::kPointer, nullptr, base_type, nullptr, 0};
+Type* NewTypePointer(Token* name, Type* base_type) {
+  return new Type{Type::kPointer, name, nullptr, base_type, nullptr, 0};
 }
 
-Type* NewTypeInt(int64_t num_bits) {
-  return new Type{Type::kInt, nullptr, nullptr, nullptr, num_bits};
+Type* NewTypeInt(Token* name, int64_t num_bits) {
+  return new Type{Type::kInt, name, nullptr, nullptr, nullptr, num_bits};
 }
 
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
-  auto func_type{NewType(Type::kFunc)};
+  auto func_type{NewType(Type::kFunc, nullptr)};
   if (!ret_tspec) {
-    func_type->ret = NewType(Type::kVoid);
+    func_type->ret = NewType(Type::kVoid, nullptr);
   } else {
     func_type->ret = ret_tspec->type;
   }
@@ -82,6 +83,19 @@ Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   }
 
   return func_type;
+}
+
+bool SameType(Type* lhs, Type* rhs) {
+  if (lhs == rhs) {
+    return true;
+  } else if (lhs == nullptr || rhs == nullptr) {
+    return false;
+  }
+  return lhs->kind == rhs->kind &&
+         SameType(lhs->next, rhs->next) &&
+         SameType(lhs->base, rhs->base) &&
+         SameType(lhs->ret, rhs->ret) &&
+         lhs->num == rhs->num;
 }
 
 Symbol* NewSymbol(Symbol::Kind kind, Token* token) {
@@ -100,7 +114,7 @@ Node* NewNodeExpr(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
 
 Node* NewNodeInt(Token* tk, int64_t value, int64_t num_bits) {
   return new Node{Node::kInt, tk, nullptr, nullptr, nullptr, nullptr,
-                  nullptr, {value}, NewTypeInt(num_bits)};
+                  nullptr, {value}, NewTypeInt(nullptr, num_bits)};
 }
 
 Node* NewNodeType(Token* tk, Type* type) {
@@ -134,8 +148,8 @@ const map<Node::Kind, const char*> kUnaryOps{
 };
 
 const map<string, Type*> kTypes{
-  {"int",  NewTypeInt(64)},
-  {"char", NewTypeInt(8)},
+  {"int",  NewTypeInt(nullptr, 64)},
+  {"char", NewTypeInt(nullptr, 8)},
 };
 
 void RegisterSymbol(Symbol* sym) {
@@ -180,6 +194,8 @@ pair<char*, size_t> DecodeEscapeSequence(Token* tk_str) {
     i += 2;
   }
 }
+
+//vector<Node*> unknown_type_nodes;
 
 } // namespace
 
@@ -591,7 +607,7 @@ Node* TypeSpecifier() {
     auto num{Expect(Token::kInt)};
     Expect("]");
     auto node{NewNode(Node::kType, op)};
-    node->type = NewType(Type::kArray);
+    node->type = NewType(Type::kArray, nullptr);
     node->type->num = num->value;
 
     auto base_tspec{TypeSpecifier()};
@@ -610,7 +626,7 @@ Node* TypeSpecifier() {
       ErrorAt(cur_token->loc);
     }
     auto node{NewNode(Node::kType, tk)};
-    node->type = NewTypePointer(base_tspec->type);
+    node->type = NewTypePointer(nullptr, base_tspec->type);
     return node;
   }
 
@@ -637,9 +653,10 @@ Node* TypeSpecifier() {
         cerr << "integer width must be 10-digits" << endl;
         ErrorAt(type_name->loc + 3);
       }
-      node->type = NewTypeInt(num_bits);
+      node->type = NewTypeInt(type_name, num_bits);
     } else {
-      node->type = NewType(Type::kUnknown);
+      node->type = NewType(Type::kUnknown, type_name);
+      //unknown_type_nodes.push_back(node);
     }
     return node;
   }
@@ -733,7 +750,9 @@ Node* TypeDeclaration() {
   auto tspec{TypeSpecifier()};
   Expect(";");
 
-  types[name_token->Raw()] = tspec->type;
+  auto type{NewType(Type::kUser, name_token)};
+  type->base = tspec->type;
+  types[name_token->Raw()] = type;
 
   auto node{NewNode(Node::kTypedef, name_token)};
   node->tspec = tspec;
@@ -773,6 +792,10 @@ size_t Sizeof(Token* tk, Type* type) {
     return Sizeof(tk, type->base) * type->num;
   case Type::kUser:
     return Sizeof(tk, type->base);
+  case Type::kUnknown:
+    if (type->name && types[type->name->Raw()]) {
+      return Sizeof(tk, types[type->name->Raw()]);
+    }
   default:
     cerr << "cannot determine size of " << type << endl;
     ErrorAt(tk->loc);
@@ -781,9 +804,8 @@ size_t Sizeof(Token* tk, Type* type) {
 
 bool SetSymbolType(Node* n) {
   if (n->type) {
-    if (n->type->kind == Type::kUnknown && types[n->token->Raw()]) {
-      n->type = NewType(Type::kUser);
-      n->type->base = types[n->token->Raw()];
+    if (n->type->kind == Type::kUnknown && types[n->type->name->Raw()]) {
+      n->type = types[n->type->name->Raw()];
     }
     return false; // 既に型が付いてる
   }
@@ -859,11 +881,13 @@ bool SetSymbolType(Node* n) {
   switch (n->kind) {
   case Node::kAdd:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(64);
+      n->type = NewTypeInt(nullptr, 64);
     } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kInt && r->kind == Type::kPointer) {
       n->type = r;
+    } else if (SameType(l, r)) {
+      n->type = l;
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -872,11 +896,13 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kSub:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(64);
+      n->type = NewTypeInt(nullptr, 64);
     } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kPointer && r->kind == Type::kPointer) {
-      n->type = NewTypeInt(64);
+      n->type = NewTypeInt(nullptr, 64);
+    } else if (SameType(l, r)) {
+      n->type = l;
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -886,7 +912,9 @@ bool SetSymbolType(Node* n) {
   case Node::kMul:
   case Node::kDiv:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(64);
+      n->type = NewTypeInt(nullptr, 64);
+    } else if (SameType(l, r)) {
+      n->type = l;
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -894,14 +922,14 @@ bool SetSymbolType(Node* n) {
     }
     break;
   case Node::kInt:
-    n->type = NewTypeInt(64);
+    n->type = NewTypeInt(nullptr, 64);
     break;
   case Node::kEqu:
   case Node::kNEqu:
   case Node::kLT:
   case Node::kLE:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(64); // 本来は bool にしたい
+      n->type = NewTypeInt(nullptr, 64); // 本来は bool にしたい
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -911,6 +939,9 @@ bool SetSymbolType(Node* n) {
   case Node::kId:
     if (auto sym{n->value.sym}; sym && sym->type) {
       n->type = sym->type;
+      if (n->type->kind == Type::kUnknown && types[n->type->name->Raw()]) {
+        n->type = types[n->type->name->Raw()];
+      }
     } else {
       return false;
     }
@@ -936,6 +967,7 @@ bool SetSymbolType(Node* n) {
   case Node::kAssign:
     if (l->kind != r->kind) {
       cerr << "cannot assign incompatible type " << r << endl;
+      cerr << l << endl;
       ErrorAt(n->token->loc);
     }
     if (l->kind == Type::kPointer && l->base->kind != r->base->kind) {
@@ -959,6 +991,9 @@ bool SetSymbolType(Node* n) {
         ErrorAt(n->token->loc);
       }
       n->type = l->base->ret;
+    } else if (types[n->lhs->token->Raw()]) {
+      // 型変換
+      n->type = l;
     } else {
       cerr << "cannot call value type " << l << endl;
       ErrorAt(n->token->loc);
@@ -972,7 +1007,7 @@ bool SetSymbolType(Node* n) {
         all_typed &= (elem->type != nullptr);
       }
       if (all_typed) {
-        n->type = NewType(Type::kUndefined);
+        n->type = NewType(Type::kUndefined, nullptr);
         changed = true;
       }
     }
@@ -983,7 +1018,7 @@ bool SetSymbolType(Node* n) {
   case Node::kBreak:
   case Node::kCont:
   case Node::kTypedef:
-    n->type = NewType(Type::kUndefined);
+    n->type = NewType(Type::kUndefined, nullptr);
     break;
   case Node::kDeclSeq:
     for (auto decl{n->next}; decl; decl = decl->next) {
@@ -1004,7 +1039,7 @@ bool SetSymbolType(Node* n) {
   case Node::kDefFunc:
     return SetSymbolType(n->lhs);
   case Node::kAddr:
-    n->type = NewTypePointer(l);
+    n->type = NewTypePointer(nullptr, l);
     break;
   case Node::kDeref:
     if (l->kind != Type::kPointer) {
@@ -1028,18 +1063,18 @@ bool SetSymbolType(Node* n) {
     n->type = l->base;
     break;
   case Node::kStr:
-    n->type = NewType(Type::kArray);
-    n->type->base = NewTypeInt(8);
+    n->type = NewType(Type::kArray, nullptr);
+    n->type->base = NewTypeInt(nullptr, 8);
     n->type->num = n->value.str.len;
     break;
   case Node::kSizeof:
-    n->type = NewTypeInt(64);
+    n->type = NewTypeInt(nullptr, 64);
     break;
   case Node::kLOr:
-    n->type = NewTypeInt(64);
+    n->type = NewTypeInt(nullptr, 64);
     break;
   case Node::kLAnd:
-    n->type = NewTypeInt(64);
+    n->type = NewTypeInt(nullptr, 64);
     break;
   }
   return true;
