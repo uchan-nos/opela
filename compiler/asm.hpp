@@ -1,21 +1,54 @@
 #pragma once
 
+#include <array>
 #include <ostream>
 #include <string_view>
 
 #include "ast.hpp"
 
-class AsmGenerator {
+class Asm {
  public:
-  virtual void PushLiteral64(std::ostream& os, uint64_t v) = 0;
+  enum Register {
+    kRegL,
+    kRegR,
+    kRegNum,
+  };
+
+  virtual void Push64(std::ostream& os, uint64_t v) = 0;
+  virtual void Push64(std::ostream& os, Register reg) = 0;
+  virtual void Pop64(std::ostream& os, Register reg) = 0;
+  virtual void Add64(std::ostream& os, Register lhs, Register rhs) = 0;
+  virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
+
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
   virtual void SectionText(std::ostream& os) = 0;
 };
 
-class AsmGeneratorX8664 : public AsmGenerator {
-  void PushLiteral64(std::ostream& os, uint64_t v) override {
+class AsmX8664 : public Asm {
+ public:
+  static constexpr std::array<const char*, kRegNum> kRegNames{
+    "rax", "rdi"
+  };
+
+  void Push64(std::ostream& os, uint64_t v) override {
     os << "    push qword " << v << '\n';
+  }
+
+  void Push64(std::ostream& os, Register reg) override {
+    os << "    push " << kRegNames[reg] << '\n';
+  }
+
+  void Pop64(std::ostream& os, Register reg) override {
+    os << "    pop " << kRegNames[reg] << "\n";
+  }
+
+  void Add64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    add " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void Sub64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    sub " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
@@ -41,10 +74,33 @@ class AsmGeneratorX8664 : public AsmGenerator {
   }
 };
 
-class AsmGeneratorAArch64 : public AsmGenerator {
-  void PushLiteral64(std::ostream& os, uint64_t v) override {
+class AsmAArch64 : public Asm {
+ public:
+  static constexpr std::array<const char*, kRegNum> kRegNames{
+    "x0", "x1"
+  };
+
+  void Push64(std::ostream& os, uint64_t v) override {
     os << "    mov x0, " << v << '\n';
     os << "    str x0, [sp, #-16]!\n";
+  }
+
+  void Push64(std::ostream& os, Register reg) override {
+    os << "    str " << kRegNames[reg] << ", [sp, #-16]!\n";
+  }
+
+  void Pop64(std::ostream& os, Register reg) override {
+    os << "    ldr " << kRegNames[reg] << ", [sp], #16\n";
+  }
+
+  void Add64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    add " << kRegNames[lhs] << ", "
+       << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void Sub64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    sub " << kRegNames[lhs] << ", "
+       << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {

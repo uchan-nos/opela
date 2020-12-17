@@ -28,7 +28,7 @@ Context* cur_ctx; // 現在コード生成中の関数を表すコンテキス�
 map<Symbol*, Node*> gvar_init_values;
 vector<Node*> string_literal_nodes;
 
-AsmGenerator* asm_generator;
+Asm* asmgen;
 
 } // namespace
 
@@ -66,7 +66,7 @@ void GenerateAsm(ostream& os, Node* node,
                  bool lval = false) {
   switch (node->kind) {
   case Node::kInt:
-    asm_generator->PushLiteral64(os, node->value.i);
+    asmgen->Push64(os, node->value.i);
     return;
   case Node::kId:
     LoadSymAddr(os, node->token);
@@ -250,13 +250,13 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kDefFunc:
-    asm_generator->FuncPrologue(os, cur_ctx);
+    asmgen->FuncPrologue(os, cur_ctx);
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
       os << "    mov [rbp - " << off << "], " << kArgRegs[i] << "\n";
     }
     GenerateAsm(os, node->lhs, label_break, label_cont); // 関数ボディ
-    asm_generator->FuncEpilogue(os, cur_ctx);
+    asmgen->FuncEpilogue(os, cur_ctx);
     return;
   case Node::kDefVar:
     if (node->lhs->value.sym->kind == Symbol::kGVar) {
@@ -342,14 +342,14 @@ void GenerateAsm(ostream& os, Node* node,
   if (node->rhs) {
     // 単項演算子の場合は rhs が null の場合がある
     GenerateAsm(os, node->rhs, label_break, label_cont);
-    os << "    pop rdi\n";
+    asmgen->Pop64(os, Asm::kRegR);
   }
-  os << "    pop rax\n";
+  asmgen->Pop64(os, Asm::kRegL);
 
   switch (node->kind) {
   case Node::kAdd:
     if (node->type->kind == Type::kInt) {
-      os << "    add rax, rdi\n";
+      asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
     } else if (node->type->kind == Type::kPointer) {
       const auto scale{Sizeof(node->token, node->type->base)};
       os << "    lea rax, [rax + " << scale << " * rdi]\n";
@@ -364,7 +364,7 @@ void GenerateAsm(ostream& os, Node* node,
         os << "    sub rax, rdi\n";
         os << "    shr rax, 3\n";
       } else {                                       // int - int
-        os << "    sub rax, rdi\n";
+        asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
       }
     } else if (node->type->kind == Type::kPointer) { // ptr - int
       const auto scale{Sizeof(node->token, node->type->base)};
@@ -452,7 +452,7 @@ void GenerateAsm(ostream& os, Node* node,
     break;
   }
 
-  os << "    push rax\n";
+  asmgen->Push64(os, Asm::kRegL);
 }
 
 int ParseArgs(int argc, char** argv) {
@@ -465,9 +465,9 @@ int ParseArgs(int argc, char** argv) {
       }
       std::string_view arch = argv[i + 1];
       if (arch == "x86_64") {
-        asm_generator = new AsmGeneratorX8664;
+        asmgen = new AsmX8664;
       } else if (arch == "aarch64") {
-        asm_generator = new AsmGeneratorAArch64;
+        asmgen = new AsmAArch64;
       } else {
         cerr << "unknown target architecture: " << arch << endl;
         return 1;
@@ -484,6 +484,9 @@ int ParseArgs(int argc, char** argv) {
 int main(int argc, char** argv) {
   if (int err = ParseArgs(argc, argv)) {
     return err;
+  }
+  if (asmgen == nullptr) {
+    asmgen = new AsmX8664;
   }
 
   ReadAll(cin);
@@ -525,7 +528,7 @@ int main(int argc, char** argv) {
   ostringstream oss;
   GenerateAsm(oss, ast, "", "");
 
-  asm_generator->SectionText(cout);
+  asmgen->SectionText(cout);
   cout << oss.str();
 
   for (auto [ name, sym ] : symbols) {
