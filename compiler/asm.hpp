@@ -19,6 +19,8 @@ class Asm {
   virtual void Pop64(std::ostream& os, Register reg) = 0;
   virtual void Add64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
+  virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
+  virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
@@ -49,6 +51,19 @@ class AsmX8664 : public Asm {
 
   void Sub64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    sub " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void IMul64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    idiv " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void IDiv64(std::ostream& os, Register lhs, Register rhs) override {
+    if (lhs == Asm::kRegL) {
+      os << "    cqo\n";
+      os << "    idiv " << kRegNames[rhs] << "\n";
+    } else {
+      std::cerr << "div supports only rax" << std::endl;
+    }
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
@@ -100,6 +115,16 @@ class AsmAArch64 : public Asm {
 
   void Sub64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    sub " << kRegNames[lhs] << ", "
+       << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void IMul64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    mul " << kRegNames[lhs] << ", "
+       << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void IDiv64(std::ostream& os, Register lhs, Register rhs) override {
+    os << "    sdiv " << kRegNames[lhs] << ", "
        << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
   }
 

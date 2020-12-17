@@ -376,11 +376,10 @@ void GenerateAsm(ostream& os, Node* node,
     }
     break;
   case Node::kMul:
-    os << "    imul rax, rdi\n";
+    asmgen->IMul64(os, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kDiv:
-    os << "    cqo\n";
-    os << "    idiv rdi\n";
+    asmgen->IDiv64(os, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kEqu:
     GenerateCmpSet(os, "e");
