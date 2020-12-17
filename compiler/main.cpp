@@ -27,6 +27,8 @@ Context* cur_ctx; // 現在コード生成中の関数を表すコンテキス�
 map<Symbol*, Node*> gvar_init_values;
 vector<Node*> string_literal_nodes;
 
+std::string target_arch = "x86_64"; // x86_64, aarch64
+
 } // namespace
 
 void GenerateCmpSet(ostream& os, const char* cc) {
@@ -63,7 +65,12 @@ void GenerateAsm(ostream& os, Node* node,
                  bool lval = false) {
   switch (node->kind) {
   case Node::kInt:
-    os << "    push qword " << node->value.i << '\n';
+    if (target_arch == "x86_64") {
+      os << "    push qword " << node->value.i << '\n';
+    } else {
+      os << "    mov x0, " << node->value.i << '\n';
+      os << "    str x0, [sp, #-16]!\n";
+    }
     return;
   case Node::kId:
     LoadSymAddr(os, node->token);
@@ -247,21 +254,33 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kDefFunc:
-    os << "global " << cur_ctx->func_name << "\n";
-    os << cur_ctx->func_name << ":\n";
-    os << "    push rbp\n";
-    os << "    mov rbp, rsp\n";
-    os << "    sub rsp, " << ((cur_ctx->StackSize() + 15) & 0xfffffff0) << "\n";
-    os << "    xor rax, rax\n";
+    if (target_arch == "x86_64") {
+      os << "global " << cur_ctx->func_name << "\n";
+      os << cur_ctx->func_name << ":\n";
+    } else {
+      os << ".global _" << cur_ctx->func_name << "\n";
+      os << ".p2align 2\n";
+      os << '_' << cur_ctx->func_name << ":\n";
+    }
+    if (target_arch == "x86_64") {
+      os << "    push rbp\n";
+      os << "    mov rbp, rsp\n";
+      os << "    sub rsp, " << ((cur_ctx->StackSize() + 15) & 0xfffffff0) << "\n";
+      os << "    xor rax, rax\n";
+    }
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
       os << "    mov [rbp - " << off << "], " << kArgRegs[i] << "\n";
     }
     GenerateAsm(os, node->lhs, label_break, label_cont); // 関数ボディ
-    os << "    pop rax\n";
-    os << cur_ctx->func_name << "_exit:\n";
-    os << "    mov rsp, rbp\n";
-    os << "    pop rbp\n";
+    if (target_arch == "x86_64") {
+      os << "    pop rax\n";
+      os << cur_ctx->func_name << "_exit:\n";
+      os << "    mov rsp, rbp\n";
+      os << "    pop rbp\n";
+    } else {
+      os << "    ldr x0, [sp], #16\n";
+    }
     os << "    ret\n";
     return;
   case Node::kDefVar:
@@ -461,7 +480,33 @@ void GenerateAsm(ostream& os, Node* node,
   os << "    push rax\n";
 }
 
-int main() {
+int ParseArgs(int argc, char** argv) {
+  int i = 1;
+  while (i < argc) {
+    if (strcmp(argv[i], "-target-arch") == 0) {
+      if (i == argc - 1) {
+        cerr << "-target-arch needs one argument" << endl;
+        return 1;
+      }
+      target_arch = argv[i + 1];
+      if (target_arch != "x86_64" && target_arch != "aarch64") {
+        cerr << "unknown target architecture: " << target_arch << endl;
+        return 1;
+      }
+      i += 2;
+    } else {
+      cerr << "unknown argument: " << argv[i] << endl;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+int main(int argc, char** argv) {
+  if (int err = ParseArgs(argc, argv)) {
+    return err;
+  }
+
   ReadAll(cin);
   auto tokens{Tokenize(&src[0])};
   cur_token = tokens.begin();
@@ -501,7 +546,9 @@ int main() {
   ostringstream oss;
   GenerateAsm(oss, ast, "", "");
 
-  cout << "bits 64\nsection .text\n";
+  if (target_arch == "x86_64") {
+    cout << "bits 64\nsection .text\n";
+  }
   cout << oss.str();
 
   for (auto [ name, sym ] : symbols) {
@@ -521,6 +568,10 @@ int main() {
     nullptr,
     "dq",
   };
+
+  if (target_arch == "aarch64") {
+    return 0;
+  }
 
   cout << "_init_opela:\n";
   cout << "    push rbp\n";
