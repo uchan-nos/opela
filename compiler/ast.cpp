@@ -420,7 +420,8 @@ Node* Assignment() {
       if (auto sym{node->value.sym}) {
         ErrorRedefineID(sym->token);
       }
-      std::erase(undeclared_id_nodes, node);
+      auto it = std::remove(undeclared_id_nodes.begin(), undeclared_id_nodes.end(), node);
+      undeclared_id_nodes.erase(it, undeclared_id_nodes.end());
     } else {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ErrorAt(node->token->loc);
@@ -646,7 +647,7 @@ Node* TypeSpecifier() {
     auto name{type_name->Raw()};
     if (auto it{kTypes.find(name)}; it != kTypes.end()) {
       node->type = it->second;
-    } else if (name.starts_with("int")) {
+    } else if (name.substr(0, 3) == "int") {
       char* endp{nullptr};
       long num_bits{strtol(name.c_str() + 3, &endp, 10)};
       if (*endp != '\0') {
