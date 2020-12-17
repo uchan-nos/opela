@@ -169,6 +169,7 @@ class AsmAArch64 : public Asm {
     os << ".global _" << ctx->func_name << "\n";
     os << ".p2align 2\n";
     os << '_' << ctx->func_name << ":\n";
+    os << "    mov x0, xzr\n";
   }
 
   void FuncEpilogue(std::ostream& os, Context* ctx) override {

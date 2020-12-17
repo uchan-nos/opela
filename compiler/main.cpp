@@ -164,13 +164,13 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kBlock:
     if (node->next == nullptr) {
-      os << "    push rax\n";
+      asmgen->Push64(os, Asm::kRegL);
       return;
     }
     for (node = node->next; node != nullptr; node = node->next) {
       GenerateAsm(os, node, label_break, label_cont);
       if (node->next) {
-        os << "    pop rax\n";
+        asmgen->Pop64(os, Asm::kRegL);
       }
     }
     return;
