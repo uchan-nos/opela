@@ -4,6 +4,7 @@
 #include <string>
 #include <string_view>
 
+#include "asm.hpp"
 #include "ast.hpp"
 #include "source.hpp"
 #include "magic_enum.hpp"
@@ -27,7 +28,7 @@ Context* cur_ctx; // 現在コード生成中の関数を表すコンテキス�
 map<Symbol*, Node*> gvar_init_values;
 vector<Node*> string_literal_nodes;
 
-std::string target_arch = "x86_64"; // x86_64, aarch64
+AsmGenerator* asm_generator;
 
 } // namespace
 
@@ -65,12 +66,7 @@ void GenerateAsm(ostream& os, Node* node,
                  bool lval = false) {
   switch (node->kind) {
   case Node::kInt:
-    if (target_arch == "x86_64") {
-      os << "    push qword " << node->value.i << '\n';
-    } else {
-      os << "    mov x0, " << node->value.i << '\n';
-      os << "    str x0, [sp, #-16]!\n";
-    }
+    asm_generator->PushLiteral64(os, node->value.i);
     return;
   case Node::kId:
     LoadSymAddr(os, node->token);
@@ -254,34 +250,13 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kDefFunc:
-    if (target_arch == "x86_64") {
-      os << "global " << cur_ctx->func_name << "\n";
-      os << cur_ctx->func_name << ":\n";
-    } else {
-      os << ".global _" << cur_ctx->func_name << "\n";
-      os << ".p2align 2\n";
-      os << '_' << cur_ctx->func_name << ":\n";
-    }
-    if (target_arch == "x86_64") {
-      os << "    push rbp\n";
-      os << "    mov rbp, rsp\n";
-      os << "    sub rsp, " << ((cur_ctx->StackSize() + 15) & 0xfffffff0) << "\n";
-      os << "    xor rax, rax\n";
-    }
+    asm_generator->FuncPrologue(os, cur_ctx);
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
       os << "    mov [rbp - " << off << "], " << kArgRegs[i] << "\n";
     }
     GenerateAsm(os, node->lhs, label_break, label_cont); // 関数ボディ
-    if (target_arch == "x86_64") {
-      os << "    pop rax\n";
-      os << cur_ctx->func_name << "_exit:\n";
-      os << "    mov rsp, rbp\n";
-      os << "    pop rbp\n";
-    } else {
-      os << "    ldr x0, [sp], #16\n";
-    }
-    os << "    ret\n";
+    asm_generator->FuncEpilogue(os, cur_ctx);
     return;
   case Node::kDefVar:
     if (node->lhs->value.sym->kind == Symbol::kGVar) {
@@ -488,9 +463,13 @@ int ParseArgs(int argc, char** argv) {
         cerr << "-target-arch needs one argument" << endl;
         return 1;
       }
-      target_arch = argv[i + 1];
-      if (target_arch != "x86_64" && target_arch != "aarch64") {
-        cerr << "unknown target architecture: " << target_arch << endl;
+      std::string_view arch = argv[i + 1];
+      if (arch == "x86_64") {
+        asm_generator = new AsmGeneratorX8664;
+      } else if (arch == "aarch64") {
+        asm_generator = new AsmGeneratorAArch64;
+      } else {
+        cerr << "unknown target architecture: " << arch << endl;
         return 1;
       }
       i += 2;
@@ -546,9 +525,7 @@ int main(int argc, char** argv) {
   ostringstream oss;
   GenerateAsm(oss, ast, "", "");
 
-  if (target_arch == "x86_64") {
-    cout << "bits 64\nsection .text\n";
-  }
+  asm_generator->SectionText(cout);
   cout << oss.str();
 
   for (auto [ name, sym ] : symbols) {
@@ -569,7 +546,7 @@ int main(int argc, char** argv) {
     "dq",
   };
 
-  if (target_arch == "aarch64") {
+  if (gvar_init_values.empty()) {
     return 0;
   }
 
