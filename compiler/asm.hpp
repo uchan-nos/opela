@@ -14,6 +14,13 @@ class Asm {
     kRegNum,
   };
 
+  enum Compare {
+    kCmpE,
+    kCmpNE,
+    kCmpL,
+    kCmpLE,
+  };
+
   virtual void Push64(std::ostream& os, uint64_t v) = 0;
   virtual void Push64(std::ostream& os, Register reg) = 0;
   virtual void Pop64(std::ostream& os, Register reg) = 0;
@@ -21,6 +28,8 @@ class Asm {
   virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
+
+  virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
@@ -31,6 +40,9 @@ class AsmX8664 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "rax", "rdi"
+  };
+  static constexpr std::array<const char*, kRegNum> kRegNames32{
+    "eax", "edi"
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -58,12 +70,25 @@ class AsmX8664 : public Asm {
   }
 
   void IDiv64(std::ostream& os, Register lhs, Register rhs) override {
-    if (lhs == Asm::kRegL) {
+    if (lhs == kRegL) {
       os << "    cqo\n";
       os << "    idiv " << kRegNames[rhs] << "\n";
     } else {
       std::cerr << "div supports only rax" << std::endl;
     }
+  }
+
+  void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
+    os << "    cmp " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+    os << "    set";
+    switch (c) {
+      case kCmpE:  os << "e"; break;
+      case kCmpNE: os << "ne"; break;
+      case kCmpL:  os << "l"; break;
+      case kCmpLE: os << "le"; break;
+    }
+    os << " al\n";
+    os << "    movzx " << kRegNames32[lhs] << ", al\n";
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
@@ -126,6 +151,18 @@ class AsmAArch64 : public Asm {
   void IDiv64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    sdiv " << kRegNames[lhs] << ", "
        << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
+    os << "    cmp " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+    os << "    cset " << kRegNames[lhs] << ", ";
+    switch (c) {
+      case kCmpE:  os << "eq"; break;
+      case kCmpNE: os << "ne"; break;
+      case kCmpL:  os << "lt"; break;
+      case kCmpLE: os << "le"; break;
+    }
+    os << "\n";
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {

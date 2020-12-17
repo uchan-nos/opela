@@ -32,12 +32,6 @@ Asm* asmgen;
 
 } // namespace
 
-void GenerateCmpSet(ostream& os, const char* cc) {
-  os << "    cmp rax, rdi\n";
-  os << "    set" << cc << " al\n";
-  os << "    movzx eax, al\n";
-}
-
 // シンボルのアドレスを rax に書く
 void LoadSymAddr(ostream& os, Token* sym_id) {
   auto sym{LookupSymbol(cur_ctx, sym_id->Raw())};
@@ -382,16 +376,16 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->IDiv64(os, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kEqu:
-    GenerateCmpSet(os, "e");
+    asmgen->CmpSet(os, Asm::kCmpE, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kNEqu:
-    GenerateCmpSet(os, "ne");
+    asmgen->CmpSet(os, Asm::kCmpNE, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kLT:
-    GenerateCmpSet(os, "l");
+    asmgen->CmpSet(os, Asm::kCmpL, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kLE:
-    GenerateCmpSet(os, "le");
+    asmgen->CmpSet(os, Asm::kCmpLE, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kAssign:
   case Node::kDefVar:
