@@ -33,6 +33,7 @@ class Asm {
   virtual void Store64(std::ostream& os, Register addr, Register value) = 0;
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
 
+  virtual void Jmp(std::ostream& os, std::string_view label) = 0;
   virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
@@ -93,6 +94,10 @@ class AsmX8664 : public Asm {
 
   void LoadPush64(std::ostream& os, Register addr) override {
     os << "    push qword [" << kRegNames[addr] << "]\n";
+  }
+
+  void Jmp(std::ostream& os, std::string_view label) override {
+    os << "    jmp " << label << "\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
@@ -184,6 +189,10 @@ class AsmAArch64 : public Asm {
     os << "    str x0, [sp, #-16]!\n";
   }
 
+  void Jmp(std::ostream& os, std::string_view label) override {
+    os << "    b " << label << "\n";
+  }
+
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
     os << "    cmp " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
     os << "    cset " << kRegNames[lhs] << ", ";
@@ -208,6 +217,7 @@ class AsmAArch64 : public Asm {
 
   void FuncEpilogue(std::ostream& os, Context* ctx) override {
     os << "    ldr x0, [sp], #16\n";
+    os << ctx->func_name << "_exit:\n";
     os << "    mov sp, x29\n";
     os << "    ldp x29, x30, [sp], #16\n";
     os << "    ret\n";

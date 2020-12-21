@@ -95,8 +95,8 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kRet:
     GenerateAsm(os, node->lhs, label_break, label_cont);
-    os << "    pop rax\n";
-    os << "    jmp " << cur_ctx->func_name << "_exit\n";
+    asmgen->Pop64(os, Asm::kRegL);
+    asmgen->Jmp(os, cur_ctx->func_name + "_exit");
     return;
   case Node::kIf:
     {
