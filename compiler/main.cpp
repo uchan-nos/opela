@@ -42,7 +42,7 @@ void LoadSymAddr(ostream& os, Token* sym_id) {
   }
 
   if (sym->kind == Symbol::kLVar) {
-    os << "    lea rax, [rbp - " << sym->offset << "]\n";
+    asmgen->LEA(os, Asm::kRegL, Asm::kRegBP, -sym->offset);
     return;
   }
 
@@ -65,7 +65,7 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kId:
     LoadSymAddr(os, node->token);
     if (lval) {
-      os << "    push rax\n";
+      asmgen->Push64(os, Asm::kRegL);
     } else if (node->value.sym->type->kind != Type::kInt) {
       os << "    push qword [rax]\n";
     } else {
@@ -85,7 +85,7 @@ void GenerateAsm(ostream& os, Node* node,
         os << "    push rdi\n";
         break;
       case 64:
-        os << "    push qword [rax]\n";
+        asmgen->LoadPush64(os, Asm::kRegL);
         break;
       default:
         cerr << "loading non-standard size integer is not supported" << endl;
@@ -403,14 +403,14 @@ void GenerateAsm(ostream& os, Node* node,
         os << "    mov [rax], edi\n";
         break;
       case 64:
-        os << "    mov [rax], rdi\n";
+        asmgen->Store64(os, Asm::kRegL, Asm::kRegR);
         break;
       default:
         cerr << "non-standard size assignment is not supported" << endl;
         ErrorAt(node->token->loc);
       }
     }
-    os << "    push " << (lval ? "rax" : "rdi") << "\n";
+    asmgen->Push64(os, lval ? Asm::kRegL : Asm::kRegR);
     return;
   case Node::kAddr:
     // pass

@@ -11,6 +11,7 @@ class Asm {
   enum Register {
     kRegL,
     kRegR,
+    kRegBP,
     kRegNum,
   };
 
@@ -28,6 +29,9 @@ class Asm {
   virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
+  virtual void LEA(std::ostream& os, Register dest, Register base, int disp) = 0;
+  virtual void Store64(std::ostream& os, Register addr, Register value) = 0;
+  virtual void LoadPush64(std::ostream& os, Register addr) = 0;
 
   virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
@@ -39,10 +43,10 @@ class Asm {
 class AsmX8664 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
-    "rax", "rdi"
+    "rax", "rdi", "rbp",
   };
   static constexpr std::array<const char*, kRegNum> kRegNames32{
-    "eax", "edi"
+    "eax", "edi", "ebp",
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -76,6 +80,19 @@ class AsmX8664 : public Asm {
     } else {
       std::cerr << "div supports only rax" << std::endl;
     }
+  }
+
+  void LEA(std::ostream& os, Register dest, Register base, int disp) override {
+    os << "    lea " << kRegNames[dest]
+       << ", [" << kRegNames[base] << " + " << disp << "]\n";
+  }
+
+  void Store64(std::ostream& os, Register addr, Register value) override {
+    os << "    mov [" << kRegNames[addr] << "], " << kRegNames[value] << "\n";
+  }
+
+  void LoadPush64(std::ostream& os, Register addr) override {
+    os << "    push qword [" << kRegNames[addr] << "]\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
@@ -117,7 +134,7 @@ class AsmX8664 : public Asm {
 class AsmAArch64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
-    "x0", "x1"
+    "x0", "x1", "x29",
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -153,6 +170,20 @@ class AsmAArch64 : public Asm {
        << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
   }
 
+  void LEA(std::ostream& os, Register dest, Register base, int disp) override {
+    os << "    add " << kRegNames[dest]
+       << ", " << kRegNames[base] << ", " << disp << "\n";
+  }
+
+  void Store64(std::ostream& os, Register addr, Register value) override {
+    os << "    str " << kRegNames[value] << ", [" << kRegNames[addr] << "]\n";
+  }
+
+  void LoadPush64(std::ostream& os, Register addr) override {
+    os << "    ldr x0, [" << kRegNames[addr] << "]\n";
+    os << "    str x0, [sp, #-16]!\n";
+  }
+
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
     os << "    cmp " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
     os << "    cset " << kRegNames[lhs] << ", ";
@@ -169,11 +200,16 @@ class AsmAArch64 : public Asm {
     os << ".global _" << ctx->func_name << "\n";
     os << ".p2align 2\n";
     os << '_' << ctx->func_name << ":\n";
+    os << "    stp x29, x30, [sp, #-16]!\n";
+    os << "    mov x29, sp\n";
+    os << "    sub sp, sp, " << ((ctx->StackSize() + 15) & 0xfffffff0) << "\n";
     os << "    mov x0, xzr\n";
   }
 
   void FuncEpilogue(std::ostream& os, Context* ctx) override {
     os << "    ldr x0, [sp], #16\n";
+    os << "    mov sp, x29\n";
+    os << "    ldp x29, x30, [sp], #16\n";
     os << "    ret\n";
   }
 
