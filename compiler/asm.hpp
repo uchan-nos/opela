@@ -34,6 +34,8 @@ class Asm {
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
 
   virtual void Jmp(std::ostream& os, std::string_view label) = 0;
+  virtual void JmpIfZero(std::ostream& os, Register reg,
+                         std::string_view label) = 0;
   virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
@@ -98,6 +100,12 @@ class AsmX8664 : public Asm {
 
   void Jmp(std::ostream& os, std::string_view label) override {
     os << "    jmp " << label << "\n";
+  }
+
+  void JmpIfZero(std::ostream& os, Register reg,
+                 std::string_view label) override {
+    os << "    test " << kRegNames[reg] << ", " << kRegNames[reg] << "\n";
+    os << "    jz " << label << "\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
@@ -191,6 +199,11 @@ class AsmAArch64 : public Asm {
 
   void Jmp(std::ostream& os, std::string_view label) override {
     os << "    b " << label << "\n";
+  }
+
+  void JmpIfZero(std::ostream& os, Register reg,
+                 std::string_view label) override {
+    os << "    cbz " << kRegNames[reg] << ", " << label << "\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
