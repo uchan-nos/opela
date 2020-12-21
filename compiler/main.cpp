@@ -542,36 +542,35 @@ int main(int argc, char** argv) {
     "dq",
   };
 
-  if (gvar_init_values.empty()) {
-    return 0;
-  }
+  if (!gvar_init_values.empty()) {
+    cout << "_init_opela:\n";
+    cout << "    push rbp\n";
+    cout << "    mov rbp, rsp\n";
+    for (auto [ sym, init ] : gvar_init_values) {
+      if (init && init->kind != Node::kInt) {
+        GenerateAsm(cout, init, "", "");
+        cout << "    pop rax\n";
+        cout << "    mov [" << sym->token->Raw() << "], rax\n";
+      }
+    }
+    cout << "    mov rsp, rbp\n";
+    cout << "    pop rbp\n";
+    cout << "    ret\n";
+    cout << "section .init_array\n";
+    cout << "    dq _init_opela\n";
 
-  cout << "_init_opela:\n";
-  cout << "    push rbp\n";
-  cout << "    mov rbp, rsp\n";
-  for (auto [ sym, init ] : gvar_init_values) {
-    if (init && init->kind != Node::kInt) {
-      GenerateAsm(cout, init, "", "");
-      cout << "    pop rax\n";
-      cout << "    mov [" << sym->token->Raw() << "], rax\n";
+    cout << "section .data\n";
+    for (auto [ sym, init ] : gvar_init_values) {
+      cout << sym->token->Raw() << ":\n";
+      cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
+      if (init && init->kind == Node::kInt) {
+        cout << init->value.i << "\n";
+      } else {
+        cout << "0\n";
+      }
     }
   }
-  cout << "    mov rsp, rbp\n";
-  cout << "    pop rbp\n";
-  cout << "    ret\n";
-  cout << "section .init_array\n";
-  cout << "    dq _init_opela\n";
 
-  cout << "section .data\n";
-  for (auto [ sym, init ] : gvar_init_values) {
-    cout << sym->token->Raw() << ":\n";
-    cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
-    if (init && init->kind == Node::kInt) {
-      cout << init->value.i << "\n";
-    } else {
-      cout << "0\n";
-    }
-  }
   for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
     auto node{string_literal_nodes[i]};
     cout << "STR" << i << ":\n    db ";

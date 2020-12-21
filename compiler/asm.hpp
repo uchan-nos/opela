@@ -70,7 +70,7 @@ class AsmX8664 : public Asm {
   }
 
   void IMul64(std::ostream& os, Register lhs, Register rhs) override {
-    os << "    idiv " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+    os << "    imul " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
   }
 
   void IDiv64(std::ostream& os, Register lhs, Register rhs) override {
