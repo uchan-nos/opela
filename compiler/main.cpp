@@ -141,23 +141,22 @@ void GenerateAsm(ostream& os, Node* node,
       auto label_end{GenerateLabel()};
       if (node->rhs) {
         GenerateAsm(os, node->rhs, label_end, label_next);
-        os << "    pop rax\n";
+        asmgen->Pop64(os, Asm::kRegL);
       }
-      os << "    push qword [rsp]\n";
-      os << "    jmp " << label_cond << "\n";
+      asmgen->LoadPush64(os, Asm::kRegSP);
+      asmgen->Jmp(os, label_cond);
       os << label_loop << ":\n";
-      os << "    pop rax\n";
+      asmgen->Pop64(os, Asm::kRegL);
       GenerateAsm(os, node->lhs, label_end, label_next);
       os << label_next << ":\n";
       if (node->rhs) {
         GenerateAsm(os, node->rhs->next, label_end, label_next);
-        os << "    pop rax\n";
+        asmgen->Pop64(os, Asm::kRegL);
       }
       os << label_cond << ":\n";
       GenerateAsm(os, node->cond, label_end, label_next);
-      os << "    pop rax\n";
-      os << "    test rax, rax\n";
-      os << "    jnz " << label_loop << "\n";
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->JmpIfNotZero(os, Asm::kRegL, label_loop);
       os << label_end << ":\n";
     }
     return;

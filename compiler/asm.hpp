@@ -12,6 +12,7 @@ class Asm {
     kRegL,
     kRegR,
     kRegBP,
+    kRegSP,
     kRegNum,
   };
 
@@ -31,11 +32,14 @@ class Asm {
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void LEA(std::ostream& os, Register dest, Register base, int disp) = 0;
   virtual void Store64(std::ostream& os, Register addr, Register value) = 0;
+  // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
 
   virtual void Jmp(std::ostream& os, std::string_view label) = 0;
   virtual void JmpIfZero(std::ostream& os, Register reg,
                          std::string_view label) = 0;
+  virtual void JmpIfNotZero(std::ostream& os, Register reg,
+                            std::string_view label) = 0;
   virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
@@ -46,10 +50,10 @@ class Asm {
 class AsmX8664 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
-    "rax", "rdi", "rbp",
+    "rax", "rdi", "rbp", "rsp",
   };
   static constexpr std::array<const char*, kRegNum> kRegNames32{
-    "eax", "edi", "ebp",
+    "eax", "edi", "ebp", "esp",
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -108,6 +112,12 @@ class AsmX8664 : public Asm {
     os << "    jz " << label << "\n";
   }
 
+  void JmpIfNotZero(std::ostream& os, Register reg,
+                    std::string_view label) override {
+    os << "    test " << kRegNames[reg] << ", " << kRegNames[reg] << "\n";
+    os << "    jnz " << label << "\n";
+  }
+
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
     os << "    cmp " << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
     os << "    set";
@@ -147,7 +157,7 @@ class AsmX8664 : public Asm {
 class AsmAArch64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
-    "x0", "x1", "x29",
+    "x0", "x1", "x29", "sp",
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -204,6 +214,11 @@ class AsmAArch64 : public Asm {
   void JmpIfZero(std::ostream& os, Register reg,
                  std::string_view label) override {
     os << "    cbz " << kRegNames[reg] << ", " << label << "\n";
+  }
+
+  void JmpIfNotZero(std::ostream& os, Register reg,
+                    std::string_view label) override {
+    os << "    cbnz " << kRegNames[reg] << ", " << label << "\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
