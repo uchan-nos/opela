@@ -21,7 +21,10 @@ string GenerateLabel() {
   return oss.str();
 }
 
-const array<const char*, 6> kArgRegs{"rdi", "rsi", "rdx", "rcx", "r8", "r9"};
+const array<Asm::Register, 6> kArgRegs{
+  Asm::kRegArg0, Asm::kRegArg1, Asm::kRegArg2,
+  Asm::kRegArg3, Asm::kRegArg4, Asm::kRegArg5
+};
 
 Context* cur_ctx; // 現在コード生成中の関数を表すコンテキスト
 
@@ -95,7 +98,7 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kRet:
     GenerateAsm(os, node->lhs, label_break, label_cont);
-    asmgen->Pop64(os, Asm::kRegL);
+    asmgen->Pop64(os, Asm::kRegRet);
     asmgen->Jmp(os, cur_ctx->func_name + "_exit");
     return;
   case Node::kIf:
@@ -228,11 +231,11 @@ void GenerateAsm(ostream& os, Node* node,
       }
 
       for (; num_arg > 0; --num_arg) {
-        os << "    pop " << kArgRegs[num_arg - 1] << "\n";
+        asmgen->Pop64(os, kArgRegs[num_arg - 1]);
       }
 
       asmgen->Call(os, Asm::kRegL);
-      asmgen->Push64(os, Asm::kRegL);
+      asmgen->Push64(os, Asm::kRegRet);
     }
     return;
   case Node::kDeclSeq:

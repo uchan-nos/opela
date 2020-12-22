@@ -13,6 +13,13 @@ class Asm {
     kRegR,
     kRegBP,
     kRegSP,
+    kRegArg0,
+    kRegArg1,
+    kRegArg2,
+    kRegArg3,
+    kRegArg4,
+    kRegArg5,
+    kRegRet,
     kRegNum,
   };
 
@@ -55,9 +62,11 @@ class AsmX8664 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "rax", "rdi", "rbp", "rsp",
+    "rdi", "rsi", "rdx", "rcx", "r8", "r9", "rax",
   };
   static constexpr std::array<const char*, kRegNum> kRegNames32{
     "eax", "edi", "ebp", "esp",
+    "edi", "esi", "edx", "ecx", "r8d", "r9d", "eax",
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -175,12 +184,13 @@ class AsmX8664 : public Asm {
 class AsmAArch64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
-    "x0", "x1", "x29", "sp",
+    "x8", "x9", "x29", "sp",
+    "x0", "x1", "x2", "x3", "x4", "x5", "x0",
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
-    os << "    mov x0, " << v << '\n';
-    os << "    str x0, [sp, #-16]!\n";
+    os << "    mov x8, " << v << '\n';
+    os << "    str x8, [sp, #-16]!\n";
   }
 
   void Push64(std::ostream& os, Register reg) override {
@@ -221,8 +231,8 @@ class AsmAArch64 : public Asm {
   }
 
   void LoadPush64(std::ostream& os, Register addr) override {
-    os << "    ldr x0, [" << kRegNames[addr] << "]\n";
-    os << "    str x0, [sp, #-16]!\n";
+    os << "    ldr x8, [" << kRegNames[addr] << "]\n";
+    os << "    str x8, [sp, #-16]!\n";
   }
 
   void LoadSymAddr(std::ostream& os, Register dest,
@@ -269,11 +279,11 @@ class AsmAArch64 : public Asm {
     os << "    stp x29, x30, [sp, #-16]!\n";
     os << "    mov x29, sp\n";
     os << "    sub sp, sp, " << ((ctx->StackSize() + 15) & 0xfffffff0) << "\n";
-    os << "    mov x0, xzr\n";
+    os << "    mov " << kRegNames[Asm::kRegL] << ", xzr\n";
   }
 
   void FuncEpilogue(std::ostream& os, Context* ctx) override {
-    os << "    ldr x0, [sp], #16\n";
+    os << "    ldr " << kRegNames[Asm::kRegRet] << ", [sp], #16\n";
     os << ctx->func_name << "_exit:\n";
     os << "    mov sp, x29\n";
     os << "    ldp x29, x30, [sp], #16\n";
