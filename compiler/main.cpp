@@ -224,7 +224,7 @@ void GenerateAsm(ostream& os, Node* node,
         }
       } else {
         GenerateAsm(os, node->lhs, label_break, label_cont);
-        os << "    pop rax\n";
+        asmgen->Pop64(os, Asm::kRegL);
       }
 
       for (; num_arg > 0; --num_arg) {
