@@ -163,6 +163,7 @@ class AsmX8664 : public Asm {
   }
 
   void SectionText(std::ostream& os) override {
+    os << ".intel_syntax noprefix\n";
     os << ".code64\n.section .text\n";
   }
 

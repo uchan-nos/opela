@@ -519,7 +519,6 @@ int main(int argc, char** argv) {
   ostringstream oss;
   GenerateAsm(oss, ast, "", "");
 
-  cout << ".intel_syntax noprefix\n";
   asmgen->SectionText(cout);
   cout << oss.str();
 
