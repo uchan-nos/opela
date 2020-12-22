@@ -261,7 +261,7 @@ void GenerateAsm(ostream& os, Node* node,
     if (node->rhs) { // 初期値付き変数定義
       break;
     }
-    os << "    push rax\n"; // dummy push
+    asmgen->Push64(os, Asm::kRegL); // dummy push
     return;
   case Node::kExtern:
     return;
