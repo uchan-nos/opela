@@ -38,7 +38,8 @@ class Asm {
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void LEA(std::ostream& os, Register dest, Register base, int disp) = 0;
-  virtual void Store64(std::ostream& os, Register addr, Register value) = 0;
+  virtual void Store64(std::ostream& os, Register addr, int disp,
+                       Register value) = 0;
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
   virtual void LoadSymAddr(std::ostream& os, Register dest,
@@ -107,8 +108,10 @@ class AsmX8664 : public Asm {
        << ", [" << kRegNames[base] << " + " << disp << "]\n";
   }
 
-  void Store64(std::ostream& os, Register addr, Register value) override {
-    os << "    mov [" << kRegNames[addr] << "], " << kRegNames[value] << "\n";
+  void Store64(std::ostream& os, Register addr, int disp,
+               Register value) override {
+    os << "    mov [" << kRegNames[addr] << "+" << disp << "], "
+       << kRegNames[value] << "\n";
   }
 
   void LoadPush64(std::ostream& os, Register addr) override {
@@ -226,8 +229,10 @@ class AsmAArch64 : public Asm {
        << ", " << kRegNames[base] << ", " << disp << "\n";
   }
 
-  void Store64(std::ostream& os, Register addr, Register value) override {
-    os << "    str " << kRegNames[value] << ", [" << kRegNames[addr] << "]\n";
+  void Store64(std::ostream& os, Register addr, int disp,
+               Register value) override {
+    os << "    str " << kRegNames[value] << ", ["
+       << kRegNames[addr] << ", #" << disp << "]\n";
   }
 
   void LoadPush64(std::ostream& os, Register addr) override {

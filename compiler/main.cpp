@@ -248,7 +248,7 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->FuncPrologue(os, cur_ctx);
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
-      os << "    mov [rbp - " << off << "], " << kArgRegs[i] << "\n";
+      asmgen->Store64(os, Asm::kRegBP, -off, kArgRegs[i]);
     }
     GenerateAsm(os, node->lhs, label_break, label_cont); // 関数ボディ
     asmgen->FuncEpilogue(os, cur_ctx);
@@ -404,7 +404,7 @@ void GenerateAsm(ostream& os, Node* node,
         os << "    mov [rax], edi\n";
         break;
       case 64:
-        asmgen->Store64(os, Asm::kRegL, Asm::kRegR);
+        asmgen->Store64(os, Asm::kRegL, 0, Asm::kRegR);
         break;
       default:
         cerr << "non-standard size assignment is not supported" << endl;
