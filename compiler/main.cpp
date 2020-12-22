@@ -275,8 +275,7 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kSizeof:
-    os << "    push "
-       << Sizeof(node->lhs->token, node->lhs->type) << "\n";
+    asmgen->Push64(os, Sizeof(node->lhs->token, node->lhs->type));
     return;
   case Node::kLOr:
     {
