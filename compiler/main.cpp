@@ -47,12 +47,12 @@ void LoadSymAddr(ostream& os, Token* sym_id) {
   }
 
   if (sym->kind == Symbol::kFunc) {
-    os << "    mov rax, " << sym->token->Raw() << "\n";
+    asmgen->LoadSymAddr(os, Asm::kRegL, sym->token->Raw());
     return;
   }
 
   // グローバルなシンボル
-  os << "    mov rax, " << sym->token->Raw() << "\n";
+  asmgen->LoadSymAddr(os, Asm::kRegL, sym->token->Raw());
 }
 
 void GenerateAsm(ostream& os, Node* node,
@@ -231,8 +231,8 @@ void GenerateAsm(ostream& os, Node* node,
         os << "    pop " << kArgRegs[num_arg - 1] << "\n";
       }
 
-      os << "    call rax\n";
-      os << "    push rax\n";
+      asmgen->Call(os, Asm::kRegL);
+      asmgen->Push64(os, Asm::kRegL);
     }
     return;
   case Node::kDeclSeq:
@@ -524,7 +524,7 @@ int main(int argc, char** argv) {
 
   for (auto [ name, sym ] : symbols) {
     if (sym->kind == Symbol::kEVar || sym->kind == Symbol::kEFunc) {
-      cout << "extern " << name << "\n";
+      asmgen->ExternSym(cout, name);
     }
   }
 

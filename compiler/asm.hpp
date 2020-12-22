@@ -34,17 +34,21 @@ class Asm {
   virtual void Store64(std::ostream& os, Register addr, Register value) = 0;
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
+  virtual void LoadSymAddr(std::ostream& os, Register dest,
+                           std::string_view label) = 0;
 
   virtual void Jmp(std::ostream& os, std::string_view label) = 0;
   virtual void JmpIfZero(std::ostream& os, Register reg,
                          std::string_view label) = 0;
   virtual void JmpIfNotZero(std::ostream& os, Register reg,
                             std::string_view label) = 0;
+  virtual void Call(std::ostream& os, Register addr) = 0;
   virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
   virtual void SectionText(std::ostream& os) = 0;
+  virtual void ExternSym(std::ostream& os, std::string_view label) = 0;
 };
 
 class AsmX8664 : public Asm {
@@ -102,6 +106,11 @@ class AsmX8664 : public Asm {
     os << "    push qword [" << kRegNames[addr] << "]\n";
   }
 
+  void LoadSymAddr(std::ostream& os, Register dest,
+                   std::string_view label) override {
+    os << "    mov " << kRegNames[dest] << ", " << label << "\n";
+  }
+
   void Jmp(std::ostream& os, std::string_view label) override {
     os << "    jmp " << label << "\n";
   }
@@ -116,6 +125,10 @@ class AsmX8664 : public Asm {
                     std::string_view label) override {
     os << "    test " << kRegNames[reg] << ", " << kRegNames[reg] << "\n";
     os << "    jnz " << label << "\n";
+  }
+
+  void Call(std::ostream& os, Register addr) override {
+    os << "    call " << kRegNames[addr] << "\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
@@ -151,6 +164,10 @@ class AsmX8664 : public Asm {
 
   void SectionText(std::ostream& os) override {
     os << "bits 64\nsection .text\n";
+  }
+
+  void ExternSym(std::ostream& os, std::string_view label) override {
+    os << "extern " << label << "\n";
   }
 };
 
@@ -207,6 +224,13 @@ class AsmAArch64 : public Asm {
     os << "    str x0, [sp, #-16]!\n";
   }
 
+  void LoadSymAddr(std::ostream& os, Register dest,
+                   std::string_view label) override {
+    os << "    adrp " << kRegNames[dest] << ", _" << label << "@PAGE\n";
+    os << "    add " << kRegNames[dest] << ", " << kRegNames[dest]
+       << ", _" << label << "@PAGEOFF\n";
+  }
+
   void Jmp(std::ostream& os, std::string_view label) override {
     os << "    b " << label << "\n";
   }
@@ -219,6 +243,10 @@ class AsmAArch64 : public Asm {
   void JmpIfNotZero(std::ostream& os, Register reg,
                     std::string_view label) override {
     os << "    cbnz " << kRegNames[reg] << ", " << label << "\n";
+  }
+
+  void Call(std::ostream& os, Register addr) override {
+    os << "    blr " << kRegNames[addr] << "\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
@@ -252,5 +280,9 @@ class AsmAArch64 : public Asm {
   }
 
   void SectionText(std::ostream& os) override {
+  }
+
+  void ExternSym(std::ostream& os, std::string_view label) override {
+    os << ".extern _" << label << "\n";
   }
 };
