@@ -70,7 +70,7 @@ void GenerateAsm(ostream& os, Node* node,
     if (lval) {
       asmgen->Push64(os, Asm::kRegL);
     } else if (node->value.sym->type->kind != Type::kInt) {
-      os << "    push qword ptr [rax]\n";
+        asmgen->LoadPush64(os, Asm::kRegL);
     } else {
       switch (node->value.sym->type->num) {
       case 8:
@@ -391,7 +391,7 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kAssign:
   case Node::kDefVar:
     if (node->lhs->type->kind != Type::kInt) {
-      os << "    mov [rax], rdi\n";
+      asmgen->Store64(os, Asm::kRegL, 0, Asm::kRegR);
     } else {
       switch (node->lhs->type->num) {
       case 8:
@@ -418,7 +418,7 @@ void GenerateAsm(ostream& os, Node* node,
     break;
   case Node::kDeref:
     if (!lval) {
-      os << "    mov rax, [rax]\n";
+      asmgen->Load64(os, Asm::kRegL, Asm::kRegL, 0);
     }
     break;
   case Node::kSubscr:
