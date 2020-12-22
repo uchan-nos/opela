@@ -61,7 +61,7 @@ class AsmX8664 : public Asm {
   };
 
   void Push64(std::ostream& os, uint64_t v) override {
-    os << "    push qword " << v << '\n';
+    os << "    push " << v << '\n';
   }
 
   void Push64(std::ostream& os, Register reg) override {
@@ -103,12 +103,12 @@ class AsmX8664 : public Asm {
   }
 
   void LoadPush64(std::ostream& os, Register addr) override {
-    os << "    push qword [" << kRegNames[addr] << "]\n";
+    os << "    push qword ptr [" << kRegNames[addr] << "]\n";
   }
 
   void LoadSymAddr(std::ostream& os, Register dest,
                    std::string_view label) override {
-    os << "    mov " << kRegNames[dest] << ", " << label << "\n";
+    os << "    movabs " << kRegNames[dest] << ", offset " << label << "\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {
@@ -145,7 +145,7 @@ class AsmX8664 : public Asm {
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
-    os << "global " << ctx->func_name << "\n";
+    os << ".global " << ctx->func_name << "\n";
     os << ctx->func_name << ":\n";
 
     os << "    push rbp\n";
@@ -163,11 +163,11 @@ class AsmX8664 : public Asm {
   }
 
   void SectionText(std::ostream& os) override {
-    os << "bits 64\nsection .text\n";
+    os << ".code64\n.section .text\n";
   }
 
   void ExternSym(std::ostream& os, std::string_view label) override {
-    os << "extern " << label << "\n";
+    os << ".extern " << label << "\n";
   }
 };
 

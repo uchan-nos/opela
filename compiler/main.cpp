@@ -67,7 +67,7 @@ void GenerateAsm(ostream& os, Node* node,
     if (lval) {
       asmgen->Push64(os, Asm::kRegL);
     } else if (node->value.sym->type->kind != Type::kInt) {
-      os << "    push qword [rax]\n";
+      os << "    push qword ptr [rax]\n";
     } else {
       switch (node->value.sym->type->num) {
       case 8:
@@ -267,12 +267,12 @@ void GenerateAsm(ostream& os, Node* node,
       ostringstream oss;
       oss << "STR" << string_literal_nodes.size();
       string_literal_nodes.push_back(node);
-      os << "    mov rax, " << oss.str() << "\n";
+      os << "    movabs rax, offset " << oss.str() << "\n";
       os << "    push rax\n";
     }
     return;
   case Node::kSizeof:
-    os << "    push qword "
+    os << "    push "
        << Sizeof(node->lhs->token, node->lhs->type) << "\n";
     return;
   case Node::kLOr:
@@ -425,9 +425,9 @@ void GenerateAsm(ostream& os, Node* node,
         os << "    lea rax, [rax + " << scale << " * rdi]\n";
       } else {
         if (scale == 1) {
-          os << "    movzx eax, byte [rax + " << scale << " * rdi]\n";
+          os << "    movzx eax, byte ptr [rax + " << scale << " * rdi]\n";
         } else if (scale == 2) {
-          os << "    movzx eax, word [rax + " << scale << " * rdi]\n";
+          os << "    movzx eax, word ptr [rax + " << scale << " * rdi]\n";
         } else if (scale == 4) {
           os << "    mov eax, [rax + " << scale << " * rdi]\n";
         } else if (scale == 8) {
@@ -519,6 +519,7 @@ int main(int argc, char** argv) {
   ostringstream oss;
   GenerateAsm(oss, ast, "", "");
 
+  cout << ".intel_syntax noprefix\n";
   asmgen->SectionText(cout);
   cout << oss.str();
 
@@ -530,14 +531,14 @@ int main(int argc, char** argv) {
 
   const std::array<const char*, 9> size_map{
     nullptr,
-    "db",
-    "dw",
+    ".byte",
+    ".2byte",
     nullptr,
-    "dd",
+    ".4byte",
     nullptr,
     nullptr,
     nullptr,
-    "dq",
+    ".8byte",
   };
 
   if (!gvar_init_values.empty()) {
@@ -554,10 +555,10 @@ int main(int argc, char** argv) {
     cout << "    mov rsp, rbp\n";
     cout << "    pop rbp\n";
     cout << "    ret\n";
-    cout << "section .init_array\n";
-    cout << "    dq _init_opela\n";
+    cout << ".section .init_array\n";
+    cout << "    .dc.a _init_opela\n";
 
-    cout << "section .data\n";
+    cout << ".section .data\n";
     for (auto [ sym, init ] : gvar_init_values) {
       cout << sym->token->Raw() << ":\n";
       cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
@@ -571,7 +572,7 @@ int main(int argc, char** argv) {
 
   for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
     auto node{string_literal_nodes[i]};
-    cout << "STR" << i << ":\n    db ";
+    cout << "STR" << i << ":\n    .byte ";
     for (size_t j{0}; j < node->value.str.len; ++j) {
       cout << static_cast<int>(node->value.str.data[j]) << ',';
     }

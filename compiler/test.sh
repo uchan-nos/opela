@@ -5,18 +5,13 @@ failed=0
 
 target_arch=$1
 opelac="./opelac -target-arch $target_arch"
-asm="nasm -f elf64"
-if [ $target_arch = "aarch64" ]
-then
-  asm="as"
-fi
 
 function test_exit() {
   want="$1"
   input="$2"
 
   echo "$input" | $opelac > tmp.s
-  $asm -o tmp.o tmp.s
+  as -o tmp.o tmp.s
   cc -no-pie -o tmp tmp.o cfunc.o
   ./tmp
   got=$?
@@ -38,7 +33,7 @@ function test_stdout() {
   input="$2"
 
   echo "$input" | $opelac > tmp.s
-  $asm -o tmp.o tmp.s
+  as -o tmp.o tmp.s
   cc -no-pie -o tmp tmp.o cfunc.o
   got=$(./tmp)
 
