@@ -38,6 +38,8 @@ class Asm {
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void LEA(std::ostream& os, Register dest, Register base, int disp) = 0;
+  virtual void LEA(std::ostream& os, Register dest, Register base,
+               int scale, Register index) = 0;
   virtual void Load64(std::ostream& os, Register dest,
                       Register addr, int disp) = 0;
   virtual void Store64(std::ostream& os, Register addr, int disp,
@@ -108,6 +110,12 @@ class AsmX8664 : public Asm {
   void LEA(std::ostream& os, Register dest, Register base, int disp) override {
     os << "    lea " << kRegNames[dest]
        << ", [" << kRegNames[base] << " + " << disp << "]\n";
+  }
+
+  void LEA(std::ostream& os, Register dest, Register base,
+           int scale, Register index) override {
+    os << "    lea " << kRegNames[dest] << ", [" << kRegNames[base]
+       << " + " << scale << "*" << kRegNames[index] << "]\n";
   }
 
   void Load64(std::ostream& os, Register dest,
@@ -235,6 +243,13 @@ class AsmAArch64 : public Asm {
   void LEA(std::ostream& os, Register dest, Register base, int disp) override {
     os << "    add " << kRegNames[dest]
        << ", " << kRegNames[base] << ", " << disp << "\n";
+  }
+
+  void LEA(std::ostream& os, Register dest, Register base,
+           int scale, Register index) override {
+    os << "    mov x10, " << scale << "\n";
+    os << "    madd " << kRegNames[dest]
+       << ", x10, " << kRegNames[index] << ", " << kRegNames[base] << "\n";
   }
 
   void Load64(std::ostream& os, Register dest,

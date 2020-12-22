@@ -347,7 +347,7 @@ void GenerateAsm(ostream& os, Node* node,
       asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
     } else if (node->type->kind == Type::kPointer) {
       const auto scale{Sizeof(node->token, node->type->base)};
-      os << "    lea rax, [rax + " << scale << " * rdi]\n";
+      asmgen->LEA(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
     } else if (node->type->kind == Type::kUser &&
                node->type->base->kind == Type::kInt) {
       os << "    add rax, rdi\n";
@@ -363,8 +363,7 @@ void GenerateAsm(ostream& os, Node* node,
       }
     } else if (node->type->kind == Type::kPointer) { // ptr - int
       const auto scale{Sizeof(node->token, node->type->base)};
-      os << "    neg rdi\n";
-      os << "    lea rax, [rax + " << scale << " * rdi]\n";
+      asmgen->LEA(os, Asm::kRegL, Asm::kRegL, -scale, Asm::kRegR);
     } else if (node->type->kind == Type::kUser &&
                node->type->base->kind == Type::kInt) {
       os << "    sub rax, rdi\n";
