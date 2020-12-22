@@ -247,9 +247,23 @@ class AsmAArch64 : public Asm {
 
   void LEA(std::ostream& os, Register dest, Register base,
            int scale, Register index) override {
-    os << "    mov x10, " << scale << "\n";
-    os << "    madd " << kRegNames[dest]
-       << ", x10, " << kRegNames[index] << ", " << kRegNames[base] << "\n";
+    const char* op = "add";
+    if (scale < 0) {
+      op = "sub";
+      scale = -scale;
+    }
+
+    int shift_amount = 0;
+    switch (scale) {
+    case 1: shift_amount = 0; break;
+    case 2: shift_amount = 1; break;
+    case 4: shift_amount = 2; break;
+    case 8: shift_amount = 3; break;
+    default:
+      std::cerr << "cannot handle non 2-power scale" << std::endl;
+    }
+    os << "    " << op << " " << kRegNames[dest] << ", " << kRegNames[base]
+       << ", " << kRegNames[index] << ", lsl #" << shift_amount << "\n";
   }
 
   void Load64(std::ostream& os, Register dest,
