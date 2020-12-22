@@ -423,16 +423,10 @@ void GenerateAsm(ostream& os, Node* node,
     {
       auto scale{Sizeof(node->token, node->type)};
       if (lval) {
-        os << "    lea rax, [rax + " << scale << " * rdi]\n";
+        asmgen->LEA(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
       } else {
-        if (scale == 1) {
-          os << "    movzx eax, byte ptr [rax + " << scale << " * rdi]\n";
-        } else if (scale == 2) {
-          os << "    movzx eax, word ptr [rax + " << scale << " * rdi]\n";
-        } else if (scale == 4) {
-          os << "    mov eax, [rax + " << scale << " * rdi]\n";
-        } else if (scale == 8) {
-          os << "    mov rax, [rax + " << scale << " * rdi]\n";
+        if (scale == 1 || scale == 2 || scale == 4 || scale == 8) {
+          asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
         } else {
           cerr << "non-standard scale is not supported: " << scale << endl;
           ErrorAt(node->token->loc);

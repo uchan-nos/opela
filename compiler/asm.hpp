@@ -43,6 +43,9 @@ class Asm {
                int scale, Register index) = 0;
   virtual void Load64(std::ostream& os, Register dest,
                       Register addr, int disp) = 0;
+  // LoadN loads scale bytes from [base + scale * index]
+  virtual void LoadN(std::ostream& os, Register dest, Register base,
+                     int scale, Register index) = 0;
   virtual void Store64(std::ostream& os, Register addr, int disp,
                        Register value) = 0;
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
@@ -129,6 +132,29 @@ class AsmX8664 : public Asm {
        << kRegNames[addr] << "+" << disp << "]\n";
   }
 
+  void LoadN(std::ostream& os, Register dest, Register base,
+             int scale, Register index) override {
+    const char* d = scale <= 4 ? kRegNames32[dest] : kRegNames[dest];
+    const char* b = kRegNames[base];
+    const char* i = kRegNames[index];
+    switch (scale) {
+    case 1:
+      os << "    movzx " << d << ", byte ptr [" << b << "+" << i << "]\n";
+      break;
+    case 2:
+      os << "    movzx " << d << ", word ptr [" << b << "+2*" << i << "]\n";
+      break;
+    case 4:
+      os << "    mov " << d << ", [" << b << "+4*" << i << "]\n";
+      break;
+    case 8:
+      os << "    mov " << d << ", [" << b << "+8*" << i << "]\n";
+      break;
+    default:
+      std::cerr << "cannot load at non 2-power scaled address" << std::endl;
+    }
+  }
+
   void Store64(std::ostream& os, Register addr, int disp,
                Register value) override {
     os << "    mov [" << kRegNames[addr] << "+" << disp << "], "
@@ -211,6 +237,10 @@ class AsmAArch64 : public Asm {
     "x8", "x9", "x29", "sp",
     "x0", "x1", "x2", "x3", "x4", "x5", "x0",
   };
+  static constexpr std::array<const char*, kRegNum> kRegNames32{
+    "w8", "w9", "w29", "sp",
+    "w0", "w1", "w2", "w3", "w4", "w5", "w0",
+  };
 
   void Push64(std::ostream& os, uint64_t v) override {
     os << "    mov x8, " << v << '\n';
@@ -280,6 +310,29 @@ class AsmAArch64 : public Asm {
               Register addr, int disp) override {
     os << "    ldr " << kRegNames[dest] << ", ["
        << kRegNames[addr] << ", #" << disp << "]\n";
+  }
+
+  void LoadN(std::ostream& os, Register dest, Register base,
+             int scale, Register index) override {
+    const char* d = scale <= 4 ? kRegNames32[dest] : kRegNames[dest];
+    const char* b = kRegNames[base];
+    const char* i = kRegNames[index];
+    switch (scale) {
+    case 1:
+      os << "    ldrb " << d << ", [" << b << ", " << i << "]\n";
+      break;
+    case 2:
+      os << "    ldrh " << d << ", [" << b << ", " << i << ", lsl #1]\n";
+      break;
+    case 4:
+      os << "    ldr " << d << ", [" << b << ", " << i << ", lsl #2]\n";
+      break;
+    case 8:
+      os << "    ldr " << d << ", [" << b << ", " << i << ", lsl #3]\n";
+      break;
+    default:
+      std::cerr << "cannot load at non 2-power scaled address" << std::endl;
+    }
   }
 
   void Store64(std::ostream& os, Register addr, int disp,
