@@ -37,6 +37,7 @@ class Asm {
   virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
+  virtual void ShiftR(std::ostream& os, Register reg, int shift_amount) = 0;
   virtual void LEA(std::ostream& os, Register dest, Register base, int disp) = 0;
   virtual void LEA(std::ostream& os, Register dest, Register base,
                int scale, Register index) = 0;
@@ -105,6 +106,10 @@ class AsmX8664 : public Asm {
     } else {
       std::cerr << "div supports only rax" << std::endl;
     }
+  }
+
+  void ShiftR(std::ostream& os, Register reg, int shift_amount) override {
+    os << "    shr " << kRegNames[reg] << ", " << shift_amount << "\n";
   }
 
   void LEA(std::ostream& os, Register dest, Register base, int disp) override {
@@ -238,6 +243,11 @@ class AsmAArch64 : public Asm {
   void IDiv64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    sdiv " << kRegNames[lhs] << ", "
        << kRegNames[lhs] << ", " << kRegNames[rhs] << "\n";
+  }
+
+  void ShiftR(std::ostream& os, Register reg, int shift_amount) override {
+    os << "    lsr " << kRegNames[reg] << ", "
+       << kRegNames[reg] << ", #" << shift_amount << "\n";
   }
 
   void LEA(std::ostream& os, Register dest, Register base, int disp) override {

@@ -356,8 +356,8 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kSub:
     if (node->type->kind == Type::kInt) {
       if (node->lhs->type->kind == Type::kPointer) { // ptr - ptr
-        os << "    sub rax, rdi\n";
-        os << "    shr rax, 3\n";
+        asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
+        asmgen->ShiftR(os, Asm::kRegL, 3);
       } else {                                       // int - int
         asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
       }
