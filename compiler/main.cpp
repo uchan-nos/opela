@@ -219,7 +219,7 @@ void GenerateAsm(ostream& os, Node* node,
         LoadSymAddr(os, node->lhs->token);
         auto func_sym{LookupSymbol(cur_ctx, node->lhs->token->Raw())};
         if (func_sym->type->kind == Type::kPointer) {
-          os << "    mov rax, [rax]\n";
+          asmgen->Load64(os, Asm::kRegL, Asm::kRegL, 0);
         } else if (func_sym->type->kind != Type::kFunc) {
           cerr << "cannot call "
                << magic_enum::enum_name(func_sym->type->kind) << endl;
