@@ -51,7 +51,7 @@ class Asm {
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
   virtual void LoadSymAddr(std::ostream& os, Register dest,
-                           std::string_view label) = 0;
+                           std::string_view sym_name) = 0;
 
   virtual void Jmp(std::ostream& os, std::string_view label) = 0;
   virtual void JmpIfZero(std::ostream& os, Register reg,
@@ -62,9 +62,11 @@ class Asm {
   virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
+  virtual void FuncPrologue(std::ostream& os, std::string_view sym_name) = 0;
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
+  virtual void FuncEpilogue(std::ostream& os) = 0;
   virtual void SectionText(std::ostream& os) = 0;
-  virtual void ExternSym(std::ostream& os, std::string_view label) = 0;
+  virtual std::string SymLabel(std::string_view sym_name) = 0;
 };
 
 class AsmX8664 : public Asm {
@@ -166,8 +168,8 @@ class AsmX8664 : public Asm {
   }
 
   void LoadSymAddr(std::ostream& os, Register dest,
-                   std::string_view label) override {
-    os << "    movabs " << kRegNames[dest] << ", offset " << label << "\n";
+                   std::string_view sym_name) override {
+    os << "    movabs " << kRegNames[dest] << ", offset " << sym_name << "\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {
@@ -204,18 +206,25 @@ class AsmX8664 : public Asm {
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
-    os << ".global " << ctx->func_name << "\n";
-    os << ctx->func_name << ":\n";
-
-    os << "    push rbp\n";
-    os << "    mov rbp, rsp\n";
+    FuncPrologue(os, ctx->func_name);
     os << "    sub rsp, " << ((ctx->StackSize() + 15) & 0xfffffff0) << "\n";
     os << "    xor rax, rax\n";
+  }
+
+  void FuncPrologue(std::ostream& os, std::string_view sym_name) override {
+    os << ".global " << sym_name << "\n";
+    os << sym_name << ":\n";
+    os << "    push rbp\n";
+    os << "    mov rbp, rsp\n";
   }
 
   void FuncEpilogue(std::ostream& os, Context* ctx) override {
     os << "    pop rax\n";
     os << ctx->func_name << "_exit:\n";
+    FuncEpilogue(os);
+  }
+
+  void FuncEpilogue(std::ostream& os) override {
     os << "    mov rsp, rbp\n";
     os << "    pop rbp\n";
     os << "    ret\n";
@@ -226,8 +235,8 @@ class AsmX8664 : public Asm {
     os << ".code64\n.section .text\n";
   }
 
-  void ExternSym(std::ostream& os, std::string_view label) override {
-    os << ".extern " << label << "\n";
+  std::string SymLabel(std::string_view sym_name) override {
+    return std::string{sym_name};
   }
 };
 
@@ -347,10 +356,10 @@ class AsmAArch64 : public Asm {
   }
 
   void LoadSymAddr(std::ostream& os, Register dest,
-                   std::string_view label) override {
-    os << "    adrp " << kRegNames[dest] << ", _" << label << "@PAGE\n";
+                   std::string_view sym_name) override {
+    os << "    adrp " << kRegNames[dest] << ", _" << sym_name << "@PAGE\n";
     os << "    add " << kRegNames[dest] << ", " << kRegNames[dest]
-       << ", _" << label << "@PAGEOFF\n";
+       << ", _" << sym_name << "@PAGEOFF\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {
@@ -384,18 +393,26 @@ class AsmAArch64 : public Asm {
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
-    os << ".global _" << ctx->func_name << "\n";
-    os << ".p2align 2\n";
-    os << '_' << ctx->func_name << ":\n";
-    os << "    stp x29, x30, [sp, #-16]!\n";
-    os << "    mov x29, sp\n";
+    FuncPrologue(os, ctx->func_name);
     os << "    sub sp, sp, " << ((ctx->StackSize() + 15) & 0xfffffff0) << "\n";
     os << "    mov " << kRegNames[Asm::kRegL] << ", xzr\n";
+  }
+
+  void FuncPrologue(std::ostream& os, std::string_view sym_name) override {
+    os << ".global _" << sym_name << "\n";
+    os << ".p2align 2\n";
+    os << '_' << sym_name << ":\n";
+    os << "    stp x29, x30, [sp, #-16]!\n";
+    os << "    mov x29, sp\n";
   }
 
   void FuncEpilogue(std::ostream& os, Context* ctx) override {
     os << "    ldr " << kRegNames[Asm::kRegRet] << ", [sp], #16\n";
     os << ctx->func_name << "_exit:\n";
+    FuncEpilogue(os);
+  }
+
+  void FuncEpilogue(std::ostream& os) override {
     os << "    mov sp, x29\n";
     os << "    ldp x29, x30, [sp], #16\n";
     os << "    ret\n";
@@ -404,7 +421,7 @@ class AsmAArch64 : public Asm {
   void SectionText(std::ostream& os) override {
   }
 
-  void ExternSym(std::ostream& os, std::string_view label) override {
-    os << ".extern _" << label << "\n";
+  std::string SymLabel(std::string_view sym_name) override {
+    return std::string{"_"}.append(sym_name);
   }
 };

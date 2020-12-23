@@ -519,7 +519,7 @@ int main(int argc, char** argv) {
 
   for (auto [ name, sym ] : symbols) {
     if (sym->kind == Symbol::kEVar || sym->kind == Symbol::kEFunc) {
-      asmgen->ExternSym(cout, name);
+      cout << ".extern " << asmgen->SymLabel(name) << "\n";
     }
   }
 
@@ -536,25 +536,22 @@ int main(int argc, char** argv) {
   };
 
   if (!gvar_init_values.empty()) {
-    cout << "_init_opela:\n";
-    cout << "    push rbp\n";
-    cout << "    mov rbp, rsp\n";
+    asmgen->FuncPrologue(cout, "_init_opela");
     for (auto [ sym, init ] : gvar_init_values) {
       if (init && init->kind != Node::kInt) {
         GenerateAsm(cout, init, "", "");
-        cout << "    pop rax\n";
+        asmgen->Pop64(cout, Asm::kRegL);
         cout << "    mov [" << sym->token->Raw() << "], rax\n";
       }
     }
-    cout << "    mov rsp, rbp\n";
-    cout << "    pop rbp\n";
-    cout << "    ret\n";
-    cout << ".section .init_array\n";
-    cout << "    .dc.a _init_opela\n";
+    asmgen->FuncEpilogue(cout);
+    cout << ".section __DATA,__mod_init_func\n";
+    cout << ".p2align 3\n";
+    cout << "    .dc.a " << asmgen->SymLabel("_init_opela") << "\n";
 
-    cout << ".section .data\n";
+    cout << ".section __DATA,__data\n";
     for (auto [ sym, init ] : gvar_init_values) {
-      cout << sym->token->Raw() << ":\n";
+      cout << asmgen->SymLabel(sym->token->Raw()) << ":\n";
       cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
       if (init && init->kind == Node::kInt) {
         cout << init->value.i << "\n";
