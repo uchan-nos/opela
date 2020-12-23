@@ -541,11 +541,11 @@ int main(int argc, char** argv) {
       if (init && init->kind != Node::kInt) {
         GenerateAsm(cout, init, "", "");
         asmgen->Pop64(cout, Asm::kRegL);
-        cout << "    mov [" << sym->token->Raw() << "], rax\n";
+        asmgen->Store64(cout, sym->token->Raw(), Asm::kRegL);
       }
     }
     asmgen->FuncEpilogue(cout);
-    cout << ".section __DATA,__mod_init_func\n";
+    cout << ".section __DATA,__mod_init_func,mod_init_funcs\n";
     cout << ".p2align 3\n";
     cout << "    .dc.a " << asmgen->SymLabel("_init_opela") << "\n";
 

@@ -48,6 +48,8 @@ class Asm {
                      int scale, Register index) = 0;
   virtual void Store64(std::ostream& os, Register addr, int disp,
                        Register value) = 0;
+  virtual void Store64(std::ostream& os, std::string_view sym_name,
+                       Register value) = 0;
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
   virtual void LoadPush64(std::ostream& os, Register addr) = 0;
   virtual void LoadSymAddr(std::ostream& os, Register dest,
@@ -161,6 +163,11 @@ class AsmX8664 : public Asm {
                Register value) override {
     os << "    mov [" << kRegNames[addr] << "+" << disp << "], "
        << kRegNames[value] << "\n";
+  }
+
+  void Store64(std::ostream& os, std::string_view sym_name,
+               Register value) override {
+    os << "    mov [" << sym_name << "], " << kRegNames[value] << "\n";
   }
 
   void LoadPush64(std::ostream& os, Register addr) override {
@@ -348,6 +355,13 @@ class AsmAArch64 : public Asm {
                Register value) override {
     os << "    str " << kRegNames[value] << ", ["
        << kRegNames[addr] << ", #" << disp << "]\n";
+  }
+
+  void Store64(std::ostream& os, std::string_view sym_name,
+               Register value) override {
+    os << "    adrp x10, _" << sym_name << "@PAGE\n";
+    os << "    str " << kRegNames[value]
+       << ", [x10, _" << sym_name << "@PAGEOFF]\n";
   }
 
   void LoadPush64(std::ostream& os, Register addr) override {
