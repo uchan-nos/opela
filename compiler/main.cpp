@@ -329,7 +329,7 @@ void GenerateAsm(ostream& os, Node* node,
       asmgen->LEA(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
     } else if (node->type->kind == Type::kUser &&
                node->type->base->kind == Type::kInt) {
-      os << "    add rax, rdi\n";
+      asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
     }
     break;
   case Node::kSub:
