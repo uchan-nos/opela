@@ -30,6 +30,7 @@ class Asm {
     kCmpLE,
   };
 
+  virtual void Mov64(std::ostream& os, Register dest, uint64_t value) = 0;
   virtual void Push64(std::ostream& os, uint64_t v) = 0;
   virtual void Push64(std::ostream& os, Register reg) = 0;
   virtual void Pop64(std::ostream& os, Register reg) = 0;
@@ -108,6 +109,10 @@ class AsmX8664 : public Asm {
   }
   std::string RegName(Register reg, unsigned bytes = 8) {
     return RegName(kRegNames[reg], bytes);
+  }
+
+  void Mov64(std::ostream& os, Register dest, uint64_t value) override {
+    os << "    mov " << RegName(dest) << ", " << value << "\n";
   }
 
   void Push64(std::ostream& os, uint64_t v) override {
@@ -310,6 +315,10 @@ class AsmAArch64 : public Asm {
   }
   std::string RegName(Register reg, unsigned bytes = 8) {
     return RegName(kRegNames[reg], bytes);
+  }
+
+  void Mov64(std::ostream& os, Register dest, uint64_t value) override {
+    os << "    mov " << RegName(dest) << ", #" << value << "\n";
   }
 
   void Push64(std::ostream& os, uint64_t v) override {

@@ -266,33 +266,29 @@ void GenerateAsm(ostream& os, Node* node,
       auto label_true{GenerateLabel()};
       auto label_false{GenerateLabel()};
       GenerateAsm(os, node->lhs, label_break, label_cont);
-      os << "    pop rax\n";
-      os << "    test rax, rax\n";
-      os << "    jnz " << label_true << "\n";
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->JmpIfNotZero(os, Asm::kRegL, label_true);
       GenerateAsm(os, node->rhs, label_break, label_cont);
-      os << "    pop rax\n";
-      os << "    test rax, rax\n";
-      os << "    jz " << label_false << "\n";
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->JmpIfZero(os, Asm::kRegL, label_false);
       os << label_true << ":\n";
-      os << "    mov rax, 1\n";
+      asmgen->Mov64(os, Asm::kRegL, 1);
       os << label_false << ":\n";
-      os << "    push rax\n";
+      asmgen->Push64(os, Asm::kRegL);
     }
     return;
   case Node::kLAnd:
     {
       auto label_false{GenerateLabel()};
       GenerateAsm(os, node->lhs, label_break, label_cont);
-      os << "    pop rax\n";
-      os << "    test rax, rax\n";
-      os << "    jz " << label_false << "\n";
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->JmpIfZero(os, Asm::kRegL, label_false);
       GenerateAsm(os, node->rhs, label_break, label_cont);
-      os << "    pop rax\n";
-      os << "    test rax, rax\n";
-      os << "    jz " << label_false << "\n";
-      os << "    mov rax, 1\n";
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->JmpIfZero(os, Asm::kRegL, label_false);
+      asmgen->Mov64(os, Asm::kRegL, 1);
       os << label_false << ":\n";
-      os << "    push rax\n";
+      asmgen->Push64(os, Asm::kRegL);
     }
     return;
   case Node::kBreak:
