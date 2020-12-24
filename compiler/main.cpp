@@ -203,7 +203,7 @@ void GenerateAsm(ostream& os, Node* node,
         LoadSymAddr(os, node->lhs->token);
         auto func_sym{LookupSymbol(cur_ctx, node->lhs->token->Raw())};
         if (func_sym->type->kind == Type::kPointer) {
-          asmgen->Load64(os, Asm::kRegL, Asm::kRegL, 0);
+          asmgen->Load64(os, Asm::kRegL, Asm::kRegL);
         } else if (func_sym->type->kind != Type::kFunc) {
           cerr << "cannot call "
                << magic_enum::enum_name(func_sym->type->kind) << endl;
@@ -389,7 +389,7 @@ void GenerateAsm(ostream& os, Node* node,
     break;
   case Node::kDeref:
     if (!lval) {
-      asmgen->Load64(os, Asm::kRegL, Asm::kRegL, 0);
+      asmgen->Load64(os, Asm::kRegL, Asm::kRegL);
     }
     break;
   case Node::kSubscr:

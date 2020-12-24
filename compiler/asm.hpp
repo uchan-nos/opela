@@ -41,8 +41,7 @@ class Asm {
   virtual void LEA(std::ostream& os, Register dest, Register base, int disp) = 0;
   virtual void LEA(std::ostream& os, Register dest, Register base,
                int scale, Register index) = 0;
-  virtual void Load64(std::ostream& os, Register dest,
-                      Register addr, int disp) = 0;
+  virtual void Load64(std::ostream& os, Register dest, Register addr) = 0;
   // LoadN loads scale bytes from [base + scale * index]
   virtual void LoadN(std::ostream& os, Register dest, Register base,
                      int scale, Register index) = 0;
@@ -159,10 +158,8 @@ class AsmX8664 : public Asm {
        << " + " << scale << "*" << RegName(index) << "]\n";
   }
 
-  void Load64(std::ostream& os, Register dest,
-              Register addr, int disp) override {
-    os << "    mov " << RegName(dest) << ", ["
-       << RegName(addr) << "+" << disp << "]\n";
+  void Load64(std::ostream& os, Register dest, Register addr) override {
+    os << "    mov " << RegName(dest) << ", [" << RegName(addr) << "]\n";
   }
 
   void LoadN(std::ostream& os, Register dest, Register base,
@@ -379,10 +376,8 @@ class AsmAArch64 : public Asm {
        << ", " << RegName(index) << ", lsl #" << shift_amount << "\n";
   }
 
-  void Load64(std::ostream& os, Register dest,
-              Register addr, int disp) override {
-    os << "    ldr " << RegName(dest) << ", ["
-       << RegName(addr) << ", #" << disp << "]\n";
+  void Load64(std::ostream& os, Register dest, Register addr) override {
+    os << "    ldr " << RegName(dest) << ", [" << RegName(addr) << "]\n";
   }
 
   void LoadN(std::ostream& os, Register dest, Register base,
