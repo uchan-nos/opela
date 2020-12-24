@@ -111,8 +111,8 @@ void GenerateAsm(ostream& os, Node* node,
       os << label_loop << ":\n";
       GenerateAsm(os, node->lhs, label_end, label_next);
       os << label_next << ":\n";
-      os << "    pop rax\n";
-      os << "    jmp " << label_loop << "\n";
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->Jmp(os, label_loop);
       os << label_end << ":\n";
     }
     return;
