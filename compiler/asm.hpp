@@ -452,9 +452,9 @@ class AsmAArch64 : public Asm {
 
   void LoadSymAddr(std::ostream& os, Register dest,
                    std::string_view sym_name) override {
-    os << "    adrp " << RegName(dest) << ", _" << sym_name << "@PAGE\n";
-    os << "    add " << RegName(dest) << ", " << RegName(dest)
-       << ", _" << sym_name << "@PAGEOFF\n";
+    os << "    adrp " << RegName(dest) << ", _" << sym_name << "@GOTPAGE\n";
+    os << "    ldr " << RegName(dest) << ", [" << RegName(dest)
+       << ", _" << sym_name << "@GOTPAGEOFF]\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {
