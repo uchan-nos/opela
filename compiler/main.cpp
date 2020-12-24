@@ -72,28 +72,12 @@ void GenerateAsm(ostream& os, Node* node,
     } else if (node->value.sym->type->kind != Type::kInt) {
         asmgen->LoadPush64(os, Asm::kRegL);
     } else {
-      switch (node->value.sym->type->num) {
-      case 8:
-        os << "    xor edi, edi\n";
-        os << "    mov dil, [rax]\n";
-        os << "    push rdi\n";
-        break;
-      case 16:
-        os << "    xor edi, edi\n";
-        os << "    mov di [rax]\n";
-        os << "    push rdi\n";
-        break;
-      case 32:
-        os << "    mov edi, [rax]\n";
-        os << "    push rdi\n";
-        break;
-      case 64:
-        asmgen->LoadPush64(os, Asm::kRegL);
-        break;
-      default:
+      auto bits = node->value.sym->type->num;
+      if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "loading non-standard size integer is not supported" << endl;
         ErrorAt(node->token->loc);
       }
+      asmgen->LoadPushN(os, Asm::kRegL, bits / 8);
     }
     return;
   case Node::kRet:
@@ -248,7 +232,7 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->FuncPrologue(os, cur_ctx);
     for (size_t i = 0; i < cur_ctx->params.size(); ++i) {
       auto off{cur_ctx->params[i]->offset};
-      asmgen->Store64(os, Asm::kRegBP, -off, kArgRegs[i]);
+      asmgen->StoreN(os, Asm::kRegBP, -off, kArgRegs[i], 8);
     }
     GenerateAsm(os, node->lhs, label_break, label_cont); // 関数ボディ
     asmgen->FuncEpilogue(os, cur_ctx);
@@ -389,25 +373,14 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kAssign:
   case Node::kDefVar:
     if (node->lhs->type->kind != Type::kInt) {
-      asmgen->Store64(os, Asm::kRegL, 0, Asm::kRegR);
+      asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, 8);
     } else {
-      switch (node->lhs->type->num) {
-      case 8:
-        os << "    mov [rax], dil\n";
-        break;
-      case 16:
-        os << "    mov [rax], di\n";
-        break;
-      case 32:
-        os << "    mov [rax], edi\n";
-        break;
-      case 64:
-        asmgen->Store64(os, Asm::kRegL, 0, Asm::kRegR);
-        break;
-      default:
+      auto bits = node->lhs->type->num;
+      if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "non-standard size assignment is not supported" << endl;
         ErrorAt(node->token->loc);
       }
+      asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, bits / 8);
     }
     asmgen->Push64(os, lval ? Asm::kRegL : Asm::kRegR);
     return;
@@ -541,7 +514,7 @@ int main(int argc, char** argv) {
       if (init && init->kind != Node::kInt) {
         GenerateAsm(cout, init, "", "");
         asmgen->Pop64(cout, Asm::kRegL);
-        asmgen->Store64(cout, sym->token->Raw(), Asm::kRegL);
+        asmgen->StoreN(cout, sym->token->Raw(), Asm::kRegL, 8);
       }
     }
     asmgen->FuncEpilogue(cout);
