@@ -254,8 +254,8 @@ void GenerateAsm(ostream& os, Node* node,
       ostringstream oss;
       oss << "STR" << string_literal_nodes.size();
       string_literal_nodes.push_back(node);
-      os << "    movabs rax, offset " << oss.str() << "\n";
-      os << "    push rax\n";
+      asmgen->LoadSymAddr(os, Asm::kRegL, oss.str());
+      asmgen->Push64(os, Asm::kRegL);
     }
     return;
   case Node::kSizeof:
@@ -536,7 +536,7 @@ int main(int argc, char** argv) {
 
   for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
     auto node{string_literal_nodes[i]};
-    cout << "STR" << i << ":\n    .byte ";
+    cout << asmgen->SymLabel("STR") << i << ":\n    .byte ";
     for (size_t j{0}; j < node->value.str.len; ++j) {
       cout << static_cast<int>(node->value.str.data[j]) << ',';
     }
