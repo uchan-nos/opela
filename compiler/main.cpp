@@ -292,12 +292,12 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kBreak:
-    os << "    push rax\n";
-    os << "    jmp " << label_break << "\n";
+    asmgen->Push64(os, Asm::kRegL);
+    asmgen->Jmp(os, label_break);
     return;
   case Node::kCont:
-    os << "    push rax\n";
-    os << "    jmp " << label_cont << "\n";
+    asmgen->Push64(os, Asm::kRegL);
+    asmgen->Jmp(os, label_cont);
     return;
   case Node::kTypedef:
     return;
