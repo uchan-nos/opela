@@ -51,7 +51,6 @@ class Asm {
   virtual void StoreN(std::ostream& os, std::string_view sym_name,
                       Register value, unsigned bytes) = 0;
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
-  virtual void LoadPush64(std::ostream& os, Register addr) = 0;
   virtual void LoadPushN(std::ostream& os, Register addr, unsigned bytes) = 0;
   virtual void LoadSymAddr(std::ostream& os, Register dest,
                            std::string_view sym_name) = 0;
@@ -200,10 +199,6 @@ class AsmX8664 : public Asm {
     os << "    mov [" << sym_name << "], " << RegName(value, bytes) << "\n";
   }
 
-  void LoadPush64(std::ostream& os, Register addr) override {
-    os << "    push qword ptr [" << RegName(addr) << "]\n";
-  }
-
   void LoadPushN(std::ostream& os, Register addr, unsigned bytes) override {
     switch (bytes) {
     case 1:
@@ -218,7 +213,7 @@ class AsmX8664 : public Asm {
       os << "    mov r10d, [" << RegName(addr) << "]\n";
       break;
     case 8:
-      LoadPush64(os, addr);
+      os << "    push qword ptr [" << RegName(addr) << "]\n";
       return;
     default:
       std::cerr << "cannot load non 2-power bytes" << std::endl;
@@ -440,11 +435,6 @@ class AsmAArch64 : public Asm {
        << ", [x10, _" << sym_name << "@PAGEOFF]\n";
   }
 
-  void LoadPush64(std::ostream& os, Register addr) override {
-    os << "    ldr x8, [" << RegName(addr) << "]\n";
-    os << "    str x8, [sp, #-16]!\n";
-  }
-
   void LoadPushN(std::ostream& os, Register addr, unsigned bytes) override {
     switch (bytes) {
     case 1:
@@ -457,8 +447,8 @@ class AsmAArch64 : public Asm {
       os << "    ldr w10, [" << RegName(addr) << "]\n";
       break;
     case 8:
-      LoadPush64(os, addr);
-      return;
+      os << "    ldr x10, [" << RegName(addr) << "]\n";
+      break;
     default:
       std::cerr << "cannot load non 2-power bytes" << std::endl;
     }

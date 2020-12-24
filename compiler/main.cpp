@@ -70,7 +70,7 @@ void GenerateAsm(ostream& os, Node* node,
     if (lval) {
       asmgen->Push64(os, Asm::kRegL);
     } else if (node->value.sym->type->kind != Type::kInt) {
-        asmgen->LoadPush64(os, Asm::kRegL);
+        asmgen->LoadPushN(os, Asm::kRegL, 8);
     } else {
       auto bits = node->value.sym->type->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
@@ -130,7 +130,7 @@ void GenerateAsm(ostream& os, Node* node,
         GenerateAsm(os, node->rhs, label_end, label_next);
         asmgen->Pop64(os, Asm::kRegL);
       }
-      asmgen->LoadPush64(os, Asm::kRegSP);
+      asmgen->LoadPushN(os, Asm::kRegSP, 8);
       asmgen->Jmp(os, label_cond);
       os << label_loop << ":\n";
       asmgen->Pop64(os, Asm::kRegL);
