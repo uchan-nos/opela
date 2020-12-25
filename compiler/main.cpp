@@ -514,11 +514,10 @@ int main(int argc, char** argv) {
       }
     }
     asmgen->FuncEpilogue(cout);
-    cout << ".section __DATA,__mod_init_func,mod_init_funcs\n";
-    cout << ".p2align 3\n";
+    asmgen->SectionInit(cout);
     cout << "    .dc.a " << asmgen->SymLabel("_init_opela") << "\n";
 
-    cout << ".section __DATA,__data\n";
+    asmgen->SectionData(cout);
     for (auto [ sym, init ] : gvar_init_values) {
       cout << asmgen->SymLabel(sym->token->Raw()) << ":\n";
       cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';

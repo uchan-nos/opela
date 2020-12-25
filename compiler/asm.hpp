@@ -68,6 +68,8 @@ class Asm {
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os) = 0;
   virtual void SectionText(std::ostream& os) = 0;
+  virtual void SectionInit(std::ostream& os) = 0;
+  virtual void SectionData(std::ostream& os) = 0;
   virtual std::string SymLabel(std::string_view sym_name) = 0;
 };
 
@@ -154,11 +156,16 @@ class AsmX8664 : public Asm {
 
   void LEA(std::ostream& os, Register dest, Register base, int disp) override {
     os << "    lea " << RegName(dest)
-       << ", [" << RegName(base) << " + " << disp << "]\n";
+       << ", [" << RegName(base)
+       << std::showpos << disp << std::noshowpos << "]\n";
   }
 
   void LEA(std::ostream& os, Register dest, Register base,
            int scale, Register index) override {
+    if (scale < 0) {
+      os << "    neg " << RegName(index) << "\n";
+      scale = -scale;
+    }
     os << "    lea " << RegName(dest) << ", [" << RegName(base)
        << " + " << scale << "*" << RegName(index) << "]\n";
   }
@@ -289,6 +296,14 @@ class AsmX8664 : public Asm {
   void SectionText(std::ostream& os) override {
     os << ".intel_syntax noprefix\n";
     os << ".code64\n.section .text\n";
+  }
+
+  void SectionInit(std::ostream& os) override {
+    os << ".section .init_array\n";
+  }
+
+  void SectionData(std::ostream& os) override {
+    os << ".section .data\n";
   }
 
   std::string SymLabel(std::string_view sym_name) override {
@@ -523,6 +538,15 @@ class AsmAArch64 : public Asm {
   }
 
   void SectionText(std::ostream& os) override {
+  }
+
+  void SectionInit(std::ostream& os) override {
+    os << ".section __DATA,__mod_init_func,mod_init_funcs\n";
+    os << ".p2align 3\n";
+  }
+
+  void SectionData(std::ostream& os) override {
+    os << ".section __DATA,__data\n";
   }
 
   std::string SymLabel(std::string_view sym_name) override {
