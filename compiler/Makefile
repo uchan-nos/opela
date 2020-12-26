@@ -7,7 +7,12 @@ opelac: $(OBJS)
 	$(CXX) $(CXXFLAGS) -o $@ $^
 
 .PHONY: test test-x86_64 test-aarch64
-test: test-x86_64
+test:
+ifeq ($(shell uname -m),arm64)
+	make test-aarch64
+else
+	make test-x86-64
+endif
 
 test-x86_64: opelac cfunc.o
 	./test.sh x86_64
