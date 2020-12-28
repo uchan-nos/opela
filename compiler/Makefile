@@ -1,4 +1,4 @@
-CXXFLAGS = -O3 -std=c++17 -Wall -Wextra -g -stdlib=libc++
+CXXFLAGS = -O3 -std=c++17 -Wall -Wextra -g
 CFLAGS = -O3 -std=c11 -Wall -Wextra
 OBJS = main.o source.o token.o ast.o
 DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))

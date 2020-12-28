@@ -1,5 +1,6 @@
 #include "ast.hpp"
 
+#include <algorithm>
 #include <iostream>
 
 #include "magic_enum.hpp"
