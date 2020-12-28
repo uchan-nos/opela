@@ -149,7 +149,7 @@ const map<Node::Kind, const char*> kUnaryOps{
 
 const map<string, Type*> kTypes{
   {"int",  NewTypeInt(nullptr, 64)},
-  {"char", NewTypeInt(nullptr, 8)},
+  {"byte", NewTypeInt(nullptr, 8)},
 };
 
 void RegisterSymbol(Symbol* sym) {
