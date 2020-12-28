@@ -5,10 +5,10 @@
     "version": "0.2.0",
     "configurations": [
         {
-            "name": "clang++-10 - opelacのビルドとデバッグ",
+            "name": "opelacのビルドとデバッグ",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/opelac.vscode_debug",
+            "program": "${workspaceFolder}/opelac",
             "args": ["<${workspaceFolder}/vscode_debug.opl"],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
@@ -22,7 +22,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "C/C++: clang++-10 build opelac",
+            "preLaunchTask": "C/C++: build opelac",
             "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
