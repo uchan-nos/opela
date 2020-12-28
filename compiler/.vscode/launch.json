@@ -1,0 +1,29 @@
+{
+    // Use IntelliSense to learn about possible attributes.
+    // Hover to view descriptions of existing attributes.
+    // For more information, visit: https://go.microsoft.com/fwlink/?linkid=830387
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "clang++-10 - opelacのビルドとデバッグ",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/opelac.vscode_debug",
+            "args": ["<${workspaceFolder}/vscode_debug.opl"],
+            "stopAtEntry": false,
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "gdb の再フォーマットを有効にする",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "C/C++: clang++-10 build opelac",
+            "miDebuggerPath": "/usr/bin/gdb"
+        }
+    ]
+}
