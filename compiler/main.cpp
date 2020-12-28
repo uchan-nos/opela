@@ -480,11 +480,8 @@ int main(int argc, char** argv) {
     }
   }
 
-  ostringstream oss;
-  GenerateAsm(oss, ast, "", "");
-
   asmgen->SectionText(cout);
-  cout << oss.str();
+  GenerateAsm(cout, ast, "", "");
 
   for (auto [ name, sym ] : symbols) {
     if (sym->kind == Symbol::kEVar || sym->kind == Symbol::kEFunc) {
