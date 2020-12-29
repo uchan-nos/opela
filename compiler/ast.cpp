@@ -230,7 +230,9 @@ Node* DeclarationSequence() {
     } else {
       return head;
     }
-    cur = cur->next;
+    while (cur->next) {
+      cur = cur->next;
+    }
   }
 }
 
