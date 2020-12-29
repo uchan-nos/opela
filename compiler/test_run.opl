@@ -1,0 +1,192 @@
+#define TEST_INT(want, got) testInt(want, got, #got)
+var (passed int; failed int;)
+
+func main() {
+  TEST_INT(42, testIntConstant());
+  TEST_INT(11, testAddSub());
+  TEST_INT(2 , testMulDiv());
+  TEST_INT(5 , testUnaryOp());
+  TEST_INT(0 , testRelOp());
+  TEST_INT(1 , testRelOp2());
+  TEST_INT(1 , testEqOp());
+  TEST_INT(0 , testBlankBlock());
+  TEST_INT(3 , testCompoundBlock());
+  TEST_INT(15, testDefVar());
+  TEST_INT(3 , testReturn());
+  TEST_INT(2 , testIf());
+  TEST_INT(1 , testIfVar());
+  TEST_INT(8 , testAssign());
+  TEST_INT(38, testAssign2());
+  TEST_INT(42, testAssign3());
+  TEST_INT(55, testFor());
+  TEST_INT(9 , testAssign4());
+  TEST_INT(55, testFor2());
+  TEST_INT(4 , testElse());
+  TEST_INT(5 , testElseIf());
+  TEST_INT(42, testSimpleBlock());
+  TEST_INT(9 , testNextedFor());
+  TEST_INT(39, testExternalFunc());
+  TEST_INT(42, testExternalFunc2());
+  TEST_INT(4 , testFuncArg());
+  TEST_INT(57, testFuncArg2());
+  TEST_INT(5 , testDefFunc());
+  TEST_INT(21, testRecursion());
+  TEST_INT(5 , testPtrWrite());
+  TEST_INT(4 , testPtrRead());
+  TEST_INT(14, testPtrPtr());
+  TEST_INT(3 , testPtrFunc());
+  TEST_INT(42, testUnaryOp2());
+  TEST_INT(4 , testVarPtr());
+  TEST_INT(42, testVarFuncPtr());
+  TEST_INT(16, testPtrAddInt());
+  TEST_INT(24, testPtrSubInt());
+  TEST_INT(2 , testPtrSubPtr());
+  TEST_INT(4 , testArrayPtr());
+  TEST_INT(16, testSizeof());
+  TEST_INT(4 , testIntArray());
+  TEST_INT(7 , testFuncArray());
+  TEST_INT(42, testGVar());
+  TEST_INT(10, testGVarInit());
+  TEST_INT(1 , testSizeofByte());
+  TEST_INT(43, testVarByte());
+  TEST_INT(2 , testVarInt64());
+  TEST_INT(0 , testOverflow());
+  TEST_INT(2 , testOverflow2());
+  TEST_INT(4 , testInt8Array());
+  TEST_INT(10, testInt16Ptr());
+  TEST_INT(28, testInt32Ptr());
+  TEST_INT(33, testStr());
+  TEST_INT(5 , testStrlen());
+  TEST_INT(6 , testSizeofStr());
+  TEST_INT(10, testStrEscape());
+  TEST_INT(4 , testPtrInt8());
+  TEST_INT(33, testPtrChar());
+  TEST_INT(1 , testPtrChar2());
+  TEST_INT(1 , testVarInt8());
+  TEST_INT(12, testCompoundAssign());
+  TEST_INT(33, testAsciiExpr());
+  TEST_INT(4 , testLogicalOp());
+  TEST_INT(1 , testLogicalOp2());
+  TEST_INT(2 , testLogicalOp3());
+  TEST_INT(2 , testComment());
+  TEST_INT(3 , testBreak());
+  TEST_INT(10, testContinue());
+  TEST_INT(12, testContinue2());
+  TEST_INT(10, testBreak2());
+  TEST_INT(42, testBreak3());
+  TEST_INT(4 , testSizeofUserType());
+  TEST_INT(4 , testUserType());
+}
+
+func testInt(want, got int, gots *byte) {
+  if want == got {
+    print_string("[  OK  ]: ");
+    passed += 1;
+  } else {
+    print_string("[FAILED]: ");
+    failed += 1;
+  }
+
+  print_string(gots);
+  print_string(" -> ");
+  print_int64(got);
+
+  if want != got {
+    print_string(", want ");
+    print_int64(want);
+  }
+  print_string("\n");
+}
+
+func testIntConstant() { 42; }
+func testAddSub() { 1+23 - 13; }
+func testMulDiv() { 12/2 - 2 * (3 - 1); }
+func testUnaryOp() { -3 + (+8); }
+func testRelOp() { 3 < 1; }
+func testRelOp2() { 2*3 >= 13/2; }
+func testEqOp() { 2>2 == 4<=3; }
+func testBlankBlock() { }
+func testCompoundBlock() { 42; 3; }
+func testDefVar() { foo:=5; bar:=3; foo*bar; }
+func testReturn() { return 3; 42; }
+func testIf() { 1; if 42 > 10 { 2; } }
+func testIfVar() { cond := 10 < 1; 1; if cond { 2; } }
+func testAssign() { foo := 3; foo = 4; foo * 2; }
+func testAssign2() { foo:=5; bar:=7; foo=(bar=1)=42; foo-4; }
+func testAssign3() { foo:=5; bar:=7; foo=bar=42; }
+func testFor() { i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } s; }
+func testAssign4() { a:=5; a=b:=3; a*b; }
+func testFor2() { s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } }
+func testElse() { if 0 { 3; } else { 4; } }
+func testElseIf() { if 0 { 3; } else if 1 { 5; } else { 4; } }
+func testSimpleBlock() { 42; {} }
+func testNextedFor() { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s; }
+func testExternalFunc() { func42() - 3; }
+func testExternalFunc2() { funcfunc42()(); }
+func testFuncArg() { add(add(1, -2), 5); }
+func testFuncArg2(){add(sum10(), 2);}
+func testDefFunc(){myAdd(-3,8);}
+func testRecursion(){fib(8);}
+func testPtrWrite(){ i := 42; p := &i; *p = 3; i + 2; }
+func testPtrRead(){ i := 42; p := &i; i = 3; j := *p; j + 1; }
+func testPtrPtr(){ i := 7; p := &i; q := &p; **q + *&i; }
+func testPtrFunc(){ i:=42; ptrWrite(&i); i; }
+func testUnaryOp2() { -+-42; }
+func testVarPtr() { var i int; var p *int = &i; i = 42; i = 3; *p + 1; }
+func testVarFuncPtr() { var f *func() func() int; f = &funcfunc42; f()(); }
+func testPtrAddInt() { var p *int = 8; p+1; }
+func testPtrSubInt() { var p *int = 32; p-1; }
+func testPtrSubPtr() { var p *int = 8; var q *int = 24; q-p; }
+func testArrayPtr() { p:=alloc4(3,4,5,6); *(p+1); }
+func testSizeof() { var i int; 3*sizeof(int) - sizeof(42); }
+func testIntArray() { var arr [3]int; for i:=0; i<3; i=i+1 { arr[i]=i*2; } arr[2]; }
+func testFuncArray() { var arr [3]*func(a,b int); arr[1]=&add; arr[1](3,4); }
+func testGVar() { var (v int = val*3;) v; }
+func testGVarInit() { ga=3; ga+gc; }
+func testSizeofByte() { sizeof(byte); }
+func testVarByte() { var c byte = 42; c+1; }
+func testVarInt64() { var c int64 = 255; c=c+1; c/100; }
+func testOverflow() { var c int8 = 255; c=c+1; c/100; }
+func testOverflow2() { var c byte = 255; i:=c+1; i/100; }
+func testInt8Array() { var arr [3]int8; arr[0]=-1; arr[1]=5; arr[2]=arr[0]+arr[1]; }
+func testInt16Ptr() { var p *int16 = 8; p+1; }
+func testInt32Ptr() { var p *int32 = 32; p-1; }
+func testStr() { "abc!def"[3]; }
+func testStrlen() { strlen("world"); }
+func testSizeofStr() { sizeof("abcdef"); }
+func testStrEscape() { "\n"[0]; }
+func testPtrInt8() { var x [2]int8; x[0]=1; x[1]=2; p:=&x[0]; p[1]=3; x[1]+1; }
+func testPtrChar() { p := &" !"[0]; p[1]; }
+func testPtrChar2() { p := &" !"[0]; if p[0]==32 { 1; } else { 2; } }
+func testVarInt8() { var a [1]int8; var b int8 = a[0]; a[0]=1; b=2; a[0]; }
+func testCompoundAssign() { i := 1; i += 2; j := 3; i *= 1 + j; }
+func testAsciiExpr() { '!' + '\t' - 9; }
+func testLogicalOp() { i := 3; if i==1 && 2==1 || i==3 { 4; } else { 5; } }
+func testLogicalOp2() { v := 5 && 6 || 7; }
+func testLogicalOp3() { v := 2; 42 || (v = 3); v; }
+/* test func */ func testComment() { 2; } // comment
+func testBreak() { i := 1; for i < 10 { if i == 3 { break; } i += 1; } i; }
+func testContinue() { i := 1; for i < 10 { i = 10; continue; i = 42; } i; }
+func testContinue2() { i := 1; for i = 1; i < 12; i += 1 { continue; } i; }
+func testBreak2() { i := 1; for { if i >= 10 { break; } i = 10; continue; i = 42; } i; }
+func testBreak3() { i := 1; for { if i >= 42 { break; } i += 1; continue; } i; }
+func testSizeofUserType() { sizeof(myInt); }
+func testUserType() { var v myInt; v = myInt(3); v + myInt(2) - myInt(1); }
+
+extern "C" func42 func()int;
+extern "C" funcfunc42 func() *func();
+extern "C" add func();
+func sum10(){s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} s;}
+func myAdd(a,b int){a+b;}
+func fib(n int)int{ if n<=1 {n;} else {fib(n-1)+fib(n-2);} }
+func ptrWrite(p *int){ *p = 3; }
+extern "C" alloc4 func() *int;
+var val int = 14;
+var (ga int; gb = 6; gc = gb+1;)
+extern "C" strlen func(s *int8)int64;
+type myInt int32;
+
+//test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
+
+extern "C" print_int64 func(v int64) int;
+extern "C" print_string func(s *byte) int;
