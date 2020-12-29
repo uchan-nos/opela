@@ -11,7 +11,7 @@ test:
 ifeq ($(shell uname -m),arm64)
 	make test-aarch64
 else
-	make test-x86-64
+	make test-x86_64
 endif
 
 test-x86_64: opelac cfunc.o
