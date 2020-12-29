@@ -76,6 +76,12 @@ func main() {
   TEST_INT(42, testBreak3());
   TEST_INT(4 , testSizeofUserType());
   TEST_INT(4 , testUserType());
+
+  print_int64(passed);
+  print_string(" passed, ");
+  print_int64(failed);
+  print_string(" failed\n");
+  return failed > 0;
 }
 
 func testInt(want, got int, gots *byte) {

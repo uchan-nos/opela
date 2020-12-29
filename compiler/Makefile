@@ -14,19 +14,17 @@ opelac: $(OBJS)
 
 .PHONY: test test-x86_64 test-aarch64
 test:
-	make test-$(ARCH)
+	./test.sh $(ARCH)
 
-test-x86_64: opelac cfunc.o
+test-x86_64:
 	./test.sh x86_64
 
-test-aarch64: opelac cfunc.o
+test-aarch64:
 	./test.sh aarch64
 
 test.run: test_run.opl opelac cfunc.o
-	$(CC) -E -x c $< | grep -v '^#' > test_run.tmp
-	cat test_run.tmp | ./opelac -target-arch $(ARCH) > test_run.s
-	as -o test_run.o test_run.s
-	$(CC) -o $@ test_run.o cfunc.o
+	$(CC) -E -x c $< | grep -v '^#' | ./opelac -target-arch $(ARCH) > test_run.s
+	$(CC) -o $@ test_run.s cfunc.o
 
 .PHONY: clean
 clean:
