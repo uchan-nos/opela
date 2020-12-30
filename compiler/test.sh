@@ -23,8 +23,7 @@ function test_stdout() {
   input="$2"
 
   echo "$input" | $opelac > tmp.s
-  as -o tmp.o tmp.s
-  cc -no-pie -o tmp tmp.o cfunc.o
+  cc -o tmp tmp.s cfunc.o
   got=$(./tmp)
 
   if [ "$want" = "$got" ]
@@ -36,7 +35,7 @@ function test_stdout() {
     (( ++failed ))
   fi
 
-  rm tmp tmp.o tmp.s
+  rm tmp tmp.s
 }
 
 test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
