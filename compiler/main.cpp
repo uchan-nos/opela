@@ -535,7 +535,7 @@ int main(int argc, char** argv) {
     asmgen->SectionInit(cout);
     cout << "    .dc.a " << asmgen->SymLabel("_init_opela") << "\n";
 
-    asmgen->SectionData(cout);
+    asmgen->SectionData(cout, false);
     for (auto [ sym, init ] : gvar_init_values) {
       cout << asmgen->SymLabel(sym->token->Raw()) << ":\n";
       cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
@@ -548,7 +548,7 @@ int main(int argc, char** argv) {
   }
 
   if (!string_literal_nodes.empty()) {
-    asmgen->SectionData(cout);
+    asmgen->SectionData(cout, true);
     for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
       auto node{string_literal_nodes[i]};
       cout << asmgen->SymLabel("STR") << i << ":\n    .byte ";

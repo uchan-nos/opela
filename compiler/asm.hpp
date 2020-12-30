@@ -71,7 +71,7 @@ class Asm {
   virtual void FuncEpilogue(std::ostream& os) = 0;
   virtual void SectionText(std::ostream& os) = 0;
   virtual void SectionInit(std::ostream& os) = 0;
-  virtual void SectionData(std::ostream& os) = 0;
+  virtual void SectionData(std::ostream& os, bool readonly) = 0;
   virtual std::string SymLabel(std::string_view sym_name) = 0;
 };
 
@@ -312,8 +312,8 @@ class AsmX8664 : public Asm {
     os << ".section .init_array\n";
   }
 
-  void SectionData(std::ostream& os) override {
-    os << ".section .data\n";
+  void SectionData(std::ostream& os, bool readonly) override {
+    os << ".section " << (readonly ? ".rodata\n" : ".data\n");
   }
 
   std::string SymLabel(std::string_view sym_name) override {
@@ -556,6 +556,7 @@ class AsmAArch64 : public Asm {
   }
 
   void SectionText(std::ostream& os) override {
+    os << ".section __TEXT,__text,regular,pure_instructions\n";
   }
 
   void SectionInit(std::ostream& os) override {
@@ -563,8 +564,8 @@ class AsmAArch64 : public Asm {
     os << ".p2align 3\n";
   }
 
-  void SectionData(std::ostream& os) override {
-    os << ".section __DATA,__data\n";
+  void SectionData(std::ostream& os, bool readonly) override {
+    os << ".section __DATA," << (readonly ? "__const\n" : "__data\n");
   }
 
   std::string SymLabel(std::string_view sym_name) override {
