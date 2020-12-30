@@ -547,12 +547,15 @@ int main(int argc, char** argv) {
     }
   }
 
-  for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
-    auto node{string_literal_nodes[i]};
-    cout << asmgen->SymLabel("STR") << i << ":\n    .byte ";
-    for (size_t j{0}; j < node->value.str.len; ++j) {
-      cout << static_cast<int>(node->value.str.data[j]) << ',';
+  if (!string_literal_nodes.empty()) {
+    asmgen->SectionData(cout);
+    for (size_t i{0}; i < string_literal_nodes.size(); ++i) {
+      auto node{string_literal_nodes[i]};
+      cout << asmgen->SymLabel("STR") << i << ":\n    .byte ";
+      for (size_t j{0}; j < node->value.str.len; ++j) {
+        cout << static_cast<int>(node->value.str.data[j]) << ',';
+      }
+      cout << "0\n";
     }
-    cout << "0\n";
   }
 }
