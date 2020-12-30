@@ -340,6 +340,7 @@ void GenerateAsm(ostream& os, Node* node,
     } else if (node->type->kind == Type::kUser &&
                node->type->base->kind == Type::kInt) {
       asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
+      asmgen->MaskBits(os, Asm::kRegL, node->type->base->num);
     }
     break;
   case Node::kSub:
@@ -349,6 +350,7 @@ void GenerateAsm(ostream& os, Node* node,
         asmgen->ShiftR(os, Asm::kRegL, 3);
       } else {                                       // int - int
         asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
+        asmgen->MaskBits(os, Asm::kRegL, node->type->num);
       }
     } else if (node->type->kind == Type::kPointer) { // ptr - int
       const auto scale{Sizeof(node->token, node->type->base)};
@@ -356,6 +358,7 @@ void GenerateAsm(ostream& os, Node* node,
     } else if (node->type->kind == Type::kUser &&
                node->type->base->kind == Type::kInt) {
       asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
+      asmgen->MaskBits(os, Asm::kRegL, node->type->base->num);
     }
     break;
   case Node::kMul:

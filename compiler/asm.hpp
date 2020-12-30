@@ -241,8 +241,8 @@ class AsmX8664 : public Asm {
     if (bits >= 64) {
       return;
     }
-    os << "    and " << RegName(reg) << ", "
-       << ((UINT64_C(1) << bits) - 1) << "\n";
+    os << "    mov r10b, " << bits << "\n";
+    os << "    bzhi " << RegName(reg) << ", " << RegName(reg) << ", r10\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {

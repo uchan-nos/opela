@@ -902,7 +902,7 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kSub:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(nullptr, 64);
+      n->type = NewTypeInt(nullptr, max(l->num, r->num));
     } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kPointer && r->kind == Type::kPointer) {
