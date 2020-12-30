@@ -12,7 +12,7 @@ failed=0
 opelac="./opelac -target-arch $target_arch"
 
 echo "Running standard testcases..."
-make test.run
+make test.run || exit 1
 ./test.run
 
 echo "============================="

@@ -76,6 +76,7 @@ func main() {
   TEST_INT(42, testBreak3());
   TEST_INT(4 , testSizeofUserType());
   TEST_INT(4 , testUserType());
+  TEST_INT(3,  testInt8Overflow());
 
   print_int64(passed);
   print_string(" passed, ");
@@ -178,6 +179,7 @@ func testBreak2() { i := 1; for { if i >= 10 { break; } i = 10; continue; i = 42
 func testBreak3() { i := 1; for { if i >= 42 { break; } i += 1; continue; } i; }
 func testSizeofUserType() { sizeof(myInt); }
 func testUserType() { var v myInt; v = myInt(3); v + myInt(2) - myInt(1); }
+func testInt8Overflow() { var (i int8=2; j int8=-1;) i-j; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();

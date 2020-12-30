@@ -23,7 +23,8 @@ test-aarch64:
 	./test.sh aarch64
 
 test.run: test_run.opl opelac cfunc.o
-	$(CC) -E -x c $< | grep -v '^#' | ./opelac -target-arch $(ARCH) > test_run.s
+	$(CC) -E -x c $< | grep -v '^#' > test_run.tmp
+	cat test_run.tmp | ./opelac -target-arch $(ARCH) > test_run.s
 	$(CC) -o $@ test_run.s cfunc.o
 
 .PHONY: clean
