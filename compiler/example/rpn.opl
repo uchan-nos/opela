@@ -7,7 +7,7 @@ func main() {
   var a int;
   var b int;
 
-  var buf [128]char;
+  var buf [128]byte;
   bytes := read(0, &buf[0], 128);
   p := &buf[0];
 
@@ -39,11 +39,11 @@ func main() {
     }
   }
 
-  var s [2]char;
+  var s [2]byte;
   s[0] = stk[stk_i] + '0';
   s[1] = '\n';
   write(1, &s[0], 2);
 }
 
-extern "C" read func(fd int, s *char, n int) int;
-extern "C" write func(fd int, s *char, n int) int;
+extern "C" read func(fd int, s *byte, n int) int;
+extern "C" write func(fd int, s *byte, n int) int;

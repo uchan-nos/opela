@@ -16,4 +16,4 @@ rpn: rpn.o
 
 %.o: %.opl ../opelac
 	../opelac < $< > $*.s
-	nasm -f elf64 -o $*.o $*.s
+	as -o $@ $*.s
