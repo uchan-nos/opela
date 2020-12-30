@@ -70,15 +70,23 @@ void GenerateAsm(ostream& os, Node* node,
     LoadSymAddr(os, node->token);
     if (lval) {
       asmgen->Push64(os, Asm::kRegL);
-    } else if (node->value.sym->type->kind != Type::kInt) {
-        asmgen->LoadPushN(os, Asm::kRegL, 8);
-    } else {
+    } else if (node->value.sym->type->kind == Type::kUser &&
+               node->value.sym->type->base->kind == Type::kInt) {
+      auto bits = node->value.sym->type->base->num;
+      if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
+        cerr << "loading non-standard size integer is not supported" << endl;
+        ErrorAt(node->token->loc);
+      }
+      asmgen->LoadPushN(os, Asm::kRegL, bits / 8);
+    } else if (node->value.sym->type->kind == Type::kInt) {
       auto bits = node->value.sym->type->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "loading non-standard size integer is not supported" << endl;
         ErrorAt(node->token->loc);
       }
       asmgen->LoadPushN(os, Asm::kRegL, bits / 8);
+    } else {
+      asmgen->LoadPushN(os, Asm::kRegL, 8);
     }
     return;
   case Node::kRet:
@@ -370,15 +378,23 @@ void GenerateAsm(ostream& os, Node* node,
     break;
   case Node::kAssign:
   case Node::kDefVar:
-    if (node->lhs->type->kind != Type::kInt) {
-      asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, 8);
-    } else {
+    if (node->lhs->type->kind == Type::kUser &&
+        node->lhs->type->base->kind == Type::kInt) {
+      auto bits = node->lhs->type->base->num;
+      if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
+        cerr << "non-standard size assignment is not supported" << endl;
+        ErrorAt(node->token->loc);
+      }
+      asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, bits / 8);
+    } else if (node->lhs->type->kind == Type::kInt) {
       auto bits = node->lhs->type->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "non-standard size assignment is not supported" << endl;
         ErrorAt(node->token->loc);
       }
       asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, bits / 8);
+    } else {
+      asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, 8);
     }
     asmgen->Push64(os, lval ? Asm::kRegL : Asm::kRegR);
     return;

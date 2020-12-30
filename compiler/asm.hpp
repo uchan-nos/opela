@@ -205,7 +205,7 @@ class AsmX8664 : public Asm {
 
   void StoreN(std::ostream& os, std::string_view sym_name,
               Register value, unsigned bytes) override {
-    os << "    mov [" << sym_name << "], " << RegName(value, bytes) << "\n";
+    os << "    mov [rip+" << sym_name << "], " << RegName(value, bytes) << "\n";
   }
 
   void LoadPushN(std::ostream& os, Register addr, unsigned bytes) override {
