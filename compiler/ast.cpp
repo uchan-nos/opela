@@ -324,7 +324,9 @@ Node* CompoundStatement() {
   auto cur{head};
   while (!Consume("}")) {
     cur->next = Statement();
-    cur = cur->next;
+    while (cur->next) {
+      cur = cur->next;
+    }
   }
   return head;
 }
