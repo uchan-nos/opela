@@ -55,6 +55,8 @@ class Asm {
   virtual void LoadSymAddr(std::ostream& os, Register dest,
                            std::string_view sym_name) = 0;
 
+  virtual void MaskBits(std::ostream& os, Register reg, unsigned bits) = 0;
+
   virtual void Jmp(std::ostream& os, std::string_view label) = 0;
   virtual void JmpIfZero(std::ostream& os, Register reg,
                          std::string_view label) = 0;
@@ -233,6 +235,14 @@ class AsmX8664 : public Asm {
   void LoadSymAddr(std::ostream& os, Register dest,
                    std::string_view sym_name) override {
     os << "    movabs " << RegName(dest) << ", offset " << sym_name << "\n";
+  }
+
+  void MaskBits(std::ostream& os, Register reg, unsigned bits) override {
+    if (bits >= 64) {
+      return;
+    }
+    os << "    and " << RegName(reg) << ", "
+       << ((UINT64_C(1) << bits) - 1) << "\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {
@@ -479,6 +489,14 @@ class AsmAArch64 : public Asm {
     os << "    adrp " << RegName(dest) << ", _" << sym_name << "@GOTPAGE\n";
     os << "    ldr " << RegName(dest) << ", [" << RegName(dest)
        << ", _" << sym_name << "@GOTPAGEOFF]\n";
+  }
+
+  void MaskBits(std::ostream& os, Register reg, unsigned bits) override {
+    if (bits >= 64) {
+      return;
+    }
+    os << "    ubfx " << RegName(reg) << ", " << RegName(reg)
+       << ", #0, #" << bits << "\n";
   }
 
   void Jmp(std::ostream& os, std::string_view label) override {

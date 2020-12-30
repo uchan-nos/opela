@@ -333,7 +333,7 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kAdd:
     if (node->type->kind == Type::kInt) {
       asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
-      os << "    ubfx x8, x8, #0, #" << node->type->num << "\n";
+      asmgen->MaskBits(os, Asm::kRegL, node->type->num);
     } else if (node->type->kind == Type::kPointer) {
       const auto scale{Sizeof(node->token, node->type->base)};
       asmgen->LEA(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
