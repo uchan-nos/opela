@@ -29,8 +29,8 @@
             "name": "OpeLaプログラムのデバッグ",
             "type": "cppdbg",
             "request": "launch",
-            "program": "${workspaceFolder}/opelac",
-            "args": ["<${file}"],
+            "program": "${file}.out",
+            "args": [],
             "stopAtEntry": false,
             "cwd": "${workspaceFolder}",
             "environment": [],
@@ -43,7 +43,7 @@
                     "ignoreFailures": true
                 }
             ],
-            "preLaunchTask": "C/C++: build opelac",
+            "preLaunchTask": "OpeLa: build opela program",
             "miDebuggerPath": "/usr/bin/gdb"
         }
     ]
