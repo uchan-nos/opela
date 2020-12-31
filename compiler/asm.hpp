@@ -26,8 +26,8 @@ class Asm {
   enum Compare {
     kCmpE,
     kCmpNE,
-    kCmpL,
-    kCmpLE,
+    kCmpG,  // a > b (signed)
+    kCmpLE, // a <= b (signed)
     kCmpA,  // a > b (unsigned)
     kCmpBE, // a <= b (unsigned)
   };
@@ -275,7 +275,7 @@ class AsmX8664 : public Asm {
     switch (c) {
       case kCmpE:  os << "e"; break;
       case kCmpNE: os << "ne"; break;
-      case kCmpL:  os << "l"; break;
+      case kCmpG:  os << "g"; break;
       case kCmpLE: os << "le"; break;
       case kCmpA:  os << "a"; break;
       case kCmpBE: os << "be"; break;
@@ -530,7 +530,7 @@ class AsmAArch64 : public Asm {
     switch (c) {
       case kCmpE:  os << "eq"; break;
       case kCmpNE: os << "ne"; break;
-      case kCmpL:  os << "lt"; break;
+      case kCmpG:  os << "gt"; break;
       case kCmpLE: os << "le"; break;
       case kCmpA:  os << "hi"; break;
       case kCmpBE: os << "ls"; break;

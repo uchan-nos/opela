@@ -485,11 +485,11 @@ Node* Relational() {
 
   for (;;) {
     if (auto op{Consume("<")}) {
-      node = NewNodeExpr(Node::kLT, op, node, Additive());
+      node = NewNodeExpr(Node::kGT, op, Additive(), node);
     } else if (auto op{Consume("<=")}) {
       node = NewNodeExpr(Node::kLE, op, node, Additive());
     } else if (auto op{Consume(">")}) {
-      node = NewNodeExpr(Node::kLT, op, Additive(), node);
+      node = NewNodeExpr(Node::kGT, op, node, Additive());
     } else if (auto op{Consume(">=")}) {
       node = NewNodeExpr(Node::kLE, op, Additive(), node);
     } else {
@@ -824,7 +824,7 @@ bool SetSymbolType(Node* n) {
   if (n->kind == Node::kAdd || n->kind == Node::kSub ||
       n->kind == Node::kMul || n->kind == Node::kDiv ||
       n->kind == Node::kEqu || n->kind == Node::kNEqu ||
-      n->kind == Node::kLT  || n->kind == Node::kLE ||
+      n->kind == Node::kGT  || n->kind == Node::kLE ||
       n->kind == Node::kAssign ||
       n->kind == Node::kCall ||
       n->kind == Node::kSubscr ||
@@ -936,7 +936,7 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kEqu:
   case Node::kNEqu:
-  case Node::kLT:
+  case Node::kGT:
   case Node::kLE:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
       n->type = NewTypeInt(nullptr, 64); // 本来は bool にしたい

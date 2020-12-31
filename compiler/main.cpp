@@ -358,11 +358,11 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kNEqu:
     asmgen->CmpSet(os, Asm::kCmpNE, Asm::kRegL, Asm::kRegL, Asm::kRegR);
     break;
-  case Node::kLT:
+  case Node::kGT:
     if (node->lhs->type->kind == Type::kUInt) {
-      asmgen->CmpSet(os, Asm::kCmpA, Asm::kRegL, Asm::kRegR, Asm::kRegL);
+      asmgen->CmpSet(os, Asm::kCmpA, Asm::kRegL, Asm::kRegL, Asm::kRegR);
     } else {
-      asmgen->CmpSet(os, Asm::kCmpL, Asm::kRegL, Asm::kRegL, Asm::kRegR);
+      asmgen->CmpSet(os, Asm::kCmpG, Asm::kRegL, Asm::kRegL, Asm::kRegR);
     }
     break;
   case Node::kLE:

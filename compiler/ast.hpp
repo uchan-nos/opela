@@ -80,7 +80,7 @@ struct Node {
     kInt,
     kEqu,
     kNEqu,
-    kLT,
+    kGT,
     kLE,
     kId,
     kRet,
