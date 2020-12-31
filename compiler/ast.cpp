@@ -24,6 +24,8 @@ ostream& operator<<(ostream& os, Type* t) {
   switch (t->kind) {
   case Type::kInt:
     os << "int" << t->num;
+  case Type::kUInt:
+    os << "uint" << t->num;
     return os;
   case Type::kPointer:
     os << '*' << t->base;
@@ -65,6 +67,10 @@ Type* NewTypePointer(Token* name, Type* base_type) {
 
 Type* NewTypeInt(Token* name, int64_t num_bits) {
   return new Type{Type::kInt, name, nullptr, nullptr, nullptr, num_bits};
+}
+
+Type* NewTypeUInt(Token* name, int64_t num_bits) {
+  return new Type{Type::kUInt, name, nullptr, nullptr, nullptr, num_bits};
 }
 
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
@@ -146,11 +152,6 @@ Context* cur_ctx; // コンパイル中の文や式を含む関数のコンテ�
 const map<Node::Kind, const char*> kUnaryOps{
   {Node::kAddr,  "&"},
   {Node::kDeref, "*"},
-};
-
-const map<string, Type*> kTypes{
-  {"int",  NewTypeInt(nullptr, 64)},
-  {"byte", NewTypeInt(nullptr, 8)},
 };
 
 void RegisterSymbol(Symbol* sym) {
@@ -590,6 +591,8 @@ Node* Primary() {
     auto node{NewNode(Node::kId, tk)};
     if (auto sym{LookupSymbol(cur_ctx, tk->Raw())}) {
       node->value.sym = sym;
+    } else if (auto t = FindType(tk->Raw())) {
+      node->type = t;
     } else {
       undeclared_id_nodes.push_back(node);
     }
@@ -650,8 +653,8 @@ Node* TypeSpecifier() {
   if (auto type_name{Consume(Token::kId)}) {
     auto node{NewNode(Node::kType, type_name)};
     auto name{type_name->Raw()};
-    if (auto it{kTypes.find(name)}; it != kTypes.end()) {
-      node->type = it->second;
+    if (auto t = FindType(name)) {
+      node->type = t;
     } else if (name.substr(0, 3) == "int") {
       char* endp{nullptr};
       long num_bits{strtol(name.c_str() + 3, &endp, 10)};
@@ -786,7 +789,8 @@ Symbol* LookupSymbol(Context* ctx, const std::string& name) {
 
 size_t Sizeof(Token* tk, Type* type) {
   switch (type->kind) {
-  case Type::kInt:
+  case Type::kInt: // fall-through
+  case Type::kUInt:
     if (type->num == 0 || (type->num % 8) != 0) {
       cerr << "cannot determine size of non-byte integer " << endl;
       ErrorAt(tk->loc);
@@ -936,6 +940,8 @@ bool SetSymbolType(Node* n) {
   case Node::kLE:
     if (l->kind == Type::kInt && r->kind == Type::kInt) {
       n->type = NewTypeInt(nullptr, 64); // 本来は bool にしたい
+    } else if (l->kind == Type::kUInt && r->kind == Type::kUInt) {
+      n->type = NewTypeInt(nullptr, 64);
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -997,7 +1003,7 @@ bool SetSymbolType(Node* n) {
         ErrorAt(n->token->loc);
       }
       n->type = l->base->ret;
-    } else if (types[n->lhs->token->Raw()]) {
+    } else if (FindType(n->lhs->token->Raw())) {
       // 型変換
       n->type = l;
     } else {
@@ -1084,4 +1090,34 @@ bool SetSymbolType(Node* n) {
     break;
   }
   return true;
+}
+
+std::map<std::string, Type*> builtin_types{
+  {"int",  NewTypeInt(nullptr, 64)},
+  {"byte", NewTypeInt(nullptr, 8)},
+  {"uint", NewTypeUInt(nullptr, 64)},
+};
+
+Type* FindType(const std::string& name) {
+  if (auto it = builtin_types.find(name); it != builtin_types.end()) {
+    return it->second;
+  } else if (auto it = types.find(name); it != types.end()) {
+    return it->second;
+  }
+  return nullptr;
+}
+
+bool IsInteger(Type::Kind kind) {
+  return kind == Type::kInt || kind == Type::kUInt;
+}
+
+// 与られた型が整数型なら true を返す。組み込み/ユーザ定義は問わない。
+// 戻り値の second はその整数型。ユーザ定義型の場合はベースとなる整数型。
+std::pair<bool, Type*> IsInteger(Type* t) {
+  if (IsInteger(t->kind)) {
+    return {true, t};
+  } else if (t->kind == Type::kUser && IsInteger(t->base->kind)) {
+    return {true, t->base};
+  }
+  return {false, nullptr};
 }

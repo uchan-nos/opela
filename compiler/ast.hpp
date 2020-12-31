@@ -3,6 +3,7 @@
 #include <cstdint>
 #include <map>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "token.hpp"
@@ -15,6 +16,7 @@ struct Type {
     kUndefined, // そもそも型という概念がない文法要素の場合
     kUnknown, // 未知の型
     kInt,
+    kUInt,
     kPointer,
     kFunc,
     kVoid,
@@ -160,3 +162,8 @@ std::size_t Sizeof(Token* tk, Type* type);
 
 // false: 変化無し，true: 変化あり
 bool SetSymbolType(Node* n);
+
+extern std::map<std::string /* 型名 */, Type*> builtin_types;
+Type* FindType(const std::string& name);
+bool IsInteger(Type::Kind kind);
+std::pair<bool, Type*> IsInteger(Type* t);

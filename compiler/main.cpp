@@ -34,18 +34,6 @@ vector<Node*> string_literal_nodes;
 
 Asm* asmgen;
 
-// 与られた型が整数型なら true を返す。組み込み/ユーザ定義は問わない。
-// 戻り値の second はその整数型。ユーザ定義型の場合はベースとなる整数型。
-pair<bool, Type*> IsInt(Type* t) {
-  if (t->kind == Type::kInt) {
-    return {true, t};
-  } else if (t->kind == Type::kUser &&
-      t->base->kind == Type::kInt) {
-    return {true, t->base};
-  }
-  return {false, nullptr};
-}
-
 } // namespace
 
 // シンボルのアドレスを rax に書く
@@ -82,7 +70,7 @@ void GenerateAsm(ostream& os, Node* node,
     LoadSymAddr(os, node->token);
     if (lval) {
       asmgen->Push64(os, Asm::kRegL);
-    } else if (auto [is_int, t] = IsInt(node->value.sym->type); is_int) {
+    } else if (auto [is_int, t] = IsInteger(node->value.sym->type); is_int) {
       auto bits = t->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "loading non-standard size integer is not supported" << endl;
@@ -174,7 +162,8 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kCall:
     {
-      if (node->lhs->kind == Node::kId && types[node->lhs->token->Raw()]) {
+      if (auto t = FindType(node->lhs->token->Raw());
+          node->lhs->kind == Node::kId && t) {
         // 型変換
         GenerateAsm(os, node->rhs->next, label_break, label_cont);
         return;
@@ -335,7 +324,7 @@ void GenerateAsm(ostream& os, Node* node,
 
   switch (node->kind) {
   case Node::kAdd:
-    if (auto [is_int, t] = IsInt(node->type); is_int) { // int + int
+    if (auto [is_int, t] = IsInteger(node->type); is_int) { // int + int
       asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
       asmgen->MaskBits(os, Asm::kRegL, t->num);
     } else if (node->type->kind == Type::kPointer) { // int + ptr, ptr + int
@@ -344,7 +333,7 @@ void GenerateAsm(ostream& os, Node* node,
     }
     break;
   case Node::kSub:
-    if (auto [is_int, t] = IsInt(node->type); is_int) {
+    if (auto [is_int, t] = IsInteger(node->type); is_int) {
       if (node->lhs->type->kind == Type::kPointer) { // ptr - ptr
         asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
         asmgen->ShiftR(os, Asm::kRegL, 3);
@@ -364,20 +353,28 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->IDiv64(os, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kEqu:
-    asmgen->CmpSet(os, Asm::kCmpE, Asm::kRegL, Asm::kRegR);
+    asmgen->CmpSet(os, Asm::kCmpE, Asm::kRegL, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kNEqu:
-    asmgen->CmpSet(os, Asm::kCmpNE, Asm::kRegL, Asm::kRegR);
+    asmgen->CmpSet(os, Asm::kCmpNE, Asm::kRegL, Asm::kRegL, Asm::kRegR);
     break;
   case Node::kLT:
-    asmgen->CmpSet(os, Asm::kCmpL, Asm::kRegL, Asm::kRegR);
+    if (node->lhs->type->kind == Type::kUInt) {
+      asmgen->CmpSet(os, Asm::kCmpA, Asm::kRegL, Asm::kRegR, Asm::kRegL);
+    } else {
+      asmgen->CmpSet(os, Asm::kCmpL, Asm::kRegL, Asm::kRegL, Asm::kRegR);
+    }
     break;
   case Node::kLE:
-    asmgen->CmpSet(os, Asm::kCmpLE, Asm::kRegL, Asm::kRegR);
+    if (node->lhs->type->kind == Type::kUInt) {
+      asmgen->CmpSet(os, Asm::kCmpBE, Asm::kRegL, Asm::kRegL, Asm::kRegR);
+    } else {
+      asmgen->CmpSet(os, Asm::kCmpLE, Asm::kRegL, Asm::kRegL, Asm::kRegR);
+    }
     break;
   case Node::kAssign:
   case Node::kDefVar:
-    if (auto [is_int, t] = IsInt(node->lhs->type); is_int) {
+    if (auto [is_int, t] = IsInteger(node->lhs->type); is_int) {
       auto bits = t->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "non-standard size assignment is not supported" << endl;

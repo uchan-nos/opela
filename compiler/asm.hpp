@@ -28,6 +28,8 @@ class Asm {
     kCmpNE,
     kCmpL,
     kCmpLE,
+    kCmpA,  // a > b (unsigned)
+    kCmpBE, // a <= b (unsigned)
   };
 
   virtual void Mov64(std::ostream& os, Register dest, uint64_t value) = 0;
@@ -63,7 +65,8 @@ class Asm {
   virtual void JmpIfNotZero(std::ostream& os, Register reg,
                             std::string_view label) = 0;
   virtual void Call(std::ostream& os, Register addr) = 0;
-  virtual void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) = 0;
+  virtual void CmpSet(std::ostream& os, Compare c, Register dest,
+                      Register lhs, Register rhs) = 0;
 
   virtual void FuncPrologue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncPrologue(std::ostream& os, std::string_view sym_name) = 0;
@@ -265,7 +268,8 @@ class AsmX8664 : public Asm {
     os << "    call " << RegName(addr) << "\n";
   }
 
-  void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
+  void CmpSet(std::ostream& os, Compare c, Register dest,
+              Register lhs, Register rhs) override {
     os << "    cmp " << RegName(lhs) << ", " << RegName(rhs) << "\n";
     os << "    set";
     switch (c) {
@@ -273,9 +277,11 @@ class AsmX8664 : public Asm {
       case kCmpNE: os << "ne"; break;
       case kCmpL:  os << "l"; break;
       case kCmpLE: os << "le"; break;
+      case kCmpA:  os << "a"; break;
+      case kCmpBE: os << "be"; break;
     }
     os << " al\n";
-    os << "    movzx " << RegName(lhs, 4) << ", al\n";
+    os << "    movzx " << RegName(dest, 4) << ", al\n";
   }
 
   void FuncPrologue(std::ostream& os, Context* ctx) override {
@@ -517,14 +523,17 @@ class AsmAArch64 : public Asm {
     os << "    blr " << RegName(addr) << "\n";
   }
 
-  void CmpSet(std::ostream& os, Compare c, Register lhs, Register rhs) override {
+  void CmpSet(std::ostream& os, Compare c, Register dest,
+              Register lhs, Register rhs) override {
     os << "    cmp " << RegName(lhs) << ", " << RegName(rhs) << "\n";
-    os << "    cset " << RegName(lhs) << ", ";
+    os << "    cset " << RegName(dest) << ", ";
     switch (c) {
       case kCmpE:  os << "eq"; break;
       case kCmpNE: os << "ne"; break;
       case kCmpL:  os << "lt"; break;
       case kCmpLE: os << "le"; break;
+      case kCmpA:  os << "hi"; break;
+      case kCmpBE: os << "ls"; break;
     }
     os << "\n";
   }
