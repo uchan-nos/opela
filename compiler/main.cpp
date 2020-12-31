@@ -34,6 +34,18 @@ vector<Node*> string_literal_nodes;
 
 Asm* asmgen;
 
+// 与られた型が整数型なら true を返す。組み込み/ユーザ定義は問わない。
+// 戻り値の second はその整数型。ユーザ定義型の場合はベースとなる整数型。
+pair<bool, Type*> IsInt(Type* t) {
+  if (t->kind == Type::kInt) {
+    return {true, t};
+  } else if (t->kind == Type::kUser &&
+      t->base->kind == Type::kInt) {
+    return {true, t->base};
+  }
+  return {false, nullptr};
+}
+
 } // namespace
 
 // シンボルのアドレスを rax に書く
@@ -70,16 +82,8 @@ void GenerateAsm(ostream& os, Node* node,
     LoadSymAddr(os, node->token);
     if (lval) {
       asmgen->Push64(os, Asm::kRegL);
-    } else if (node->value.sym->type->kind == Type::kUser &&
-               node->value.sym->type->base->kind == Type::kInt) {
-      auto bits = node->value.sym->type->base->num;
-      if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
-        cerr << "loading non-standard size integer is not supported" << endl;
-        ErrorAt(node->token->loc);
-      }
-      asmgen->LoadPushN(os, Asm::kRegL, bits / 8);
-    } else if (node->value.sym->type->kind == Type::kInt) {
-      auto bits = node->value.sym->type->num;
+    } else if (auto [is_int, t] = IsInt(node->value.sym->type); is_int) {
+      auto bits = t->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "loading non-standard size integer is not supported" << endl;
         ErrorAt(node->token->loc);
@@ -331,34 +335,26 @@ void GenerateAsm(ostream& os, Node* node,
 
   switch (node->kind) {
   case Node::kAdd:
-    if (node->type->kind == Type::kInt) {
+    if (auto [is_int, t] = IsInt(node->type); is_int) { // int + int
       asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
-      asmgen->MaskBits(os, Asm::kRegL, node->type->num);
-    } else if (node->type->kind == Type::kPointer) {
+      asmgen->MaskBits(os, Asm::kRegL, t->num);
+    } else if (node->type->kind == Type::kPointer) { // int + ptr, ptr + int
       const auto scale{Sizeof(node->token, node->type->base)};
       asmgen->LEA(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
-    } else if (node->type->kind == Type::kUser &&
-               node->type->base->kind == Type::kInt) {
-      asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
-      asmgen->MaskBits(os, Asm::kRegL, node->type->base->num);
     }
     break;
   case Node::kSub:
-    if (node->type->kind == Type::kInt) {
+    if (auto [is_int, t] = IsInt(node->type); is_int) {
       if (node->lhs->type->kind == Type::kPointer) { // ptr - ptr
         asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
         asmgen->ShiftR(os, Asm::kRegL, 3);
       } else {                                       // int - int
         asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
-        asmgen->MaskBits(os, Asm::kRegL, node->type->num);
+        asmgen->MaskBits(os, Asm::kRegL, t->num);
       }
     } else if (node->type->kind == Type::kPointer) { // ptr - int
       const auto scale{Sizeof(node->token, node->type->base)};
       asmgen->LEA(os, Asm::kRegL, Asm::kRegL, -scale, Asm::kRegR);
-    } else if (node->type->kind == Type::kUser &&
-               node->type->base->kind == Type::kInt) {
-      asmgen->Sub64(os, Asm::kRegL, Asm::kRegR);
-      asmgen->MaskBits(os, Asm::kRegL, node->type->base->num);
     }
     break;
   case Node::kMul:
@@ -381,16 +377,8 @@ void GenerateAsm(ostream& os, Node* node,
     break;
   case Node::kAssign:
   case Node::kDefVar:
-    if (node->lhs->type->kind == Type::kUser &&
-        node->lhs->type->base->kind == Type::kInt) {
-      auto bits = node->lhs->type->base->num;
-      if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
-        cerr << "non-standard size assignment is not supported" << endl;
-        ErrorAt(node->token->loc);
-      }
-      asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, bits / 8);
-    } else if (node->lhs->type->kind == Type::kInt) {
-      auto bits = node->lhs->type->num;
+    if (auto [is_int, t] = IsInt(node->lhs->type); is_int) {
+      auto bits = t->num;
       if (bits != 8 && bits != 16 && bits != 32 && bits != 64) {
         cerr << "non-standard size assignment is not supported" << endl;
         ErrorAt(node->token->loc);
