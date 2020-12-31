@@ -108,6 +108,8 @@ struct Node {
     kBreak,
     kCont,
     kTypedef,
+    kInc, // postfix increment
+    kDec, // postfix increment
   } kind;
 
   Token* token; // このノードを代表するトークン

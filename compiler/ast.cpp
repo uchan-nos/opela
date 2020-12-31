@@ -395,6 +395,11 @@ Node* JumpStatement() {
 
 Node* ExpressionStatement() {
   auto node{Expr()};
+  if (auto op{Consume("++")}) {
+    node = NewNodeExpr(Node::kInc, op, node, nullptr);
+  } else if (auto op{Consume("--")}) {
+    node = NewNodeExpr(Node::kDec, op, node, nullptr);
+  }
   Expect(";");
   return node;
 }
@@ -838,7 +843,9 @@ bool SetSymbolType(Node* n) {
              n->kind == Node::kLoop ||
              n->kind == Node::kAddr ||
              n->kind == Node::kDeref ||
-             n->kind == Node::kSizeof) {
+             n->kind == Node::kSizeof ||
+             n->kind == Node::kInc ||
+             n->kind == Node::kDec) {
     changed |= SetSymbolType(n->lhs);
     if (!n->lhs->type) {
       return changed;
@@ -1087,6 +1094,10 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kLAnd:
     n->type = NewTypeInt(nullptr, 64);
+    break;
+  case Node::kInc:
+  case Node::kDec:
+    n->type = l;
     break;
   }
   return true;

@@ -56,6 +56,8 @@ class Asm {
   virtual void LoadPushN(std::ostream& os, Register addr, unsigned bytes) = 0;
   virtual void LoadSymAddr(std::ostream& os, Register dest,
                            std::string_view sym_name) = 0;
+  virtual void Inc64(std::ostream& os, Register lhs) = 0;
+  virtual void Dec64(std::ostream& os, Register lhs) = 0;
 
   virtual void MaskBits(std::ostream& os, Register reg, unsigned bits) = 0;
 
@@ -238,6 +240,14 @@ class AsmX8664 : public Asm {
   void LoadSymAddr(std::ostream& os, Register dest,
                    std::string_view sym_name) override {
     os << "    movabs " << RegName(dest) << ", offset " << sym_name << "\n";
+  }
+
+  void Inc64(std::ostream& os, Register lhs) override {
+    os << "    inc qword ptr [" << RegName(lhs) << "]\n";
+  }
+
+  void Dec64(std::ostream& os, Register lhs) override {
+    os << "    dec qword ptr [" << RegName(lhs) << "]\n";
   }
 
   void MaskBits(std::ostream& os, Register reg, unsigned bits) override {
@@ -495,6 +505,18 @@ class AsmAArch64 : public Asm {
     os << "    adrp " << RegName(dest) << ", _" << sym_name << "@GOTPAGE\n";
     os << "    ldr " << RegName(dest) << ", [" << RegName(dest)
        << ", _" << sym_name << "@GOTPAGEOFF]\n";
+  }
+
+  void Inc64(std::ostream& os, Register lhs) override {
+    os << "    ldr x10, [" << RegName(lhs) << "]\n";
+    os << "    add x10, x10, #1\n";
+    os << "    str x10, [" << RegName(lhs) << "]\n";
+  }
+
+  void Dec64(std::ostream& os, Register lhs) override {
+    os << "    ldr x10, [" << RegName(lhs) << "]\n";
+    os << "    sub x10, x10, #1\n";
+    os << "    str x10, [" << RegName(lhs) << "]\n";
   }
 
   void MaskBits(std::ostream& os, Register reg, unsigned bits) override {
