@@ -185,7 +185,7 @@ func testUserType() { var v myInt; v = myInt(3); v + myInt(2) - myInt(1); }
 func testInt8Overflow() { var (i int8=2; j int8=-1;) i-j; }
 func testUInt() { var i uint = 7; i - uint(2); }
 func testUInt2() { var i uint = -1; i > uint(3); }
-func testIncDec() { i := 3; i++; i++; i--; }
+func testIncDec() { i := 3; i++; i++; i--; i; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();

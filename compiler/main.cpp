@@ -303,17 +303,16 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kTypedef:
     return;
-  case Node::kInc:
-    GenerateAsm(os, node->lhs, label_break, label_cont, true);
-    asmgen->Pop64(os, Asm::kRegL);
-    asmgen->Inc64(os, Asm::kRegL);
-    asmgen->LoadPushN(os, Asm::kRegL, 8);
-    return;
+  case Node::kInc: // fall-through
   case Node::kDec:
     GenerateAsm(os, node->lhs, label_break, label_cont, true);
     asmgen->Pop64(os, Asm::kRegL);
-    asmgen->Dec64(os, Asm::kRegL);
-    asmgen->LoadPushN(os, Asm::kRegL, 8);
+    if (node->kind == Node::kInc) {
+      asmgen->Inc64(os, Asm::kRegL);
+    } else {
+      asmgen->Dec64(os, Asm::kRegL);
+    }
+    asmgen->Push64(os, Asm::kRegL);
     return;
   default: // caseが足りないという警告を抑制する
     break;
