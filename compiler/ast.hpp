@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <string>
 #include <utility>
@@ -166,6 +167,9 @@ std::size_t Sizeof(Token* tk, Type* type);
 bool SetSymbolType(Node* n);
 
 extern std::map<std::string /* 型名 */, Type*> builtin_types;
-Type* FindType(const std::string& name);
+Type* FindType(Token* tk);
 bool IsInteger(Type::Kind kind);
 std::pair<bool, Type*> IsInteger(Type* t);
+size_t CalcStackOffset(
+    const std::map<std::string, Symbol*>& local_vars,
+    std::function<void (Symbol* lvar, size_t offset)> f);

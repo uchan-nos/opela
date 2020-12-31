@@ -80,6 +80,8 @@ func main() {
   TEST_INT(5,  testUInt());
   TEST_INT(1,  testUInt2());
   TEST_INT(4,  testIncDec());
+  TEST_INT(1,  testNonByteType());
+  TEST_INT(2,  testNonByteType2());
 
   print_int64(passed);
   print_string(" passed, ");
@@ -186,6 +188,8 @@ func testInt8Overflow() { var (i int8=2; j int8=-1;) i-j; }
 func testUInt() { var i uint = 7; i - uint(2); }
 func testUInt2() { var i uint = -1; i > uint(3); }
 func testIncDec() { i := 3; i++; i++; i--; i; }
+func testNonByteType() { var i uint2 = 2; i + uint2(3); }
+func testNonByteType2() { uint3(10); }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();

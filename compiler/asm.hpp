@@ -1,10 +1,26 @@
 #pragma once
 
 #include <array>
+#include <limits>
 #include <ostream>
 #include <string_view>
 
 #include "ast.hpp"
+
+constexpr unsigned WordSize(unsigned bits) {
+  if (bits == 0) {
+    return 0;
+  } else if (bits <= 8) {
+    return 1;
+  } else if (bits <= 16) {
+    return 2;
+  } else if (bits <= 32) {
+    return 4;
+  } else if (bits <= 64) {
+    return 8;
+  }
+  return std::numeric_limits<unsigned>::max();
+}
 
 class Asm {
  public:
@@ -49,11 +65,11 @@ class Asm {
   virtual void LoadN(std::ostream& os, Register dest, Register base,
                      int scale, Register index) = 0;
   virtual void StoreN(std::ostream& os, Register addr, int disp,
-                      Register value, unsigned bytes) = 0;
+                      Register value, unsigned bits) = 0;
   virtual void StoreN(std::ostream& os, std::string_view sym_name,
-                      Register value, unsigned bytes) = 0;
+                      Register value, unsigned bits) = 0;
   // LoadPushN loads N-bit value from addr, push it on stack as 64-bit value
-  virtual void LoadPushN(std::ostream& os, Register addr, unsigned bytes) = 0;
+  virtual void LoadPushN(std::ostream& os, Register addr, unsigned bits) = 0;
   virtual void LoadSymAddr(std::ostream& os, Register dest,
                            std::string_view sym_name) = 0;
   virtual void Inc64(std::ostream& os, Register lhs) = 0;
@@ -205,34 +221,31 @@ class AsmX8664 : public Asm {
   }
 
   void StoreN(std::ostream& os, Register addr, int disp,
-              Register value, unsigned bytes) override {
+              Register value, unsigned bits) override {
     os << "    mov [" << RegName(addr) << "+" << disp << "], "
-       << RegName(value, bytes) << "\n";
+       << RegName(value, WordSize(bits)) << "\n";
   }
 
   void StoreN(std::ostream& os, std::string_view sym_name,
-              Register value, unsigned bytes) override {
-    os << "    mov [rip+" << sym_name << "], " << RegName(value, bytes) << "\n";
+              Register value, unsigned bits) override {
+    os << "    mov [rip+" << sym_name << "], "
+       << RegName(value, WordSize(bits)) << "\n";
   }
 
-  void LoadPushN(std::ostream& os, Register addr, unsigned bytes) override {
-    switch (bytes) {
-    case 1:
+  void LoadPushN(std::ostream& os, Register addr, unsigned bits) override {
+    if (bits <= 8) {
       os << "    xor r10d, r10d\n";
       os << "    mov r10b, [" << RegName(addr) << "]\n";
-      break;
-    case 2:
+    } else if (bits <= 16) {
       os << "    xor r10d, r10d\n";
       os << "    mov r10w, [" << RegName(addr) << "]\n";
-      break;
-    case 4:
+    } else if (bits <= 32) {
       os << "    mov r10d, [" << RegName(addr) << "]\n";
-      break;
-    case 8:
+    } else if (bits <= 64) {
       os << "    push qword ptr [" << RegName(addr) << "]\n";
       return;
-    default:
-      std::cerr << "cannot load non 2-power bytes" << std::endl;
+    } else {
+      std::cerr << "cannot load more than 8 bytes" << std::endl;
     }
     os << "    push r10\n";
   }
@@ -454,48 +467,36 @@ class AsmAArch64 : public Asm {
   }
 
   void StoreN(std::ostream& os, Register addr, int disp,
-              Register value, unsigned bytes) override {
-    auto v = RegName(value, bytes <= 4 ? 4 : 8);
+              Register value, unsigned bits) override {
+    auto v = RegName(value, bits <= 32 ? 4 : 8);
     auto a = RegName(addr);
-    switch (bytes) {
-    case 1:
+    if (bits <= 8) {
       os << "    strb " << v << ", [" << a << ", #" << disp << "]\n";
-      break;
-    case 2:
+    } else if (bits <= 16) {
       os << "    strh " << v << ", [" << a << ", #" << disp << "]\n";
-      break;
-    case 4: // fall-through
-    case 8:
+    } else if (bits <= 64) {
       os << "    str " << v << ", [" << a << ", #" << disp << "]\n";
-      break;
-    default:
-      std::cerr << "cannot store non 2-power bytes" << std::endl;
     }
   }
 
   void StoreN(std::ostream& os, std::string_view sym_name,
-              Register value, unsigned bytes) override {
+              Register value, unsigned bits) override {
     os << "    adrp x10, _" << sym_name << "@PAGE\n";
-    os << "    str " << RegName(value, bytes)
+    os << "    str " << RegName(value, (bits + 7) / 8)
        << ", [x10, _" << sym_name << "@PAGEOFF]\n";
   }
 
-  void LoadPushN(std::ostream& os, Register addr, unsigned bytes) override {
-    switch (bytes) {
-    case 1:
+  void LoadPushN(std::ostream& os, Register addr, unsigned bits) override {
+    if (bits <= 8) {
       os << "    ldrb w10, [" << RegName(addr) << "]\n";
-      break;
-    case 2:
+    } else if (bits <= 16) {
       os << "    ldrh w10, [" << RegName(addr) << "]\n";
-      break;
-    case 4:
+    } else if (bits <= 32) {
       os << "    ldr w10, [" << RegName(addr) << "]\n";
-      break;
-    case 8:
+    } else if (bits <= 64) {
       os << "    ldr x10, [" << RegName(addr) << "]\n";
-      break;
-    default:
-      std::cerr << "cannot load non 2-power bytes" << std::endl;
+    } else {
+      std::cerr << "cannot load more than 8 bytes" << std::endl;
     }
     os << "    str x10, [sp, #-16]!\n";
   }

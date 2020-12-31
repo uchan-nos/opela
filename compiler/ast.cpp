@@ -1,6 +1,7 @@
 #include "ast.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <iostream>
 
 #include "magic_enum.hpp"
@@ -202,11 +203,7 @@ pair<char*, size_t> DecodeEscapeSequence(Token* tk_str) {
 } // namespace
 
 std::size_t Context::StackSize() const {
-  size_t s{0};
-  for (auto [ name, sym ] : local_vars) {
-    s += Sizeof(sym->token, sym->type);
-  }
-  return s;
+  return CalcStackOffset(local_vars, nullptr);
 }
 
 Node* Program() {
@@ -596,7 +593,7 @@ Node* Primary() {
     auto node{NewNode(Node::kId, tk)};
     if (auto sym{LookupSymbol(cur_ctx, tk->Raw())}) {
       node->value.sym = sym;
-    } else if (auto t = FindType(tk->Raw())) {
+    } else if (auto t = FindType(tk)) {
       node->type = t;
     } else {
       undeclared_id_nodes.push_back(node);
@@ -657,17 +654,8 @@ Node* TypeSpecifier() {
 
   if (auto type_name{Consume(Token::kId)}) {
     auto node{NewNode(Node::kType, type_name)};
-    auto name{type_name->Raw()};
-    if (auto t = FindType(name)) {
+    if (auto t = FindType(type_name)) {
       node->type = t;
-    } else if (name.substr(0, 3) == "int") {
-      char* endp{nullptr};
-      long num_bits{strtol(name.c_str() + 3, &endp, 10)};
-      if (*endp != '\0') {
-        cerr << "integer width must be 10-digits" << endl;
-        ErrorAt(type_name->loc + 3);
-      }
-      node->type = NewTypeInt(type_name, num_bits);
     } else {
       node->type = NewType(Type::kUnknown, type_name);
       //unknown_type_nodes.push_back(node);
@@ -796,11 +784,11 @@ size_t Sizeof(Token* tk, Type* type) {
   switch (type->kind) {
   case Type::kInt: // fall-through
   case Type::kUInt:
-    if (type->num == 0 || (type->num % 8) != 0) {
-      cerr << "cannot determine size of non-byte integer " << endl;
+    if (type->num == 0) {
+      cerr << "cannot determine zero size integer " << endl;
       ErrorAt(tk->loc);
     }
-    return type->num / 8;
+    return (type->num + 7) / 8;
   case Type::kPointer:
     return 8;
   case Type::kArray:
@@ -1010,9 +998,9 @@ bool SetSymbolType(Node* n) {
         ErrorAt(n->token->loc);
       }
       n->type = l->base->ret;
-    } else if (FindType(n->lhs->token->Raw())) {
+    } else if (auto t = FindType(n->lhs->token)) {
       // 型変換
-      n->type = l;
+      n->type = t;
     } else {
       cerr << "cannot call value type " << l << endl;
       ErrorAt(n->token->loc);
@@ -1109,7 +1097,26 @@ std::map<std::string, Type*> builtin_types{
   {"uint", NewTypeUInt(nullptr, 64)},
 };
 
-Type* FindType(const std::string& name) {
+Type* FindType(Token* tk) {
+  auto name = tk->Raw();
+  if (name.length() > 3 && strncmp(tk->loc, "int", 3) == 0) {
+    char* endp{nullptr};
+    long num_bits{strtol(name.c_str() + 3, &endp, 10)};
+    if (*endp != '\0') {
+      cerr << "integer width must be 10-digits" << endl;
+      ErrorAt(tk->loc + 3);
+    }
+    return NewTypeInt(tk, num_bits);
+  } else if (name.length() > 4 && strncmp(tk->loc, "uint", 4) == 0) {
+    char* endp{nullptr};
+    long num_bits{strtol(name.c_str() + 4, &endp, 10)};
+    if (*endp != '\0') {
+      cerr << "integer width must be 10-digits" << endl;
+      ErrorAt(tk->loc + 4);
+    }
+    return NewTypeUInt(tk, num_bits);
+  }
+
   if (auto it = builtin_types.find(name); it != builtin_types.end()) {
     return it->second;
   } else if (auto it = types.find(name); it != types.end()) {
@@ -1131,4 +1138,18 @@ std::pair<bool, Type*> IsInteger(Type* t) {
     return {true, t->base};
   }
   return {false, nullptr};
+}
+
+size_t CalcStackOffset(
+    const std::map<std::string, Symbol*>& local_vars,
+    std::function<void (Symbol* lvar, uint64_t offset)> f) {
+  size_t offset{0};
+  for (auto [ name, lvar ] : local_vars) {
+    auto bytes = Sizeof(lvar->token, lvar->type);
+    offset += (bytes + 7) & ~UINT64_C(7);
+    if (f) {
+      f(lvar, offset);
+    }
+  }
+  return offset;
 }
