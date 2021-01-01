@@ -25,6 +25,7 @@ ostream& operator<<(ostream& os, Type* t) {
   switch (t->kind) {
   case Type::kInt:
     os << "int" << t->num;
+    return os;
   case Type::kUInt:
     os << "uint" << t->num;
     return os;
