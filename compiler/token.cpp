@@ -84,6 +84,19 @@ vector<Token> Tokenize(const char* p) {
     }
 
     if (isdigit(*p)) {
+      if (p[1] == 'b') {
+        // binary literal
+        long v{0};
+        size_t i = 2;
+        for (; p[i] == '0' || p[i] == '1'; ++i) {
+          v = (v << 1) + p[i] - '0';
+        }
+        Token tk{Token::kInt, p, i, v};
+        tokens.push_back(tk);
+        p += i;
+        continue;
+      }
+
       char* non_digit;
       long v{strtol(p, &non_digit, 0)};
       size_t len = non_digit - p;

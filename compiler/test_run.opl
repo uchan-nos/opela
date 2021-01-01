@@ -83,6 +83,8 @@ func main() {
   TEST_INT(1,  testNonByteType());
   TEST_INT(2,  testNonByteType2());
   TEST_INT(7,  testVariadicArg());
+  TEST_INT(31, testHexLiteral());
+  TEST_INT(6,  testBinaryLiteral());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -186,6 +188,8 @@ func testIncDec() { i := 3; i++; i++; i--; i; }
 func testNonByteType() { var i uint2 = 2; i + uint2(3); }
 func testNonByteType2() { uint3(10); }
 func testVariadicArg() { variadic_sum(3, 4, 5, -2); }
+func testHexLiteral() { 0x001f; }
+func testBinaryLiteral() { 0b0110; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();

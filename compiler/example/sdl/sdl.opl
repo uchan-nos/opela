@@ -1,10 +1,10 @@
 func main() int {
-  if SDL_Init(32) < 0 { // SDL_INIT_VIDEO
+  if SDL_Init(0x20) < 0 { // SDL_INIT_VIDEO
     printf("Failed to initialize SDL: %s\n", SDL_GetError());
     return 1;
   }
   printf("Creating a window\n");
-  window := SDL_CreateWindow("SDL by OpeLa", 536805376, 536805376, 300, 200, 0);
+  window := SDL_CreateWindow("SDL by OpeLa", 0x1fff0000, 0x1fff0000, 300, 200, 0);
   renderer := SDL_CreateRenderer(window, -1, 6);
 
   color := 0;
