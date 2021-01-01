@@ -82,6 +82,7 @@ func main() {
   TEST_INT(4,  testIncDec());
   TEST_INT(1,  testNonByteType());
   TEST_INT(2,  testNonByteType2());
+  TEST_INT(7,  testVariadicArg());
 
   print_int64(passed);
   print_string(" passed, ");
@@ -190,6 +191,7 @@ func testUInt2() { var i uint = -1; i > uint(3); }
 func testIncDec() { i := 3; i++; i++; i--; i; }
 func testNonByteType() { var i uint2 = 2; i + uint2(3); }
 func testNonByteType2() { uint3(10); }
+func testVariadicArg() { variadic_sum(3, 4, 5, -2); }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
@@ -203,6 +205,7 @@ var val int = 14;
 var (ga int; gb = 6; gc = gb+1;)
 extern "C" strlen func(s *int8)int64;
 type myInt int32;
+extern "C" variadic_sum func(argc int) int;
 
 //test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
 

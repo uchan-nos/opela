@@ -1,3 +1,5 @@
+#include <inttypes.h>
+#include <stdarg.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -24,8 +26,21 @@ int64_t* alloc4(int64_t a, int64_t b, int64_t c, int64_t d) {
   return arr;
 }
 
+int64_t variadic_sum(int64_t argc, ...) {
+  int64_t sum = 0;
+
+  va_list l;
+  va_start(l, argc);
+  for (int64_t i = 0; i < argc; ++i) {
+    sum += va_arg(l, int64_t);
+  }
+  va_end(l);
+
+  return sum;
+}
+
 void print_int64(int64_t v) {
-  printf("%lld", v);
+  printf("%" PRIi64, v);
 }
 
 void print_string(const char* s) {
