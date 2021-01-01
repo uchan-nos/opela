@@ -38,11 +38,3 @@ int64_t variadic_sum(int64_t argc, ...) {
 
   return sum;
 }
-
-void print_int64(int64_t v) {
-  printf("%" PRIi64, v);
-}
-
-void print_string(const char* s) {
-  printf("%s", s);
-}

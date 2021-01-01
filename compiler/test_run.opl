@@ -84,31 +84,25 @@ func main() {
   TEST_INT(2,  testNonByteType2());
   TEST_INT(7,  testVariadicArg());
 
-  print_int64(passed);
-  print_string(" passed, ");
-  print_int64(failed);
-  print_string(" failed\n");
+  printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
 }
 
 func testInt(want, got int, gots *byte) {
   if want == got {
-    print_string("[  OK  ]: ");
+    printf("[  OK  ]: ");
     passed += 1;
   } else {
-    print_string("[FAILED]: ");
+    printf("[FAILED]: ");
     failed += 1;
   }
 
-  print_string(gots);
-  print_string(" -> ");
-  print_int64(got);
+  printf("%s -> %ld", gots, got);
 
   if want != got {
-    print_string(", want ");
-    print_int64(want);
+    printf(", want %ld", want);
   }
-  print_string("\n");
+  printf("\n");
 }
 
 func testIntConstant() { 42; }
@@ -209,5 +203,4 @@ extern "C" variadic_sum func(argc int) int;
 
 //test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
 
-extern "C" print_int64 func(v int64) int;
-extern "C" print_string func(s *byte) int;
+extern "C" printf func(format *byte) int;
