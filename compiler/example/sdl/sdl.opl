@@ -1,9 +1,9 @@
 func main() int {
   if SDL_Init(32) < 0 { // SDL_INIT_VIDEO
-    puts("Failed to initialize SDL");
+    printf("Failed to initialize SDL: %s\n", SDL_GetError());
     return 1;
   }
-  puts("Creating a window");
+  printf("Creating a window\n");
   window := SDL_CreateWindow("SDL by OpeLa", 536805376, 536805376, 300, 200, 0);
   renderer := SDL_CreateRenderer(window, -1, 6);
 
@@ -72,6 +72,7 @@ func DrawRect(ren *int, w, h, x, y int) {
 }
 
 extern "C" SDL_Init func(flag uint) int;
+extern "C" SDL_GetError func() *byte;
 extern "C" SDL_CreateWindow func(title *byte, x, y, w, h int, flags uint) *int;
 extern "C" SDL_CreateRenderer func(win *int, index int, flags uint) *int;
 extern "C" SDL_PollEvent func(e *uint32) int;
@@ -83,4 +84,4 @@ extern "C" SDL_RenderDrawRect func(ren *int, rect *uint32);
 extern "C" SDL_RenderDrawLine func(ren *int, x1, y1, x2, y2 int);
 extern "C" SDL_RenderPresent func(ren *int);
 extern "C" SDL_Delay func(ms int);
-extern "C" puts func(s *byte);
+extern "C" printf func(format *byte) int;
