@@ -111,6 +111,8 @@ struct Node {
     kTypedef,
     kInc, // postfix increment
     kDec, // postfix increment
+    kArray, // array literal
+    kInitList, // initializer list
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -158,6 +160,7 @@ Node* TypeSpecifier();
 Node* ParameterDeclList();
 Node* VariableDefinition();
 Node* TypeDeclaration();
+Node* InitializerList();
 
 Symbol* LookupLVar(Context* ctx, const std::string& name);
 Symbol* LookupSymbol(Context* ctx, const std::string& name);

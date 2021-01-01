@@ -608,6 +608,32 @@ Node* Primary() {
     return node;
   } else if (auto tk{Consume(Token::kChar)}) {
     return NewNodeInt(tk, tk->value, 8);
+  } else if (auto tk{Consume("[")}) {
+    auto size_tk{Consume(Token::kInt)};
+    Expect("]");
+    auto base_tspec{TypeSpecifier()};
+    if (!base_tspec) {
+      cerr << "array base type must be specified" << endl;
+      ErrorAt(cur_token->loc);
+    }
+    auto arr{NewNode(Node::kArray, tk)};
+    arr->tspec = NewNode(Node::kType, tk);
+    arr->tspec->type = NewType(Type::kArray, nullptr);
+    arr->tspec->type->base = base_tspec->type;
+
+    auto init_list{InitializerList()};
+    arr->lhs = init_list;
+
+    int64_t size{init_list->value.i};
+    if (size_tk && size_tk->value < size) {
+      cerr << "array initializer has too many elements" << endl;
+      ErrorAt(init_list->token->loc);
+    }
+    if (size_tk) {
+      size = size_tk->value;
+    }
+    arr->tspec->type->num = size;
+    return arr;
   }
 
   auto tk{Expect(Token::kInt)};
@@ -760,6 +786,26 @@ Node* TypeDeclaration() {
   auto node{NewNode(Node::kTypedef, name_token)};
   node->tspec = tspec;
   return node;
+}
+
+Node* InitializerList() {
+    auto op{Expect("{")};
+    auto init_list{NewNode(Node::kInitList, op)};
+    init_list->value.i = 0;
+
+    auto elem{init_list};
+    for (;;) {
+      if (Consume("}")) {
+        break;
+      }
+      elem->next = Primary();
+      elem = elem->next;
+      ++init_list->value.i;
+      if (Consume(",")) {
+        continue;
+      }
+    }
+    return init_list;
 }
 
 Symbol* LookupLVar(Context* ctx, const std::string& name) {
@@ -1026,6 +1072,7 @@ bool SetSymbolType(Node* n) {
   case Node::kBreak:
   case Node::kCont:
   case Node::kTypedef:
+  case Node::kInitList:
     n->type = NewType(Type::kUndefined, nullptr);
     break;
   case Node::kDeclSeq:
@@ -1087,6 +1134,9 @@ bool SetSymbolType(Node* n) {
   case Node::kInc:
   case Node::kDec:
     n->type = l;
+    break;
+  case Node::kArray:
+    n->type = n->tspec->type;
     break;
   }
   return true;
