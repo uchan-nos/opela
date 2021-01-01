@@ -1143,7 +1143,7 @@ std::pair<bool, Type*> IsInteger(Type* t) {
 
 size_t CalcStackOffset(
     const std::map<std::string, Symbol*>& local_vars,
-    std::function<void (Symbol* lvar, uint64_t offset)> f) {
+    std::function<void (Symbol* lvar, size_t offset)> f) {
   size_t offset{0};
   for (auto [ name, lvar ] : local_vars) {
     auto bytes = Sizeof(lvar->token, lvar->type);
