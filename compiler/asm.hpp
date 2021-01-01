@@ -288,7 +288,12 @@ class AsmX8664 : public Asm {
   }
 
   void Call(std::ostream& os, Register addr) override {
+    os << "    push rbx\n";
+    os << "    mov rbx, rsp\n";
+    os << "    and rsp, -16\n";
     os << "    call " << RegName(addr) << "\n";
+    os << "    mov rsp, rbx\n";
+    os << "    pop rbx\n";
   }
 
   void CmpSet(std::ostream& os, Compare c, Register dest,
