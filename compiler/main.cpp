@@ -246,11 +246,11 @@ void GenerateAsm(ostream& os, Node* node,
       return;
     }
     if (node->rhs) { // 初期値付き変数定義
-      if (node->rhs->kind != Node::kArray) {
+      if (node->rhs->kind != Node::kInitList) {
         break;
       }
       auto elem_size{Sizeof(node->lhs->token, node->lhs->type->base)};
-      auto init_list{node->rhs->lhs};
+      auto init_list{node->rhs};
       int i = 0;
       for (auto elem{init_list->next}; elem; elem = elem->next) {
         GenerateAsm(os, elem, label_break, label_cont);
@@ -260,7 +260,7 @@ void GenerateAsm(ostream& os, Node* node,
         asmgen->StoreN(os, Asm::kRegL, elem_size * i, Asm::kRegR, 8 * elem_size);
         ++i;
       }
-      for (; i < node->rhs->type->num; ++i) {
+      for (; i < node->lhs->type->num; ++i) {
         GenerateAsm(os, node->lhs, label_break, label_cont, true);
         asmgen->Pop64(os, Asm::kRegL);
         asmgen->Mov64(os, Asm::kRegR, 0);

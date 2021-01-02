@@ -111,7 +111,6 @@ struct Node {
     kTypedef,
     kInc, // postfix increment
     kDec, // postfix increment
-    kArray, // array literal
     kInitList, // initializer list
   } kind;
 
