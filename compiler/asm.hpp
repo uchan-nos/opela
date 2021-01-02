@@ -36,6 +36,7 @@ class Asm {
     kRegArg4,
     kRegArg5,
     kRegRet,
+    kRegZero,
     kRegNum,
   };
 
@@ -100,9 +101,12 @@ class AsmX8664 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "a", "di", "bp", "sp",
-    "di", "si", "d", "c", "r8", "r9", "a",
+    "di", "si", "d", "c", "r8", "r9", "a", "zero",
   };
-  std::string RegName(std::string stem, unsigned bytes) {
+  static std::string RegName(std::string stem, unsigned bytes) {
+    if (stem == "zero") {
+      return "0";
+    }
     if (stem.length() == 1) { // a, b, c, d
       switch (bytes) {
       case 1: return stem + "l";
@@ -132,8 +136,18 @@ class AsmX8664 : public Asm {
     }
     return "failed to get register name for " + stem;
   }
-  std::string RegName(Register reg, unsigned bytes = 8) {
+  static std::string RegName(Register reg, unsigned bytes = 8) {
     return RegName(kRegNames[reg], bytes);
+  }
+
+  static std::string WordName(unsigned word_size) {
+    switch (word_size) {
+    case 1: return "byte";
+    case 2: return "word";
+    case 4: return "dword";
+    case 8: return "qword";
+    default: return "unknown word size";
+    }
   }
 
   void Mov64(std::ostream& os, Register dest, uint64_t value) override {
@@ -222,14 +236,16 @@ class AsmX8664 : public Asm {
 
   void StoreN(std::ostream& os, Register addr, int disp,
               Register value, unsigned bits) override {
-    os << "    mov [" << RegName(addr) << "+" << disp << "], "
-       << RegName(value, WordSize(bits)) << "\n";
+    auto ws = WordSize(bits);
+    os << "    mov " << WordName(ws) << " ptr [" << RegName(addr)
+       << "+" << disp << "], " << RegName(value, ws) << "\n";
   }
 
   void StoreN(std::ostream& os, std::string_view sym_name,
               Register value, unsigned bits) override {
-    os << "    mov [rip+" << sym_name << "], "
-       << RegName(value, WordSize(bits)) << "\n";
+    auto ws = WordSize(bits);
+    os << "    mov " << WordName(ws) << " ptr [rip+" << sym_name << "], "
+       << RegName(value, ws) << "\n";
   }
 
   void LoadPushN(std::ostream& os, Register addr, unsigned bits) override {
@@ -359,9 +375,9 @@ class AsmAArch64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "8", "9", "29", "sp",
-    "0", "1", "2", "3", "4", "5", "0",
+    "0", "1", "2", "3", "4", "5", "0", "zr",
   };
-  std::string RegName(std::string stem, unsigned bytes) {
+  static std::string RegName(std::string stem, unsigned bytes) {
     if (stem == "sp") {
       return stem;
     }
@@ -372,7 +388,7 @@ class AsmAArch64 : public Asm {
     }
     return "failed to get register name for " + stem;
   }
-  std::string RegName(Register reg, unsigned bytes = 8) {
+  static std::string RegName(Register reg, unsigned bytes = 8) {
     return RegName(kRegNames[reg], bytes);
   }
 

@@ -244,30 +244,27 @@ void GenerateAsm(ostream& os, Node* node,
     if (node->lhs->value.sym->kind == Symbol::kGVar) {
       gvar_init_values[node->lhs->value.sym] = node->rhs;
       return;
-    }
-    if (node->rhs) { // 初期値付き変数定義
-      if (node->rhs->kind != Node::kInitList) {
-        break;
-      }
-      auto elem_size{Sizeof(node->lhs->token, node->lhs->type->base)};
-      auto init_list{node->rhs};
-      int i = 0;
-      for (auto elem{init_list->next}; elem; elem = elem->next) {
+    } else if (node->rhs && node->rhs->kind == Node::kInitList) {
+      auto stride{Sizeof(node->lhs->token, node->lhs->type->base)};
+      auto elem{node->rhs->next}; // 初期化リストの先頭要素
+      int64_t i;
+      for (i = 0; i < node->rhs->value.i; ++i) {
         GenerateAsm(os, elem, label_break, label_cont);
         GenerateAsm(os, node->lhs, label_break, label_cont, true);
         asmgen->Pop64(os, Asm::kRegL);
         asmgen->Pop64(os, Asm::kRegR);
-        asmgen->StoreN(os, Asm::kRegL, elem_size * i, Asm::kRegR, 8 * elem_size);
-        ++i;
+        asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
+        elem = elem->next;
       }
       for (; i < node->lhs->type->num; ++i) {
         GenerateAsm(os, node->lhs, label_break, label_cont, true);
         asmgen->Pop64(os, Asm::kRegL);
-        asmgen->Mov64(os, Asm::kRegR, 0);
-        asmgen->StoreN(os, Asm::kRegL, elem_size * i, Asm::kRegR, 8 * elem_size);
+        asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
       }
+    } else if (node->rhs) { // 初期値付き変数定義
+      break;
     }
-    asmgen->Push64(os, Asm::kRegL); // dummy push
+    asmgen->Push64(os, Asm::kRegL); // 初期値無し変数定義用 dummy push
     return;
   case Node::kExtern:
     return;
