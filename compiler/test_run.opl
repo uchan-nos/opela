@@ -209,4 +209,4 @@ extern "C" variadic_sum func(argc int) int;
 
 //test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
 
-extern "C" printf func(format *byte) int;
+extern "C" printf func(format *byte, ...) int;

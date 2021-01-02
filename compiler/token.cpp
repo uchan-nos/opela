@@ -106,6 +106,12 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
+    if (string_view op{p, 3}; op == "...") {
+      tokens.push_back(Token{Token::kReserved, p, 3, 0});
+      p += 3;
+      continue;
+    }
+
     if (p[1] == '=' && strchr("=!<>:+-*/", p[0])) {
       Token tk{Token::kReserved, p, 2, 0};
       tokens.push_back(tk);
