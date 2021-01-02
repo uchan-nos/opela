@@ -673,6 +673,12 @@ Node* ParameterDeclList() {
 
   vector<Node*> params_untyped;
   for (;;) {
+    if (auto op{Consume("...")}) { // 可変長引数
+      cur->next = NewNode(Node::kParam, op);
+      cur->next->tspec = NewNodeType(op, NewType(Type::kVParam, nullptr));
+      return head;
+    }
+
     auto param_name{Consume(Token::kId)};
     if (param_name == nullptr) {
       return head;

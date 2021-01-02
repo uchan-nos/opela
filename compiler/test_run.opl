@@ -195,12 +195,12 @@ func testArrayInit() { var x [3]int = {3, 4}; x[0] + x[1] + x[2]; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
-extern "C" add func();
+extern "C" add func(a, b int) int;
 func sum10(){s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} s;}
 func myAdd(a,b int){a+b;}
 func fib(n int)int{ if n<=1 {n;} else {fib(n-1)+fib(n-2);} }
 func ptrWrite(p *int){ *p = 3; }
-extern "C" alloc4 func() *int;
+extern "C" alloc4 func(a, b, c, d int) *int;
 var val int = 14;
 var (ga int; gb = 6; gc = gb+1;)
 extern "C" strlen func(s *int8)int64;

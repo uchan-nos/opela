@@ -23,6 +23,7 @@ struct Type {
     kVoid,
     kArray,
     kUser,
+    kVParam, // 可変長引数 "..."
   } kind;
 
   // 型名

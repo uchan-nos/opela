@@ -174,11 +174,15 @@ void GenerateAsm(ostream& os, Node* node,
         cerr << "node->lhs->type cannot be null" << endl;
         ErrorAt(node->lhs->token->loc);
       }
+
+      Type* func_type = nullptr;
       switch (node->lhs->type->kind) {
       case Type::kFunc:
+        func_type = node->lhs->type;
         break;
       case Type::kPointer:
-        if (node->lhs->type->base->kind != Type::kFunc) {
+        func_type = node->lhs->type->base;
+        if (func_type->kind != Type::kFunc) {
           cerr << "cannot call non-function pointer" << endl;
           ErrorAt(node->lhs->token->loc);
         }
@@ -192,14 +196,43 @@ void GenerateAsm(ostream& os, Node* node,
         ErrorAt(node->lhs->token->loc);
       }
 
-      int num_arg{0};
-      for (auto arg{node->rhs->next}; arg != nullptr; arg = arg->next) {
-        if (num_arg == kArgRegs.size()) {
-          cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
-          ErrorAt(arg->token->loc);
+      vector<Node*> args;
+      vector<Type*> param_types;
+
+      auto param_type{func_type->next};
+      for (auto arg = node->rhs->next; arg; arg = arg->next) {
+        args.push_back(arg);
+        if (param_type) {
+          param_types.push_back(param_type);
+          param_type = param_type->next;
         }
-        GenerateAsm(os, arg, label_break, label_cont);
-        ++num_arg;
+      }
+
+      bool has_arg = true;
+      if (param_types.empty()) {
+        if (!args.empty()) {
+          cerr << "too many arguments" << endl;
+          ErrorAt(args[0]->token->loc);
+        }
+        has_arg = false;
+      } else if (param_types[param_types.size() - 1]->kind == Type::kVParam) {
+        if (args.size() < param_types.size() - 1) {
+          cerr << "too few arguments" << endl;
+          ErrorAt(args[args.size() - 1]->token->loc);
+        }
+      } else {
+        if (args.size() < param_types.size()) {
+          cerr << "too few arguments" << endl;
+          ErrorAt(args[args.size() - 1]->token->loc);
+        }
+      }
+      if (args.size() > kArgRegs.size()) {
+        cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
+        ErrorAt(args[kArgRegs.size()]->token->loc);
+      }
+
+      for (int i = static_cast<int>(args.size()) - 1; i >= 0; --i) {
+        GenerateAsm(os, args[i], label_break, label_cont);
       }
 
       if (node->lhs->kind == Node::kId) {
@@ -217,11 +250,21 @@ void GenerateAsm(ostream& os, Node* node,
         asmgen->Pop64(os, Asm::kRegL);
       }
 
-      for (; num_arg > 0; --num_arg) {
-        asmgen->Pop64(os, kArgRegs[num_arg - 1]);
+      int arg_on_reg_end = args.size();
+      if (has_arg) {
+        if (param_types[param_types.size() - 1]->kind == Type::kVParam &&
+            asmgen->FuncVArgOnStack()) {
+          arg_on_reg_end = param_types.size() - 1;
+        }
+        for (int i = 0; i < arg_on_reg_end; ++i) {
+          asmgen->Pop64(os, kArgRegs[i]);
+        }
       }
 
       asmgen->Call(os, Asm::kRegL);
+      for (int i = arg_on_reg_end; i < args.size(); ++i) {
+        asmgen->Pop64(os, Asm::kRegR);
+      }
       asmgen->Push64(os, Asm::kRegRet);
     }
     return;

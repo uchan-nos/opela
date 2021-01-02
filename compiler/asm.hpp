@@ -91,6 +91,7 @@ class Asm {
   virtual void FuncPrologue(std::ostream& os, std::string_view sym_name) = 0;
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os) = 0;
+  virtual bool FuncVArgOnStack() = 0;
   virtual void SectionText(std::ostream& os) = 0;
   virtual void SectionInit(std::ostream& os) = 0;
   virtual void SectionData(std::ostream& os, bool readonly) = 0;
@@ -353,6 +354,10 @@ class AsmX8664 : public Asm {
     os << "    ret\n";
   }
 
+  bool FuncVArgOnStack() override {
+    return false;
+  }
+
   void SectionText(std::ostream& os) override {
     os << ".intel_syntax noprefix\n";
     os << ".code64\n.section .text\n";
@@ -606,6 +611,10 @@ class AsmAArch64 : public Asm {
     os << "    mov sp, x29\n";
     os << "    ldp x29, x30, [sp], #16\n";
     os << "    ret\n";
+  }
+
+  bool FuncVArgOnStack() override {
+    return true;
   }
 
   void SectionText(std::ostream& os) override {
