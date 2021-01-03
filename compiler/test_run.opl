@@ -205,7 +205,7 @@ var val int = 14;
 var (ga int; gb = 6; gc = gb+1;)
 extern "C" strlen func(s *int8)int64;
 type myInt int32;
-extern "C" variadic_sum func(argc int) int;
+extern "C" variadic_sum func(argc int, ...) int;
 
 //test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
 

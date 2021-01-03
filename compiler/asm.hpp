@@ -92,6 +92,8 @@ class Asm {
   virtual void FuncEpilogue(std::ostream& os, Context* ctx) = 0;
   virtual void FuncEpilogue(std::ostream& os) = 0;
   virtual bool FuncVArgOnStack() = 0;
+  virtual void PrepareFuncVArg(std::ostream& os, size_t num_normal,
+                               size_t num_variadic) = 0;
   virtual void SectionText(std::ostream& os) = 0;
   virtual void SectionInit(std::ostream& os) = 0;
   virtual void SectionData(std::ostream& os, bool readonly) = 0;
@@ -358,6 +360,10 @@ class AsmX8664 : public Asm {
     return false;
   }
 
+  void PrepareFuncVArg(std::ostream& os, size_t num_normal,
+                       size_t num_variadic) override {
+  }
+
   void SectionText(std::ostream& os) override {
     os << ".intel_syntax noprefix\n";
     os << ".code64\n.section .text\n";
@@ -615,6 +621,16 @@ class AsmAArch64 : public Asm {
 
   bool FuncVArgOnStack() override {
     return true;
+  }
+
+  void PrepareFuncVArg(std::ostream& os, size_t num_normal,
+                       size_t num_variadic) override {
+    for (size_t i = 1; i < num_variadic; ++i) {
+      size_t src_disp = 16 * (num_normal + i);
+      size_t dest_disp = 16 * num_normal + 8 * i;
+      os << "    ldr x10, [sp, #" << src_disp << "]\n";
+      os << "    str x10, [sp, #" << dest_disp << "]\n";
+    }
   }
 
   void SectionText(std::ostream& os) override {

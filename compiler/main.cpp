@@ -234,6 +234,10 @@ void GenerateAsm(ostream& os, Node* node,
       for (int i = static_cast<int>(args.size()) - 1; i >= 0; --i) {
         GenerateAsm(os, args[i], label_break, label_cont);
       }
+      if (has_arg && param_types[param_types.size() - 1]->kind == Type::kVParam) {
+        size_t num_normal = param_types.size() - 1;
+        asmgen->PrepareFuncVArg(os, num_normal, args.size() - num_normal);
+      }
 
       if (node->lhs->kind == Node::kId) {
         LoadSymAddr(os, node->lhs->token);
