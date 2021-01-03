@@ -421,21 +421,19 @@ void GenerateFuncCall(ostream& os, Node* node,
   vector<Node*> args;
   vector<Type*> param_types;
 
-  auto param_type{func_type->next};
   for (auto arg = node->rhs->next; arg; arg = arg->next) {
     args.push_back(arg);
-    if (param_type) {
-      param_types.push_back(param_type);
-      param_type = param_type->next;
-    }
+  }
+  for (auto p = func_type->next; p; p = p->next) {
+    param_types.push_back(p);
   }
   const bool has_vparam =
     !param_types.empty() &&
     param_types[param_types.size() - 1]->kind == Type::kVParam;
 
-  if (param_types.empty() && !args.empty()) {
+  if (!has_vparam && param_types.size() < args.size()) {
     cerr << "too many arguments" << endl;
-    ErrorAt(args[0]->token->loc);
+    ErrorAt(args[param_types.size()]->token->loc);
   } else if (args.size() < param_types.size() - has_vparam) {
     cerr << "too few arguments" << endl;
     ErrorAt(args[args.size() - 1]->token->loc);
