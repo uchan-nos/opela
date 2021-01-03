@@ -59,6 +59,9 @@ void LoadSymAddr(ostream& os, Token* sym_id) {
   asmgen->LoadSymAddr(os, Asm::kRegL, sym->token->Raw());
 }
 
+void GenerateFuncCall(ostream& os, Node* node,
+                      string_view label_break, string_view label_cont);
+
 void GenerateAsm(ostream& os, Node* node,
                  string_view label_break, string_view label_cont,
                  bool lval = false) {
@@ -156,109 +159,20 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kCall:
-    {
-      if (auto t = FindType(node->lhs->token);
-          node->lhs->kind == Node::kId && t) {
-        // 型変換
-        GenerateAsm(os, node->rhs->next, label_break, label_cont);
-        if (auto [is_int, int_type] = IsInteger(t);
-            is_int && int_type->num < 64) {
-          asmgen->Pop64(os, Asm::kRegL);
-          asmgen->MaskBits(os, Asm::kRegL, int_type->num);
-          asmgen->Push64(os, Asm::kRegL);
-        }
-        return;
-      }
-
-      if (node->lhs->type == nullptr) {
-        cerr << "node->lhs->type cannot be null" << endl;
-        ErrorAt(node->lhs->token->loc);
-      }
-
-      Type* func_type = nullptr;
-      switch (node->lhs->type->kind) {
-      case Type::kFunc:
-        func_type = node->lhs->type;
-        break;
-      case Type::kPointer:
-        func_type = node->lhs->type->base;
-        if (func_type->kind != Type::kFunc) {
-          cerr << "cannot call non-function pointer" << endl;
-          ErrorAt(node->lhs->token->loc);
-        }
-        break;
-      default:
-        cerr << "node->lhs = "
-             << magic_enum::enum_name(node->lhs->kind)
-             << ", " << node->lhs->token->Raw() << endl;
-        cerr << "cannot call "
-             << magic_enum::enum_name(node->lhs->type->kind) << endl;
-        ErrorAt(node->lhs->token->loc);
-      }
-
-      vector<Node*> args;
-      vector<Type*> param_types;
-
-      auto param_type{func_type->next};
-      for (auto arg = node->rhs->next; arg; arg = arg->next) {
-        args.push_back(arg);
-        if (param_type) {
-          param_types.push_back(param_type);
-          param_type = param_type->next;
-        }
-      }
-      const bool has_vparam =
-        !param_types.empty() &&
-        param_types[param_types.size() - 1]->kind == Type::kVParam;
-
-      if (param_types.empty() && !args.empty()) {
-        cerr << "too many arguments" << endl;
-        ErrorAt(args[0]->token->loc);
-      } else if (args.size() < param_types.size() - has_vparam) {
-        cerr << "too few arguments" << endl;
-        ErrorAt(args[args.size() - 1]->token->loc);
-      } else if (args.size() > kArgRegs.size()) {
-        cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
-        ErrorAt(args[kArgRegs.size()]->token->loc);
-      }
-
-      for (auto it = args.rbegin(); it != args.rend(); ++it) {
-        GenerateAsm(os, *it, label_break, label_cont);
-      }
-      if (has_vparam) {
-        size_t num_normal = param_types.size() - 1;
-        asmgen->PrepareFuncVArg(os, num_normal, args.size() - num_normal);
-      }
-
-      if (node->lhs->kind == Node::kId) {
-        LoadSymAddr(os, node->lhs->token);
-        auto func_sym{LookupSymbol(cur_ctx, node->lhs->token->Raw())};
-        if (func_sym->type->kind == Type::kPointer) {
-          asmgen->Load64(os, Asm::kRegL, Asm::kRegL);
-        } else if (func_sym->type->kind != Type::kFunc) {
-          cerr << "cannot call "
-               << magic_enum::enum_name(func_sym->type->kind) << endl;
-          ErrorAt(node->lhs->token->loc);
-        }
-      } else {
-        GenerateAsm(os, node->lhs, label_break, label_cont);
+    if (auto t = FindType(node->lhs->token);
+        node->lhs->kind == Node::kId && t) {
+      // 型変換
+      GenerateAsm(os, node->rhs->next, label_break, label_cont);
+      if (auto [is_int, int_type] = IsInteger(t);
+          is_int && int_type->num < 64) {
         asmgen->Pop64(os, Asm::kRegL);
+        asmgen->MaskBits(os, Asm::kRegL, int_type->num);
+        asmgen->Push64(os, Asm::kRegL);
       }
-
-      size_t arg_on_reg_end = args.size();
-      if (has_vparam && asmgen->FuncVArgOnStack()) {
-        arg_on_reg_end = param_types.size() - 1;
-      }
-      for (size_t i = 0; i < arg_on_reg_end; ++i) {
-        asmgen->Pop64(os, kArgRegs[i]);
-      }
-
-      asmgen->Call(os, Asm::kRegL);
-      for (size_t i = arg_on_reg_end; i < args.size(); ++i) {
-        asmgen->Pop64(os, Asm::kRegR);
-      }
-      asmgen->Push64(os, Asm::kRegRet);
+      return;
     }
+
+    GenerateFuncCall(os, node, label_break, label_cont);
     return;
   case Node::kDeclSeq:
     for (auto decl{node->next}; decl != nullptr; decl = decl->next) {
@@ -474,6 +388,98 @@ void GenerateAsm(ostream& os, Node* node,
   }
 
   asmgen->Push64(os, Asm::kRegL);
+}
+
+void GenerateFuncCall(ostream& os, Node* node,
+                      string_view label_break, string_view label_cont) {
+  if (node->lhs->type == nullptr) {
+    cerr << "node->lhs->type cannot be null" << endl;
+    ErrorAt(node->lhs->token->loc);
+  }
+
+  Type* func_type = nullptr;
+  switch (node->lhs->type->kind) {
+  case Type::kFunc:
+    func_type = node->lhs->type;
+    break;
+  case Type::kPointer:
+    func_type = node->lhs->type->base;
+    if (func_type->kind != Type::kFunc) {
+      cerr << "cannot call non-function pointer" << endl;
+      ErrorAt(node->lhs->token->loc);
+    }
+    break;
+  default:
+    cerr << "node->lhs = "
+         << magic_enum::enum_name(node->lhs->kind)
+         << ", " << node->lhs->token->Raw() << endl;
+    cerr << "cannot call "
+         << magic_enum::enum_name(node->lhs->type->kind) << endl;
+    ErrorAt(node->lhs->token->loc);
+  }
+
+  vector<Node*> args;
+  vector<Type*> param_types;
+
+  auto param_type{func_type->next};
+  for (auto arg = node->rhs->next; arg; arg = arg->next) {
+    args.push_back(arg);
+    if (param_type) {
+      param_types.push_back(param_type);
+      param_type = param_type->next;
+    }
+  }
+  const bool has_vparam =
+    !param_types.empty() &&
+    param_types[param_types.size() - 1]->kind == Type::kVParam;
+
+  if (param_types.empty() && !args.empty()) {
+    cerr << "too many arguments" << endl;
+    ErrorAt(args[0]->token->loc);
+  } else if (args.size() < param_types.size() - has_vparam) {
+    cerr << "too few arguments" << endl;
+    ErrorAt(args[args.size() - 1]->token->loc);
+  } else if (args.size() > kArgRegs.size()) {
+    cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
+    ErrorAt(args[kArgRegs.size()]->token->loc);
+  }
+
+  for (auto it = args.rbegin(); it != args.rend(); ++it) {
+    GenerateAsm(os, *it, label_break, label_cont);
+  }
+  if (has_vparam) {
+    size_t num_normal = param_types.size() - 1;
+    asmgen->PrepareFuncVArg(os, num_normal, args.size() - num_normal);
+  }
+
+  if (node->lhs->kind == Node::kId) {
+    LoadSymAddr(os, node->lhs->token);
+    auto func_sym{LookupSymbol(cur_ctx, node->lhs->token->Raw())};
+    if (func_sym->type->kind == Type::kPointer) {
+      asmgen->Load64(os, Asm::kRegL, Asm::kRegL);
+    } else if (func_sym->type->kind != Type::kFunc) {
+      cerr << "cannot call "
+           << magic_enum::enum_name(func_sym->type->kind) << endl;
+      ErrorAt(node->lhs->token->loc);
+    }
+  } else {
+    GenerateAsm(os, node->lhs, label_break, label_cont);
+    asmgen->Pop64(os, Asm::kRegL);
+  }
+
+  size_t arg_on_reg_end = args.size();
+  if (has_vparam && asmgen->FuncVArgOnStack()) {
+    arg_on_reg_end = param_types.size() - 1;
+  }
+  for (size_t i = 0; i < arg_on_reg_end; ++i) {
+    asmgen->Pop64(os, kArgRegs[i]);
+  }
+
+  asmgen->Call(os, Asm::kRegL);
+  for (size_t i = arg_on_reg_end; i < args.size(); ++i) {
+    asmgen->Pop64(os, Asm::kRegR);
+  }
+  asmgen->Push64(os, Asm::kRegRet);
 }
 
 int ParseArgs(int argc, char** argv) {
