@@ -360,8 +360,7 @@ class AsmX8664 : public Asm {
     return false;
   }
 
-  void PrepareFuncVArg(std::ostream& os, size_t num_normal,
-                       size_t num_variadic) override {
+  void PrepareFuncVArg(std::ostream&, size_t, size_t) override {
   }
 
   void SectionText(std::ostream& os) override {

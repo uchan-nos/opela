@@ -207,34 +207,25 @@ void GenerateAsm(ostream& os, Node* node,
           param_type = param_type->next;
         }
       }
+      const bool has_vparam =
+        !param_types.empty() &&
+        param_types[param_types.size() - 1]->kind == Type::kVParam;
 
-      bool has_arg = true;
-      if (param_types.empty()) {
-        if (!args.empty()) {
-          cerr << "too many arguments" << endl;
-          ErrorAt(args[0]->token->loc);
-        }
-        has_arg = false;
-      } else if (param_types[param_types.size() - 1]->kind == Type::kVParam) {
-        if (args.size() < param_types.size() - 1) {
-          cerr << "too few arguments" << endl;
-          ErrorAt(args[args.size() - 1]->token->loc);
-        }
-      } else {
-        if (args.size() < param_types.size()) {
-          cerr << "too few arguments" << endl;
-          ErrorAt(args[args.size() - 1]->token->loc);
-        }
-      }
-      if (args.size() > kArgRegs.size()) {
+      if (param_types.empty() && !args.empty()) {
+        cerr << "too many arguments" << endl;
+        ErrorAt(args[0]->token->loc);
+      } else if (args.size() < param_types.size() - has_vparam) {
+        cerr << "too few arguments" << endl;
+        ErrorAt(args[args.size() - 1]->token->loc);
+      } else if (args.size() > kArgRegs.size()) {
         cerr << "# of arguments must be <= " << kArgRegs.size() << endl;
         ErrorAt(args[kArgRegs.size()]->token->loc);
       }
 
-      for (int i = static_cast<int>(args.size()) - 1; i >= 0; --i) {
-        GenerateAsm(os, args[i], label_break, label_cont);
+      for (auto it = args.rbegin(); it != args.rend(); ++it) {
+        GenerateAsm(os, *it, label_break, label_cont);
       }
-      if (has_arg && param_types[param_types.size() - 1]->kind == Type::kVParam) {
+      if (has_vparam) {
         size_t num_normal = param_types.size() - 1;
         asmgen->PrepareFuncVArg(os, num_normal, args.size() - num_normal);
       }
@@ -254,19 +245,16 @@ void GenerateAsm(ostream& os, Node* node,
         asmgen->Pop64(os, Asm::kRegL);
       }
 
-      int arg_on_reg_end = args.size();
-      if (has_arg) {
-        if (param_types[param_types.size() - 1]->kind == Type::kVParam &&
-            asmgen->FuncVArgOnStack()) {
-          arg_on_reg_end = param_types.size() - 1;
-        }
-        for (int i = 0; i < arg_on_reg_end; ++i) {
-          asmgen->Pop64(os, kArgRegs[i]);
-        }
+      size_t arg_on_reg_end = args.size();
+      if (has_vparam && asmgen->FuncVArgOnStack()) {
+        arg_on_reg_end = param_types.size() - 1;
+      }
+      for (size_t i = 0; i < arg_on_reg_end; ++i) {
+        asmgen->Pop64(os, kArgRegs[i]);
       }
 
       asmgen->Call(os, Asm::kRegL);
-      for (int i = arg_on_reg_end; i < args.size(); ++i) {
+      for (size_t i = arg_on_reg_end; i < args.size(); ++i) {
         asmgen->Pop64(os, Asm::kRegR);
       }
       asmgen->Push64(os, Asm::kRegRet);
