@@ -16,45 +16,6 @@ using namespace std;
 
 namespace {
 
-[[maybe_unused]]
-ostream& operator<<(ostream& os, Type* t) {
-  if (t == nullptr) {
-    os << "NULL";
-    return os;
-  }
-  switch (t->kind) {
-  case Type::kInt:
-    os << "int" << t->num;
-    return os;
-  case Type::kUInt:
-    os << "uint" << t->num;
-    return os;
-  case Type::kPointer:
-    os << '*' << t->base;
-    return os;
-  case Type::kFunc:
-    os << "func(";
-    for (auto p{t->next}; p; p = p->next) {
-      os << p;
-      if (p->next) {
-        os << ',';
-      }
-    }
-    os << ')' << t->ret;
-    return os;
-  case Type::kVoid:
-    os << "void";
-    return os;
-  default:
-    os << '{' << magic_enum::enum_name(t->kind)
-       << ",name=" << (t->name ? t->name->Raw() : "NULL")
-       << ",base=" << t->base
-       << ",next=" << t->next
-       << ",ret=" << t->ret << '}';
-    return os;
-  }
-}
-
 Type* CopyType(Type* t) {
   return new Type{t->kind, t->name, t->next, t->base, t->ret, t->num};
 }
@@ -92,19 +53,6 @@ Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   }
 
   return func_type;
-}
-
-bool SameType(Type* lhs, Type* rhs) {
-  if (lhs == rhs) {
-    return true;
-  } else if (lhs == nullptr || rhs == nullptr) {
-    return false;
-  }
-  return lhs->kind == rhs->kind &&
-         SameType(lhs->next, rhs->next) &&
-         SameType(lhs->base, rhs->base) &&
-         SameType(lhs->ret, rhs->ret) &&
-         lhs->num == rhs->num;
 }
 
 Symbol* NewSymbol(Symbol::Kind kind, Token* token) {
@@ -607,7 +555,9 @@ Node* Primary() {
     node->value.str.len = decoded.second;
     return node;
   } else if (auto tk{Consume(Token::kChar)}) {
-    return NewNodeInt(tk, tk->value, 8);
+    auto n{NewNodeInt(tk, tk->value, 8)};
+    n->type = NewTypeUInt(nullptr, 8);
+    return n;
   }
 
   auto tk{Expect(Token::kInt)};
@@ -836,6 +786,44 @@ size_t Sizeof(Token* tk, Type* type) {
   }
 }
 
+bool SetTypeIntegerBinaryExpr(Node* n) {
+  auto l{n->lhs ? n->lhs->type : nullptr},
+       r{n->rhs ? n->rhs->type : nullptr};
+  if (!IsInteger(l->kind) || !IsInteger(r->kind)) {
+    return false;
+  }
+
+  if (l->kind == Type::kInt && r->kind == Type::kInt) {
+    n->type = NewTypeInt(nullptr, max(l->num, r->num));
+  } else if (l->kind == Type::kUInt && r->kind == Type::kUInt) {
+    n->type = NewTypeUInt(nullptr, max(l->num, r->num));
+  } else {
+    if (n->lhs->token->kind == Token::kInt &&
+        n->rhs->token->kind == Token::kInt) {
+      // 両辺が定数
+      auto new_type{NewTypeInt(nullptr, max(l->num, r->num))};
+      n->lhs->type = n->rhs->type = new_type;
+    } else if (n->lhs->token->kind == Token::kInt) {
+      if (IsCastable(n->lhs, r)) {
+        n->type = n->lhs->type = r;
+      } else {
+        cerr << "'" << n->lhs->token->Raw()
+             << "' is not castable to " << r << endl;
+        ErrorAt(n->lhs->token->loc);
+      }
+    } else {
+      if (IsCastable(n->rhs, l)) {
+        n->type = n->rhs->type = l;
+      } else {
+        cerr << "'" << n->rhs->token->Raw()
+             << "' is not castable to " << l << endl;
+        ErrorAt(n->rhs->token->loc);
+      }
+    }
+  }
+  return true;
+}
+
 bool SetSymbolType(Node* n) {
   if (n->type) {
     if (n->type->kind == Type::kUnknown && types[n->type->name->Raw()]) {
@@ -916,9 +904,10 @@ bool SetSymbolType(Node* n) {
 
   switch (n->kind) {
   case Node::kAdd:
-    if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(nullptr, max(l->num, r->num));
-    } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
+    if (SetTypeIntegerBinaryExpr(n)) {
+      return true;
+    }
+    if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kInt && r->kind == Type::kPointer) {
       n->type = r;
@@ -931,9 +920,10 @@ bool SetSymbolType(Node* n) {
     }
     break;
   case Node::kSub:
-    if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(nullptr, max(l->num, r->num));
-    } else if (l->kind == Type::kPointer && r->kind == Type::kInt) {
+    if (SetTypeIntegerBinaryExpr(n)) {
+      return true;
+    }
+    if (l->kind == Type::kPointer && r->kind == Type::kInt) {
       n->type = l;
     } else if (l->kind == Type::kPointer && r->kind == Type::kPointer) {
       n->type = NewTypeInt(nullptr, 64);
@@ -947,9 +937,10 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kMul:
   case Node::kDiv:
-    if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(nullptr, 64);
-    } else if (SameType(l, r)) {
+    if (SetTypeIntegerBinaryExpr(n)) {
+      return true;
+    }
+    if (SameType(l, r)) {
       n->type = l;
     } else {
       cerr << "not implemented expression "
@@ -964,10 +955,8 @@ bool SetSymbolType(Node* n) {
   case Node::kNEqu:
   case Node::kGT:
   case Node::kLE:
-    if (l->kind == Type::kInt && r->kind == Type::kInt) {
-      n->type = NewTypeInt(nullptr, 64); // 本来は bool にしたい
-    } else if (l->kind == Type::kUInt && r->kind == Type::kUInt) {
-      n->type = NewTypeInt(nullptr, 64);
+    if (IsInteger(l->kind) && IsInteger(r->kind)) {
+      n->type = NewTypeUInt(nullptr, 1);
     } else {
       cerr << "not implemented expression "
            << l << ' ' << n->token->Raw() << ' ' << r << endl;
@@ -1103,7 +1092,7 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kStr:
     n->type = NewType(Type::kArray, nullptr);
-    n->type->base = NewTypeInt(nullptr, 8);
+    n->type->base = NewTypeUInt(nullptr, 8);
     n->type->num = n->value.str.len;
     break;
   case Node::kSizeof:
@@ -1125,7 +1114,7 @@ bool SetSymbolType(Node* n) {
 
 std::map<std::string, Type*> builtin_types{
   {"int",  NewTypeInt(nullptr, 64)},
-  {"byte", NewTypeInt(nullptr, 8)},
+  {"byte", NewTypeUInt(nullptr, 8)},
   {"uint", NewTypeUInt(nullptr, 64)},
 };
 
@@ -1184,4 +1173,67 @@ size_t CalcStackOffset(
     }
   }
   return offset;
+}
+
+ostream& operator<<(ostream& os, Type* t) {
+  if (t == nullptr) {
+    os << "NULL";
+    return os;
+  }
+  switch (t->kind) {
+  case Type::kInt:
+    os << "int" << t->num;
+    return os;
+  case Type::kUInt:
+    os << "uint" << t->num;
+    return os;
+  case Type::kPointer:
+    os << '*' << t->base;
+    return os;
+  case Type::kFunc:
+    os << "func(";
+    for (auto p{t->next}; p; p = p->next) {
+      os << p;
+      if (p->next) {
+        os << ',';
+      }
+    }
+    os << ')' << t->ret;
+    return os;
+  case Type::kVoid:
+    os << "void";
+    return os;
+  default:
+    os << '{' << magic_enum::enum_name(t->kind)
+       << ",name=" << (t->name ? t->name->Raw() : "NULL")
+       << ",base=" << t->base
+       << ",next=" << t->next
+       << ",ret=" << t->ret << '}';
+    return os;
+  }
+}
+
+bool SameType(Type* lhs, Type* rhs) {
+  if (lhs == rhs) {
+    return true;
+  } else if (lhs == nullptr || rhs == nullptr) {
+    return false;
+  }
+  return lhs->kind == rhs->kind &&
+         SameType(lhs->base, rhs->base) &&
+         SameType(lhs->ret, rhs->ret) &&
+         lhs->num == rhs->num;
+}
+
+bool IsCastable(Node* int_constant, Type* cast_to) {
+  const auto i{static_cast<uint64_t>(int_constant->value.i)};
+  if (i == 0) {
+    return true;
+  }
+  int msb = 63;
+  for (; msb > 0 && ((i >> msb) & 1) == 0; --msb);
+  if (cast_to->kind == Type::kInt || cast_to->kind == Type::kUInt) {
+    return (msb + 1) <= cast_to->num;
+  }
+  return false;
 }

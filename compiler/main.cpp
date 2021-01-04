@@ -442,6 +442,19 @@ void GenerateFuncCall(ostream& os, Node* node,
     ErrorAt(args[kArgRegs.size()]->token->loc);
   }
 
+  for (size_t i = 0; i < param_types.size() - has_vparam; ++i) {
+    // args[i]->type と param_types[i] の互換性をチェック
+    const bool compatible =
+      SameType(args[i]->type, param_types[i]) ||
+      (args[i]->type->kind == Type::kArray &&
+       param_types[i]->kind == Type::kPointer &&
+       SameType(args[i]->type->base, param_types[i]->base));
+    if (!compatible) {
+      cerr << "type mismatch: arg=" << args[i]->type
+           << ", expected=" << param_types[i] << endl;
+      ErrorAt(args[i]->token->loc);
+    }
+  }
   for (auto it = args.rbegin(); it != args.rend(); ++it) {
     GenerateAsm(os, *it, label_break, label_cont);
   }

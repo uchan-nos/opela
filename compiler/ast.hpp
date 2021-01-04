@@ -176,3 +176,6 @@ std::pair<bool, Type*> IsInteger(Type* t);
 size_t CalcStackOffset(
     const std::map<std::string, Symbol*>& local_vars,
     std::function<void (Symbol* lvar, size_t offset)> f);
+std::ostream& operator<<(std::ostream& os, Type* t);
+bool SameType(Type* lhs, Type* rhs);
+bool IsCastable(Node* int_constant, Type* cast_to);
