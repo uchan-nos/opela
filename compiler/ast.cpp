@@ -723,23 +723,23 @@ Node* TypeDeclaration() {
 }
 
 Node* InitializerList() {
-    auto op{Expect("{")};
-    auto init_list{NewNode(Node::kInitList, op)};
-    init_list->value.i = 0;
+  auto op{Expect("{")};
+  auto init_list{NewNode(Node::kInitList, op)};
+  init_list->value.i = 0;
 
-    auto elem{init_list};
-    for (;;) {
-      if (Consume("}")) {
-        break;
-      }
-      elem->next = Primary();
-      elem = elem->next;
-      ++init_list->value.i;
-      if (Consume(",")) {
-        continue;
-      }
+  auto elem{init_list};
+  for (;;) {
+    if (Consume("}")) {
+      break;
     }
-    return init_list;
+    elem->next = Primary();
+    elem = elem->next;
+    ++init_list->value.i;
+    if (Consume(",")) {
+      continue;
+    }
+  }
+  return init_list;
 }
 
 Symbol* LookupLVar(Context* ctx, const std::string& name) {
