@@ -88,6 +88,7 @@ func main() {
   TEST_INT(7,  testArrayInit());
   TEST_INT(3,  testStruct());
   TEST_INT(-3, testStruct2());
+  TEST_INT(5,  testStructPtr());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -196,6 +197,7 @@ func testBinaryLiteral() int { 0b0110; }
 func testArrayInit() int { var x [3]int = {3, 4}; x[0] + x[1] + x[2]; }
 func testStruct() int { var x struct { a int; }; x.a = 2; x.a + 1; }
 func testStruct2() int { var x struct{a int;b int;}; x.a=2; x.b=5; x.a-x.b; }
+func testStructPtr() int { var p *struct{a int;}; var x struct{a int;}; p=&x; x.a=2; (*p).a+3;}
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
