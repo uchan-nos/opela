@@ -610,15 +610,15 @@ Node* TypeSpecifier() {
     auto node{NewNode(Node::kType, tk)};
     node->type = NewType(Type::kStruct, nullptr);
     Type head;
-    Type* cur{&head};
+    Type* ft{&head};
     Expect("{");
     while (!Consume("}")) {
       auto name{Expect(Token::kId)};
       auto tspec{TypeSpecifier()};
       Expect(";");
-      tspec->type->field_name = name;
-      cur->next = tspec->type;
-      cur = cur->next;
+      ft->next = CopyType(tspec->type);
+      ft->next->field_name = name;
+      ft = ft->next;
     }
     node->type->base = head.next;
     return node;

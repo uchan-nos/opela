@@ -282,6 +282,7 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kDot:
     GenerateAsm(os, node->lhs, label_break, label_cont, true);
+    asmgen->Pop64(os, Asm::kRegL);
     {
       size_t field_off{0};
       for (auto ft{node->lhs->type->base};
