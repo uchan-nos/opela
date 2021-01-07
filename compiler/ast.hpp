@@ -24,6 +24,7 @@ struct Type {
     kArray,
     kUser,
     kVParam, // 可変長引数 "..."
+    kStruct,
   } kind;
 
   // 型名
@@ -34,6 +35,7 @@ struct Type {
   Type* next;
 
   // ポインタのベース型，配列の要素型
+  // kind == kStruct の場合、フィールドリスト
   Type* base;
 
   // 関数の戻り値型
@@ -42,6 +44,9 @@ struct Type {
   // kind == kArray の場合，要素数
   // kind == kInt の場合，ビット数
   std::int64_t num;
+
+  // kind == kStruct の場合、フィールド名
+  Token* field_name;
 };
 
 struct Symbol {
@@ -113,6 +118,7 @@ struct Node {
     kInc, // postfix increment
     kDec, // postfix increment
     kInitList, // initializer list
+    kDot, // struct.field
   } kind;
 
   Token* token; // このノードを代表するトークン

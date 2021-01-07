@@ -17,23 +17,23 @@ using namespace std;
 namespace {
 
 Type* CopyType(Type* t) {
-  return new Type{t->kind, t->name, t->next, t->base, t->ret, t->num};
+  return new Type{t->kind, t->name, t->next, t->base, t->ret, t->num, t->field_name};
 }
 
 Type* NewType(Type::Kind kind, Token* name) {
-  return new Type{kind, name, nullptr, nullptr, nullptr, 0};
+  return new Type{kind, name, nullptr, nullptr, nullptr, 0, nullptr};
 }
 
 Type* NewTypePointer(Token* name, Type* base_type) {
-  return new Type{Type::kPointer, name, nullptr, base_type, nullptr, 0};
+  return new Type{Type::kPointer, name, nullptr, base_type, nullptr, 0, nullptr};
 }
 
 Type* NewTypeInt(Token* name, int64_t num_bits) {
-  return new Type{Type::kInt, name, nullptr, nullptr, nullptr, num_bits};
+  return new Type{Type::kInt, name, nullptr, nullptr, nullptr, num_bits, nullptr};
 }
 
 Type* NewTypeUInt(Token* name, int64_t num_bits) {
-  return new Type{Type::kUInt, name, nullptr, nullptr, nullptr, num_bits};
+  return new Type{Type::kUInt, name, nullptr, nullptr, nullptr, num_bits, nullptr};
 }
 
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
@@ -527,6 +527,9 @@ Node* Postfix() {
       auto index{Expr()};
       Expect("]");
       node = NewNodeExpr(Node::kSubscr, op, node, index);
+    } else if (auto op{Consume(".")}) {
+      auto field_name{Expect(Token::kId)};
+      node = NewNodeExpr(Node::kDot, op, node, NewNode(Node::kId, field_name));
     } else {
       return node;
     }
@@ -600,6 +603,24 @@ Node* TypeSpecifier() {
 
     auto node{NewNode(Node::kType, tk)};
     node->type = NewTypeFunc(plist, ret_tspec);
+    return node;
+  }
+
+  if (auto tk{Consume(Token::kStruct)}) {
+    auto node{NewNode(Node::kType, tk)};
+    node->type = NewType(Type::kStruct, nullptr);
+    Type head;
+    Type* cur{&head};
+    Expect("{");
+    while (!Consume("}")) {
+      auto name{Expect(Token::kId)};
+      auto tspec{TypeSpecifier()};
+      Expect(";");
+      tspec->type->field_name = name;
+      cur->next = tspec->type;
+      cur = cur->next;
+    }
+    node->type->base = head.next;
     return node;
   }
 
@@ -780,6 +801,14 @@ size_t Sizeof(Token* tk, Type* type) {
     if (type->name && types[type->name->Raw()]) {
       return Sizeof(tk, types[type->name->Raw()]);
     }
+  case Type::kStruct:
+    {
+      size_t total_size{0};
+      for (auto ft{type->base}; ft; ft = ft->next) {
+        total_size += Sizeof(ft->field_name, ft);
+      }
+      return total_size;
+    }
   default:
     cerr << "cannot determine size of " << type << endl;
     ErrorAt(tk->loc);
@@ -898,6 +927,17 @@ bool SetSymbolType(Node* n) {
     n->lhs->type = var_type;
     n->type = var_type;
     return true;
+  } else if (n->kind == Node::kDot) {
+    changed |= SetSymbolType(n->lhs);
+    if (!n->lhs->type) {
+      return changed;
+    } else if (n->lhs->type->kind != Type::kStruct) {
+      cerr << "lhs of . must be a struct" << endl;
+      ErrorAt(n->lhs->token->loc);
+    } else if (n->rhs->kind != Node::kId) {
+      cerr << "COMPILER BUG: rhs of . must be an identifier" << endl;
+      ErrorAt(n->rhs->token->loc);
+    }
   }
   auto l{n->lhs ? n->lhs->type : nullptr},
        r{n->rhs ? n->rhs->type : nullptr};
@@ -1108,6 +1148,14 @@ bool SetSymbolType(Node* n) {
   case Node::kDec:
     n->type = l;
     break;
+  case Node::kDot:
+    for (auto ft{n->lhs->type->base}; ft; ft = ft->next) {
+      if (ft->field_name->Raw() == n->rhs->token->Raw()) {
+        n->type = ft;
+        return true;
+      }
+    }
+    return false;
   }
   return true;
 }

@@ -86,6 +86,7 @@ func main() {
   TEST_INT(31, testHexLiteral());
   TEST_INT(6,  testBinaryLiteral());
   TEST_INT(7,  testArrayInit());
+  TEST_INT(3,  testStruct());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -192,6 +193,7 @@ func testVariadicArg() int { variadic_sum(3, 4, 5, -2); }
 func testHexLiteral() int { 0x001f; }
 func testBinaryLiteral() int { 0b0110; }
 func testArrayInit() int { var x [3]int = {3, 4}; x[0] + x[1] + x[2]; }
+func testStruct() int { var x struct { a int; }; x.a = 2; x.a + 1; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();

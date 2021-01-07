@@ -26,6 +26,7 @@ const map<Token::Kind, string> kKeywords{
   {Token::kBreak,  "break"},
   {Token::kCont,   "continue"},
   {Token::kType,   "type"},
+  {Token::kStruct, "struct"},
 };
 
 bool IsAlpha(char ch) {
@@ -126,7 +127,7 @@ vector<Token> Tokenize(const char* p) {
       continue;
     }
 
-    if (strchr("+-*/()<>;{}=,&[]", *p)) {
+    if (strchr("+-*/()<>;{}=,&[].", *p)) {
       Token tk{Token::kReserved, p, 1, 0};
       tokens.push_back(tk);
       ++p;
