@@ -194,21 +194,42 @@ void GenerateAsm(ostream& os, Node* node,
       gvar_init_values[node->lhs->value.sym] = node->rhs;
       return;
     } else if (node->rhs && node->rhs->kind == Node::kInitList) {
-      auto stride{Sizeof(node->lhs->token, node->lhs->type->base)};
-      auto elem{node->rhs->next}; // 初期化リストの先頭要素
-      int64_t i;
-      for (i = 0; i < node->rhs->value.i; ++i) {
-        GenerateAsm(os, elem, label_break, label_cont);
-        GenerateAsm(os, node->lhs, label_break, label_cont, true);
-        asmgen->Pop64(os, Asm::kRegL);
-        asmgen->Pop64(os, Asm::kRegR);
-        asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
-        elem = elem->next;
-      }
-      for (; i < node->lhs->type->num; ++i) {
-        GenerateAsm(os, node->lhs, label_break, label_cont, true);
-        asmgen->Pop64(os, Asm::kRegL);
-        asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
+      if (node->lhs->type->kind == Type::kArray) {
+        auto stride{Sizeof(node->lhs->token, node->lhs->type->base)};
+        auto elem{node->rhs->next}; // 初期化リストの先頭要素
+        int64_t i;
+        for (i = 0; i < node->rhs->value.i; ++i) {
+          GenerateAsm(os, elem, label_break, label_cont);
+          GenerateAsm(os, node->lhs, label_break, label_cont, true);
+          asmgen->Pop64(os, Asm::kRegL);
+          asmgen->Pop64(os, Asm::kRegR);
+          asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
+          elem = elem->next;
+        }
+        for (; i < node->lhs->type->num; ++i) {
+          GenerateAsm(os, node->lhs, label_break, label_cont, true);
+          asmgen->Pop64(os, Asm::kRegL);
+          asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
+        }
+      } else if (node->lhs->type->kind == Type::kStruct) {
+        size_t field_off{0};
+        auto elem{node->rhs->next};
+        for (auto ft{node->lhs->type->base}; ft; ft = ft->next) {
+          auto field_size{Sizeof(ft->field_name, ft)};
+          if (elem) {
+            GenerateAsm(os, elem, label_break, label_cont);
+            GenerateAsm(os, node->lhs, label_break, label_cont, true);
+            asmgen->Pop64(os, Asm::kRegL);
+            asmgen->Pop64(os, Asm::kRegR);
+            asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegR, 8 * field_size);
+            elem = elem->next;
+          } else {
+            GenerateAsm(os, node->lhs, label_break, label_cont, true);
+            asmgen->Pop64(os, Asm::kRegL);
+            asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegZero, 8 * field_size);
+          }
+          field_off += field_size;
+        }
       }
     } else if (node->rhs) { // 初期値付き変数定義
       break;

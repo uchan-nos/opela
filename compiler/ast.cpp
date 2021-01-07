@@ -753,7 +753,7 @@ Node* InitializerList() {
     if (Consume("}")) {
       break;
     }
-    elem->next = Primary();
+    elem->next = Expr();
     elem = elem->next;
     ++init_list->value.i;
     if (Consume(",")) {
@@ -1067,6 +1067,7 @@ bool SetSymbolType(Node* n) {
     }
     break;
   case Node::kEList:
+  case Node::kInitList:
     {
       bool all_typed{true};
       for (auto elem{n->next}; elem; elem = elem->next) {
@@ -1085,7 +1086,6 @@ bool SetSymbolType(Node* n) {
   case Node::kBreak:
   case Node::kCont:
   case Node::kTypedef:
-  case Node::kInitList:
     n->type = NewType(Type::kUndefined, nullptr);
     break;
   case Node::kDeclSeq:
