@@ -280,6 +280,23 @@ void GenerateAsm(ostream& os, Node* node,
     }
     asmgen->Push64(os, Asm::kRegL);
     return;
+  case Node::kDot:
+    GenerateAsm(os, node->lhs, label_break, label_cont, true);
+    {
+      size_t field_off{0};
+      for (auto ft{node->lhs->type->base};
+           ft->field_name->Raw() != node->rhs->token->Raw();
+           ft = ft->next) {
+        field_off += Sizeof(ft->field_name, ft);
+      }
+      if (lval) {
+        asmgen->Add64(os, Asm::kRegL, field_off);
+      } else {
+        asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, field_off, 64);
+      }
+    }
+    asmgen->Push64(os, Asm::kRegL);
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -288,25 +305,14 @@ void GenerateAsm(ostream& os, Node* node,
     node->kind == Node::kAssign ||
     node->kind == Node::kAddr ||
     node->kind == Node::kDefVar ||
-    (node->kind == Node::kSubscr && node->lhs->type->kind == Type::kArray) ||
-    (node->kind == Node::kDot && node->lhs->type->kind == Type::kStruct)
+    (node->kind == Node::kSubscr && node->lhs->type->kind == Type::kArray)
   };
 
   GenerateAsm(os, node->lhs, label_break, label_cont, request_lval);
   if (node->rhs) {
     // 単項演算子の場合は rhs が null の場合がある
-    if (node->kind == Node::kDot && node->lhs->type->kind == Type::kStruct) {
-      size_t field_off{0};
-      for (auto ft{node->lhs->type->base};
-           ft->field_name->Raw() != node->rhs->token->Raw();
-           ft = ft->next) {
-        field_off += Sizeof(ft->field_name, ft);
-      }
-      asmgen->Mov64(os, Asm::kRegR, field_off);
-    } else {
-      GenerateAsm(os, node->rhs, label_break, label_cont);
-      asmgen->Pop64(os, Asm::kRegR);
-    }
+    GenerateAsm(os, node->rhs, label_break, label_cont);
+    asmgen->Pop64(os, Asm::kRegR);
   }
   asmgen->Pop64(os, Asm::kRegL);
 
@@ -392,12 +398,6 @@ void GenerateAsm(ostream& os, Node* node,
           ErrorAt(node->token->loc);
         }
       }
-    }
-    break;
-  case Node::kDot:
-    asmgen->Add64(os, Asm::kRegL, Asm::kRegR);
-    if (!lval) {
-      asmgen->Load64(os, Asm::kRegL, Asm::kRegL);
     }
     break;
   default: // caseが足りないという警告を抑制する

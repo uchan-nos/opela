@@ -53,6 +53,7 @@ class Asm {
   virtual void Push64(std::ostream& os, uint64_t v) = 0;
   virtual void Push64(std::ostream& os, Register reg) = 0;
   virtual void Pop64(std::ostream& os, Register reg) = 0;
+  virtual void Add64(std::ostream& os, Register lhs, uint64_t v) = 0;
   virtual void Add64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
@@ -63,6 +64,8 @@ class Asm {
                int scale, Register index) = 0;
   virtual void Load64(std::ostream& os, Register dest, Register addr) = 0;
   // LoadN loads scale bytes from [base + scale * index]
+  virtual void LoadN(std::ostream& os, Register dest, Register base,
+                     int disp, unsigned bits) = 0;
   virtual void LoadN(std::ostream& os, Register dest, Register base,
                      int scale, Register index) = 0;
   virtual void StoreN(std::ostream& os, Register addr, int disp,
@@ -169,6 +172,10 @@ class AsmX8664 : public Asm {
     os << "    pop " << RegName(reg) << "\n";
   }
 
+  void Add64(std::ostream& os, Register lhs, uint64_t v) override {
+    os << "    add " << RegName(lhs) << ", " << v << "\n";
+  }
+
   void Add64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    add " << RegName(lhs) << ", " << RegName(rhs) << "\n";
   }
@@ -212,6 +219,21 @@ class AsmX8664 : public Asm {
 
   void Load64(std::ostream& os, Register dest, Register addr) override {
     os << "    mov " << RegName(dest) << ", [" << RegName(addr) << "]\n";
+  }
+
+  void LoadN(std::ostream& os, Register dest, Register base,
+             int disp, unsigned bits) override {
+    auto ws = WordSize(bits);
+    auto d = RegName(dest, ws <= 4 ? 4 : 8);
+    if (ws == 0) {
+      return;
+    } else if (ws <= 2) {
+      os << "    movzx ";
+    } else {
+      os << "    mov ";
+    }
+    os << RegName(dest, ws <= 4 ? 4 : 8) << ", "
+       << WordName(ws) << " ptr [" << RegName(base) << "+" << disp << "]\n";
   }
 
   void LoadN(std::ostream& os, Register dest, Register base,
@@ -419,6 +441,11 @@ class AsmAArch64 : public Asm {
     os << "    ldr " << RegName(reg) << ", [sp], #16\n";
   }
 
+  void Add64(std::ostream& os, Register lhs, uint64_t v) override {
+    os << "    add " << RegName(lhs) << ", "
+       << RegName(lhs) << ", #" << v << "\n";
+  }
+
   void Add64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    add " << RegName(lhs) << ", "
        << RegName(lhs) << ", " << RegName(rhs) << "\n";
@@ -472,6 +499,28 @@ class AsmAArch64 : public Asm {
 
   void Load64(std::ostream& os, Register dest, Register addr) override {
     os << "    ldr " << RegName(dest) << ", [" << RegName(addr) << "]\n";
+  }
+
+  void LoadN(std::ostream& os, Register dest, Register base,
+             int disp, unsigned bits) override {
+    auto ws = WordSize(bits);
+    auto d = RegName(dest, ws <= 4 ? 4 : 8);
+    switch (ws) {
+    case 0:
+      return;
+    case 1:
+      os << "    ldrb ";
+      break;
+    case 2:
+      os << "    ldrh ";
+      break;
+    case 4:
+    case 8:
+      os << "    ldr ";
+      break;
+    }
+    os << RegName(dest, ws <= 4 ? 4 : 8) << ", ["
+       << RegName(base) << ", #" << disp << "]\n";
   }
 
   void LoadN(std::ostream& os, Register dest, Register base,
