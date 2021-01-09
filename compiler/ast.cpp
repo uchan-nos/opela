@@ -917,6 +917,10 @@ bool SetSymbolType(Node* n) {
     }
     if (n->tspec) {
       var_type = n->tspec->type;
+      if (var_type->kind == Type::kUnknown && var_type->name &&
+          types[var_type->name->Raw()]) {
+        var_type = types[var_type->name->Raw()];
+      }
     } else if (n->rhs) {
       var_type = n->rhs->type;
     } else {
@@ -929,15 +933,23 @@ bool SetSymbolType(Node* n) {
     return true;
   } else if (n->kind == Node::kDot) {
     changed |= SetSymbolType(n->lhs);
-    if (!n->lhs->type) {
+    auto l{GetEssentialType(n->lhs->type)};
+    if (!l) {
       return changed;
-    } else if (n->lhs->type->kind != Type::kStruct) {
-      cerr << "lhs of . must be a struct" << endl;
+    } else if (l->kind != Type::kStruct) {
+      cerr << "lhs of . must be a struct: " << l << endl;
       ErrorAt(n->lhs->token->loc);
     } else if (n->rhs->kind != Node::kId) {
       cerr << "COMPILER BUG: rhs of . must be an identifier" << endl;
       ErrorAt(n->rhs->token->loc);
     }
+  } else if (n->kind == Node::kType) {
+    if (n->tspec->type->kind == Type::kUnknown &&
+        n->tspec->type->name && types[n->tspec->type->name->Raw()]) {
+      n->tspec->type = types[n->tspec->type->name->Raw()];
+      changed |= true;
+    }
+    return changed;
   }
   auto l{n->lhs ? n->lhs->type : nullptr},
        r{n->rhs ? n->rhs->type : nullptr};
@@ -1149,7 +1161,7 @@ bool SetSymbolType(Node* n) {
     n->type = l;
     break;
   case Node::kDot:
-    for (auto ft{n->lhs->type->base}; ft; ft = ft->next) {
+    for (auto ft{GetEssentialType(l)->base}; ft; ft = ft->next) {
       if (ft->field_name->Raw() == n->rhs->token->Raw()) {
         n->type = ft;
         return true;
@@ -1284,4 +1296,11 @@ bool IsCastable(Node* int_constant, Type* cast_to) {
     return (msb + 1) <= cast_to->num;
   }
   return false;
+}
+
+Type* GetEssentialType(Type* user_type) {
+  if (user_type == nullptr || user_type->kind != Type::kUser) {
+    return user_type;
+  }
+  return user_type->base;
 }

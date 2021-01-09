@@ -211,10 +211,10 @@ void GenerateAsm(ostream& os, Node* node,
           asmgen->Pop64(os, Asm::kRegL);
           asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
         }
-      } else if (node->lhs->type->kind == Type::kStruct) {
+      } else if (GetEssentialType(node->lhs->type)->kind == Type::kStruct) {
         size_t field_off{0};
         auto elem{node->rhs->next};
-        for (auto ft{node->lhs->type->base}; ft; ft = ft->next) {
+        for (auto ft{GetEssentialType(node->lhs->type)->base}; ft; ft = ft->next) {
           auto field_size{Sizeof(ft->field_name, ft)};
           if (elem) {
             GenerateAsm(os, elem, label_break, label_cont);
@@ -230,6 +230,9 @@ void GenerateAsm(ostream& os, Node* node,
           }
           field_off += field_size;
         }
+      } else {
+        cerr << "initializer list is not supported for " << node->lhs->type << endl;
+        ErrorAt(node->lhs->token->loc);
       }
     } else if (node->rhs) { // 初期値付き変数定義
       break;
@@ -306,7 +309,7 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->Pop64(os, Asm::kRegL);
     {
       size_t field_off{0};
-      for (auto ft{node->lhs->type->base};
+      for (auto ft{GetEssentialType(node->lhs->type)->base};
            ft->field_name->Raw() != node->rhs->token->Raw();
            ft = ft->next) {
         field_off += Sizeof(ft->field_name, ft);

@@ -90,6 +90,7 @@ func main() {
   TEST_INT(-3, testStruct2());
   TEST_INT(5,  testStructPtr());
   TEST_INT(6,  testStructInit());
+  TEST_INT(11, testStructType());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -200,6 +201,7 @@ func testStruct() int { var x struct { a int; }; x.a = 2; x.a + 1; }
 func testStruct2() int { var x struct{a int;b int;}; x.a=2; x.b=5; x.a-x.b; }
 func testStructPtr() int { var p *struct{a int;}; var x struct{a int;}; p=&x; x.a=2; (*p).a+3;}
 func testStructInit() int { var x struct{a int;b int;c int;} = {5, -1}; x.a-x.b+x.c; }
+func testStructType() int { var x myIntStruct = {3, 8}; x.c = x.a + x.b; x.c; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
@@ -214,6 +216,7 @@ var (ga int; gb = 6; gc = gb+1;)
 extern "C" strlen func(s *byte)int64;
 type myInt int32;
 extern "C" variadic_sum func(argc int, ...) int;
+type myIntStruct struct { a int; b int; c int; };
 
 //test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
 

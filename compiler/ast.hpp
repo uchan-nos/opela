@@ -185,3 +185,4 @@ size_t CalcStackOffset(
 std::ostream& operator<<(std::ostream& os, Type* t);
 bool SameType(Type* lhs, Type* rhs);
 bool IsCastable(Node* int_constant, Type* cast_to);
+Type* GetEssentialType(Type* user_type);
