@@ -25,28 +25,27 @@ struct Type {
     kUser,
     kVParam, // 可変長引数 "..."
     kStruct,
+    kParam, // 関数のパラメタ
+    kField, // 構造体のフィールド
   } kind;
 
-  // 型名
+  // 型名、パラメタ名、フィールド名
   Token* name;
 
   // 線形リストの次の要素
   // kind == kFunc の場合，引数リスト
+  // kind == kStruct の場合、フィールドリスト
   Type* next;
 
   // ポインタのベース型，配列の要素型
-  // kind == kStruct の場合、フィールドリスト
+  // kind == kFunc の場合、戻り値型
+  // kind == kParam の場合、パラメタの型
+  // kind == kField の場合、フィールドの型
   Type* base;
-
-  // 関数の戻り値型
-  Type* ret;
 
   // kind == kArray の場合，要素数
   // kind == kInt の場合，ビット数
   std::int64_t num;
-
-  // kind == kStruct の場合、フィールド名
-  Token* field_name;
 };
 
 struct Symbol {

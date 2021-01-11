@@ -91,6 +91,7 @@ func main() {
   TEST_INT(5,  testStructPtr());
   TEST_INT(6,  testStructInit());
   TEST_INT(11, testStructType());
+  TEST_INT(8,  testUserTypeParam());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -202,6 +203,7 @@ func testStruct2() int { var x struct{a int;b int;}; x.a=2; x.b=5; x.a-x.b; }
 func testStructPtr() int { var p *struct{a int;}; var x struct{a int;}; p=&x; x.a=2; (*p).a+3;}
 func testStructInit() int { var x struct{a int;b int;c int;} = {5, -1}; x.a-x.b+x.c; }
 func testStructType() int { var x myIntStruct = {3, 8}; x.c = x.a + x.b; x.c; }
+func testUserTypeParam() int { var x myInt = 5; myAdd32(myInt(3), x); }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
@@ -214,6 +216,7 @@ extern "C" alloc4 func(a, b, c, d int) *int;
 var val int = 14;
 var (ga int; gb = 6; gc = gb+1;)
 extern "C" strlen func(s *byte)int64;
+func myAdd32(a, b myInt) myInt { a + b; } // use myInt before type definition
 type myInt int32;
 extern "C" variadic_sum func(argc int, ...) int;
 type myIntStruct struct { a int; b int; c int; };

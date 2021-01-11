@@ -214,8 +214,8 @@ void GenerateAsm(ostream& os, Node* node,
       } else if (GetEssentialType(node->lhs->type)->kind == Type::kStruct) {
         size_t field_off{0};
         auto elem{node->rhs->next};
-        for (auto ft{GetEssentialType(node->lhs->type)->base}; ft; ft = ft->next) {
-          auto field_size{Sizeof(ft->field_name, ft)};
+        for (auto ft{GetEssentialType(node->lhs->type)->next}; ft; ft = ft->next) {
+          auto field_size{Sizeof(ft->name, ft->base)};
           if (elem) {
             GenerateAsm(os, elem, label_break, label_cont);
             GenerateAsm(os, node->lhs, label_break, label_cont, true);
@@ -309,10 +309,10 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->Pop64(os, Asm::kRegL);
     {
       size_t field_off{0};
-      for (auto ft{GetEssentialType(node->lhs->type)->base};
-           ft->field_name->Raw() != node->rhs->token->Raw();
+      for (auto ft{GetEssentialType(node->lhs->type)->next};
+           ft->name->Raw() != node->rhs->token->Raw();
            ft = ft->next) {
-        field_off += Sizeof(ft->field_name, ft);
+        field_off += Sizeof(ft->name, ft->base);
       }
       if (lval) {
         asmgen->Add64(os, Asm::kRegL, field_off);
@@ -486,14 +486,14 @@ void GenerateFuncCall(ostream& os, Node* node,
 
   for (size_t i = 0; i < param_types.size() - has_vparam; ++i) {
     // args[i]->type と param_types[i] の互換性をチェック
+    auto a = args[i]->type, p = param_types[i]->base;
     const bool compatible =
-      SameType(args[i]->type, param_types[i]) ||
-      (args[i]->type->kind == Type::kArray &&
-       param_types[i]->kind == Type::kPointer &&
-       SameType(args[i]->type->base, param_types[i]->base));
+      SameType(a, p) ||
+      (a->kind == Type::kArray && p->kind == Type::kPointer &&
+       SameType(a->base, p->base));
     if (!compatible) {
-      cerr << "type mismatch: arg=" << args[i]->type
-           << ", expected=" << param_types[i] << endl;
+      cerr << "type mismatch: arg=" << a
+           << ", expected=" << p << endl;
       ErrorAt(args[i]->token->loc);
     }
   }

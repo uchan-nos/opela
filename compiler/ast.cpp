@@ -16,43 +16,51 @@ using namespace std;
 
 namespace {
 
-Type* CopyType(Type* t) {
-  return new Type{t->kind, t->name, t->next, t->base, t->ret, t->num, t->field_name};
-}
-
 Type* NewType(Type::Kind kind, Token* name) {
-  return new Type{kind, name, nullptr, nullptr, nullptr, 0, nullptr};
+  return new Type{kind, name, nullptr, nullptr, 0};
 }
 
 Type* NewTypePointer(Token* name, Type* base_type) {
-  return new Type{Type::kPointer, name, nullptr, base_type, nullptr, 0, nullptr};
+  return new Type{Type::kPointer, name, nullptr, base_type, 0};
 }
 
 Type* NewTypeInt(Token* name, int64_t num_bits) {
-  return new Type{Type::kInt, name, nullptr, nullptr, nullptr, num_bits, nullptr};
+  return new Type{Type::kInt, name, nullptr, nullptr, num_bits};
 }
 
 Type* NewTypeUInt(Token* name, int64_t num_bits) {
-  return new Type{Type::kUInt, name, nullptr, nullptr, nullptr, num_bits, nullptr};
+  return new Type{Type::kUInt, name, nullptr, nullptr, num_bits};
+}
+
+Type* NewTypeParam(Token* name, Type* base_type) {
+  return new Type{Type::kParam, name, nullptr, base_type, 0};
 }
 
 Type* NewTypeFunc(Node* param_list, Node* ret_tspec) {
   auto func_type{NewType(Type::kFunc, nullptr)};
   if (!ret_tspec) {
-    func_type->ret = NewType(Type::kVoid, nullptr);
+    func_type->base = NewType(Type::kVoid, nullptr);
   } else {
-    func_type->ret = ret_tspec->type;
+    func_type->base = ret_tspec->type;
   }
 
   auto param{param_list->next};
   auto cur{func_type};
   while (param) {
-    cur->next = CopyType(param->tspec->type);
+    if (param->tspec->type->kind == Type::kVParam) {
+      cur->next = param->tspec->type;
+    } else {
+      cur->next = NewTypeParam(param->token, param->tspec->type);
+    }
     cur = cur->next;
     param = param->next;
   }
 
   return func_type;
+}
+
+Type* NewTypeField(Token* name, Type* base_type) {
+  return new Type{Type::kField, name, nullptr, base_type, 0};
 }
 
 Symbol* NewSymbol(Symbol::Kind kind, Token* token) {
@@ -616,22 +624,21 @@ Node* TypeSpecifier() {
       auto name{Expect(Token::kId)};
       auto tspec{TypeSpecifier()};
       Expect(";");
-      ft->next = CopyType(tspec->type);
-      ft->next->field_name = name;
+      ft->next = NewTypeField(name, tspec->type);
       ft = ft->next;
     }
-    node->type->base = head.next;
+    node->type->next = head.next;
     return node;
   }
 
   if (auto type_name{Consume(Token::kId)}) {
     auto node{NewNode(Node::kType, type_name)};
-    if (auto t = FindType(type_name)) {
-      node->type = t;
-    } else {
-      node->type = NewType(Type::kUnknown, type_name);
-      //unknown_type_nodes.push_back(node);
+    auto t{FindType(type_name)};
+    if (!t) {
+      t = NewType(Type::kUnknown, type_name);
+      types[type_name->Raw()] = t;
     }
+    node->type = t;
     return node;
   }
 
@@ -736,7 +743,11 @@ Node* TypeDeclaration() {
 
   auto type{NewType(Type::kUser, name_token)};
   type->base = tspec->type;
-  types[name_token->Raw()] = type;
+  if (auto t{types[name_token->Raw()]}; t == nullptr) {
+    types[name_token->Raw()] = type;
+  } else if (t->kind == Type::kUnknown) {
+    *t = *type;
+  }
 
   auto node{NewNode(Node::kTypedef, name_token)};
   node->tspec = tspec;
@@ -798,14 +809,11 @@ size_t Sizeof(Token* tk, Type* type) {
   case Type::kUser:
     return Sizeof(tk, type->base);
   case Type::kUnknown:
-    if (type->name && types[type->name->Raw()]) {
-      return Sizeof(tk, types[type->name->Raw()]);
-    }
   case Type::kStruct:
     {
       size_t total_size{0};
-      for (auto ft{type->base}; ft; ft = ft->next) {
-        total_size += Sizeof(ft->field_name, ft);
+      for (auto ft{type->next}; ft; ft = ft->next) {
+        total_size += Sizeof(ft->name, ft->base);
       }
       return total_size;
     }
@@ -1063,13 +1071,13 @@ bool SetSymbolType(Node* n) {
     return changed;
   case Node::kCall:
     if (l->kind == Type::kFunc) {
-      n->type = l->ret;
+      n->type = l->base;
     } else if (l->kind == Type::kPointer) {
       if (l->base->kind != Type::kFunc) {
         cerr << "cannot call non-function pointer" << endl;
         ErrorAt(n->token->loc);
       }
-      n->type = l->base->ret;
+      n->type = l->base->base;
     } else if (auto t = FindType(n->lhs->token)) {
       // 型変換
       n->type = t;
@@ -1123,7 +1131,7 @@ bool SetSymbolType(Node* n) {
     break;
   case Node::kDeref:
     if (l->kind != Type::kPointer) {
-      cerr << "try to dereference non-pointer" << endl;
+      cerr << "try to dereference non-pointer: " << l << endl;
       ErrorAt(n->token->loc);
     }
     n->type = l->base;
@@ -1161,9 +1169,9 @@ bool SetSymbolType(Node* n) {
     n->type = l;
     break;
   case Node::kDot:
-    for (auto ft{GetEssentialType(l)->base}; ft; ft = ft->next) {
-      if (ft->field_name->Raw() == n->rhs->token->Raw()) {
-        n->type = ft;
+    for (auto ft{GetEssentialType(l)->next}; ft; ft = ft->next) {
+      if (ft->name->Raw() == n->rhs->token->Raw()) {
+        n->type = ft->base;
         return true;
       }
     }
@@ -1258,7 +1266,7 @@ ostream& operator<<(ostream& os, Type* t) {
         os << ',';
       }
     }
-    os << ')' << t->ret;
+    os << ')' << t->base;
     return os;
   case Type::kVoid:
     os << "void";
@@ -1266,9 +1274,8 @@ ostream& operator<<(ostream& os, Type* t) {
   default:
     os << '{' << magic_enum::enum_name(t->kind)
        << ",name=" << (t->name ? t->name->Raw() : "NULL")
-       << ",base=" << t->base
        << ",next=" << t->next
-       << ",ret=" << t->ret << '}';
+       << ",base=" << t->base << '}';
     return os;
   }
 }
@@ -1280,8 +1287,8 @@ bool SameType(Type* lhs, Type* rhs) {
     return false;
   }
   return lhs->kind == rhs->kind &&
+         SameType(lhs->next, rhs->next) &&
          SameType(lhs->base, rhs->base) &&
-         SameType(lhs->ret, rhs->ret) &&
          lhs->num == rhs->num;
 }
 
