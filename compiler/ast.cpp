@@ -63,6 +63,18 @@ Type* NewTypeField(Token* name, Type* base_type) {
   return new Type{Type::kField, name, nullptr, base_type, 0};
 }
 
+Type* NewTypeArray(Token* name, Type* base_type, int64_t len) {
+  return new Type{Type::kArray, name, nullptr, base_type, len};
+}
+
+Type* NewTypeStruct(Token* name, Type* field_list) {
+  return new Type{Type::kStruct, name, field_list, nullptr, 0};
+}
+
+Type* NewTypeUser(Token* name, Type* base_type) {
+  return new Type{Type::kUser, name, nullptr, base_type, 0};
+}
+
 Symbol* NewSymbol(Symbol::Kind kind, Token* token) {
   return new Symbol{kind, token, nullptr, nullptr, 0};
 }
@@ -580,15 +592,13 @@ Node* TypeSpecifier() {
     auto num{Expect(Token::kInt)};
     Expect("]");
     auto node{NewNode(Node::kType, op)};
-    node->type = NewType(Type::kArray, nullptr);
-    node->type->num = num->value;
 
     auto base_tspec{TypeSpecifier()};
     if (!base_tspec) {
       cerr << "array base type must be specified" << endl;
       ErrorAt(cur_token->loc);
     }
-    node->type->base = base_tspec->type;
+    node->type = NewTypeArray(nullptr, base_tspec->type, num->value);
     return node;
   }
 
@@ -616,7 +626,6 @@ Node* TypeSpecifier() {
 
   if (auto tk{Consume(Token::kStruct)}) {
     auto node{NewNode(Node::kType, tk)};
-    node->type = NewType(Type::kStruct, nullptr);
     Type head;
     Type* ft{&head};
     Expect("{");
@@ -627,7 +636,7 @@ Node* TypeSpecifier() {
       ft->next = NewTypeField(name, tspec->type);
       ft = ft->next;
     }
-    node->type->next = head.next;
+    node->type = NewTypeStruct(nullptr, head.next);
     return node;
   }
 
@@ -741,8 +750,7 @@ Node* TypeDeclaration() {
   auto tspec{TypeSpecifier()};
   Expect(";");
 
-  auto type{NewType(Type::kUser, name_token)};
-  type->base = tspec->type;
+  auto type{NewTypeUser(name_token, tspec->type)};
   if (auto t{types[name_token->Raw()]}; t == nullptr) {
     types[name_token->Raw()] = type;
   } else if (t->kind == Type::kUnknown) {
@@ -1151,9 +1159,7 @@ bool SetSymbolType(Node* n) {
     n->type = l->base;
     break;
   case Node::kStr:
-    n->type = NewType(Type::kArray, nullptr);
-    n->type->base = NewTypeUInt(nullptr, 8);
-    n->type->num = n->value.str.len;
+    n->type = NewTypeArray(nullptr, NewTypeUInt(nullptr, 8), n->value.str.len);
     break;
   case Node::kSizeof:
     n->type = NewTypeInt(nullptr, 64);
