@@ -309,15 +309,15 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->Pop64(os, Asm::kRegL);
     {
       size_t field_off{0};
-      for (auto ft{GetEssentialType(node->lhs->type)->next};
-           ft->name->Raw() != node->rhs->token->Raw();
-           ft = ft->next) {
+      auto ft{GetEssentialType(node->lhs->type)->next};
+      for (; ft->name->Raw() != node->rhs->token->Raw(); ft = ft->next) {
         field_off += Sizeof(ft->name, ft->base);
       }
       if (lval) {
         asmgen->Add64(os, Asm::kRegL, field_off);
       } else {
-        asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, field_off, 64);
+        asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, field_off,
+                      8 * Sizeof(node->rhs->token, ft->base));
       }
     }
     asmgen->Push64(os, Asm::kRegL);

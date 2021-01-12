@@ -8,17 +8,31 @@ func main() int {
   renderer := SDL_CreateRenderer(window, -1, uint(6));
 
   color := 0;
+  color_type := 1;
   dir := 1;
-  var event [16]uint32;
+  var event SDL_Event;
   logo_x := 50;
   logo_y := 50;
 
   for {
-    for SDL_PollEvent(&event[0]) != 0 {
-      if event[0] == uint32(256) { // SDL_QUIT
+    for SDL_PollEvent(&event) != 0 {
+      if event.event_type == uint32(256) { // SDL_QUIT
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 0;
+      } else if event.event_type == uint32(0x300) { // SDL_KEYDOWN
+        if event.keysym.keycode == 0x4000004f { // SDLK_RIGHT
+          logo_x += 1;
+        } else if event.keysym.keycode == 0x40000050 { // SDLK_LEFT
+          logo_x -= 1;
+        } else if event.keysym.keycode == 0x40000051 { // SDLK_DOWN
+          logo_y += 1;
+        } else if event.keysym.keycode == 0x40000052 { // SDLK_UP
+          logo_y -= 1;
+        } else if event.keysym.keycode == ' ' { // SDLK_SPACE
+          color_type++;
+          if color_type == 8 { color_type = 1; }
+        }
       }
     }
 
@@ -29,7 +43,10 @@ func main() int {
       dir = 1;
     }
 
-    SDL_SetRenderDrawColor(renderer, 0, color, color, 255);
+    r := color_type / 4;
+    g := (color_type - r * 4) / 2;
+    b := color_type - r * 4 - g * 2;
+    SDL_SetRenderDrawColor(renderer, r * color, g * color, b * color, 255);
     SDL_RenderClear(renderer);
 
     SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
@@ -75,7 +92,7 @@ extern "C" SDL_Init func(flag uint) int;
 extern "C" SDL_GetError func() *byte;
 extern "C" SDL_CreateWindow func(title *byte, x, y, w, h int, flags uint) *int;
 extern "C" SDL_CreateRenderer func(win *int, index int, flags uint) *int;
-extern "C" SDL_PollEvent func(e *uint32) int;
+extern "C" SDL_PollEvent func(e *SDL_Event) int;
 extern "C" SDL_DestroyWindow func(win *int);
 extern "C" SDL_Quit func();
 extern "C" SDL_SetRenderDrawColor func(ren *int, r, g, b, a int);
@@ -85,3 +102,20 @@ extern "C" SDL_RenderDrawLine func(ren *int, x1, y1, x2, y2 int);
 extern "C" SDL_RenderPresent func(ren *int);
 extern "C" SDL_Delay func(ms int);
 extern "C" printf func(format *byte, ...) int;
+
+type SDL_Event struct {
+  event_type uint32;
+  timestamp uint32;
+  window_id uint32;
+  state uint8;
+  repeat uint8;
+  reserved uint16;
+  keysym struct {
+    scancode int32;
+    keycode int32;
+    mod uint16;
+    reserved uint16;
+    unused uint32;
+  };
+  reserved2 [8]int32;
+};
