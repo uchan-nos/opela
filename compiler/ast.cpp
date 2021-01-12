@@ -550,6 +550,9 @@ Node* Postfix() {
     } else if (auto op{Consume(".")}) {
       auto field_name{Expect(Token::kId)};
       node = NewNodeExpr(Node::kDot, op, node, NewNode(Node::kId, field_name));
+    } else if (auto op{Consume("->")}) {
+      auto field_name{Expect(Token::kId)};
+      node = NewNodeExpr(Node::kArrow, op, node, NewNode(Node::kId, field_name));
     } else {
       return node;
     }
@@ -959,6 +962,20 @@ bool SetSymbolType(Node* n) {
       cerr << "COMPILER BUG: rhs of . must be an identifier" << endl;
       ErrorAt(n->rhs->token->loc);
     }
+  } else if (n->kind == Node::kArrow) {
+    changed |= SetSymbolType(n->lhs);
+    auto l{GetEssentialType(n->lhs->type)};
+    if (!l) {
+      return changed;
+    }
+    auto lb{GetEssentialType(l->base)};
+    if (l->kind != Type::kPointer || lb->kind != Type::kStruct) {
+      cerr << "lhs of -> must be a pointer to struct: " << l << endl;
+      ErrorAt(n->lhs->token->loc);
+    } else if (n->rhs->kind != Node::kId) {
+      cerr << "COMPILER BUG: rhs of -> must be an identifier" << endl;
+      ErrorAt(n->rhs->token->loc);
+    }
   } else if (n->kind == Node::kType) {
     if (n->tspec->type->kind == Type::kUnknown &&
         n->tspec->type->name && types[n->tspec->type->name->Raw()]) {
@@ -1182,6 +1199,18 @@ bool SetSymbolType(Node* n) {
       }
     }
     return false;
+  case Node::kArrow:
+    if (auto pt{GetEssentialType(l)}; pt->kind == Type::kPointer) {
+      for (auto ft{GetEssentialType(pt->base)->next}; ft; ft = ft->next) {
+        if (ft->name->Raw() == n->rhs->token->Raw()) {
+          n->type = ft->base;
+          return true;
+        }
+      }
+      return false;
+    }
+    cerr << "non-pointer type: " << l << endl;
+    ErrorAt(n->lhs->token->loc);
   }
   return true;
 }

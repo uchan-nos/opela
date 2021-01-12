@@ -118,6 +118,7 @@ struct Node {
     kDec, // postfix increment
     kInitList, // initializer list
     kDot, // struct.field
+    kArrow, // pointer->field
   } kind;
 
   Token* token; // このノードを代表するトークン

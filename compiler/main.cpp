@@ -322,6 +322,24 @@ void GenerateAsm(ostream& os, Node* node,
     }
     asmgen->Push64(os, Asm::kRegL);
     return;
+  case Node::kArrow:
+    GenerateAsm(os, node->lhs, label_break, label_cont, false);
+    asmgen->Pop64(os, Asm::kRegL);
+    {
+      size_t field_off{0};
+      for (auto ft{GetEssentialType(node->lhs->type->base)->next};
+           ft->name->Raw() != node->rhs->token->Raw();
+           ft = ft->next) {
+        field_off += Sizeof(ft->name, ft->base);
+      }
+      if (lval) {
+        asmgen->Add64(os, Asm::kRegL, field_off);
+      } else {
+        asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, field_off, 64);
+      }
+    }
+    asmgen->Push64(os, Asm::kRegL);
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }

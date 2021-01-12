@@ -121,7 +121,7 @@ vector<Token> Tokenize(const char* p) {
     }
 
     if (string_view op{p, 2};
-        op == "||" || op == "&&" || op == "++" || op == "--") {
+        op == "||" || op == "&&" || op == "++" || op == "--" || op == "->") {
       tokens.push_back(Token{Token::kReserved, p, 2, 0});
       p += 2;
       continue;
