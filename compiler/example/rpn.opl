@@ -35,15 +35,12 @@ func main() {
       stk_i -= 1;
     } else { // digit
       stk_i += 1;
-      stk[stk_i] = p[i] - '0';
+      stk[stk_i] = int(p[i]) - '0';
     }
   }
 
-  var s [2]byte;
-  s[0] = stk[stk_i] + '0';
-  s[1] = '\n';
-  write(1, &s[0], 2);
+  printf("%d\n", stk[stk_i]);
 }
 
 extern "C" read func(fd int, s *byte, n int) int;
-extern "C" write func(fd int, s *byte, n int) int;
+extern "C" printf func(format *byte, ...) int;
