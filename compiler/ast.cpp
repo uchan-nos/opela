@@ -859,7 +859,7 @@ bool SetTypeIntegerBinaryExpr(Node* n) {
              << "' is not castable to " << r << endl;
         ErrorAt(n->lhs->token->loc);
       }
-    } else {
+    } else if (n->rhs->token->kind == Token::kInt) {
       if (IsCastable(n->rhs, l)) {
         n->type = n->rhs->type = l;
       } else {
@@ -867,6 +867,11 @@ bool SetTypeIntegerBinaryExpr(Node* n) {
              << "' is not castable to " << l << endl;
         ErrorAt(n->rhs->token->loc);
       }
+    } else {
+      // 両辺どちらも定数ではない
+      cerr << "not implemented expression "
+           << l << ' ' << n->token->Raw() << ' ' << r << endl;
+      ErrorAt(n->token->loc);
     }
   }
   return true;
