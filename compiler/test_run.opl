@@ -94,6 +94,7 @@ func main() {
   TEST_INT(8,  testUserTypeParam());
   TEST_INT(5,  testStructArrowOp());
   TEST_INT(8,  testStructArg());
+  TEST_INT(42, testRecursiveType());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -208,6 +209,7 @@ func testStructType() int { var x myIntStruct = {3, 8}; x.c = x.a + x.b; x.c; }
 func testUserTypeParam() int { var x myInt = 5; myAdd32(myInt(3), x); }
 func testStructArrowOp() int { var x myIntStruct = {3, 2}; p := &x; p->a + x.b; }
 func testStructArg() int { var x myIntStruct = {7}; myIncField(&x); x.a; }
+func testRecursiveType() int { var x myNode = {42}; var y myNode = {2, &x}; y.next->value; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
@@ -225,6 +227,7 @@ type myInt int32;
 extern "C" variadic_sum func(argc int, ...) int;
 type myIntStruct struct { a int; b int; c int; };
 func myIncField(x *myIntStruct) { x->a++; }
+type myNode struct { value int; next *myNode; };
 
 //test_stdout 'foo' 'func main() { write(1,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
 
