@@ -1,0 +1,69 @@
+func main() {
+  node := append(&head, alloc(2));
+  append(&head, alloc(5));
+
+  insert(node, alloc(4));
+  insert(node, alloc(3));
+
+  for n := head.next; n; n = n->next {
+    printf("%ld ", n->value);
+  }
+  printf("\n");
+
+  remove_one(&head, 4);
+
+  for n = head.next; n; n = n->next {
+    printf("%ld ", n->value);
+  }
+  printf("\n");
+}
+
+func alloc(value int) *Node {
+  p := &buf[free_idx];
+  p->value = value;
+  free_idx++;
+  p;
+}
+
+func append(list, node *Node) *Node {
+  for list->next {
+    list = list->next;
+  }
+  list->next = node;
+}
+
+func insert(pos, node *Node) *Node {
+  node->next = pos->next;
+  pos->next = node;
+}
+
+func remove_next(pos *Node) *Node {
+  node := pos->next;
+  pos->next = node->next;
+  node->next = NULL;
+  node;
+}
+
+func remove_one(list *Node, value int) *Node {
+  for list->next {
+    if list->next->value == value {
+      return remove_next(list);
+    }
+    list = list->next;
+  }
+  0;
+}
+
+type Node struct {
+  value int;
+  next *Node;
+};
+
+var (
+  buf [128]Node;
+  free_idx uint = 0;
+  head Node = {0, 0};
+  NULL *Node = 0;
+)
+
+extern "C" printf func(format *byte, ...) int;

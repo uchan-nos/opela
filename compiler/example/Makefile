@@ -9,7 +9,7 @@ ARCH = x86_64
 endif
 
 .PHONY: all
-all: rpn
+all: rpn sdl list
 
 .PHONY: clean
 clean:
@@ -19,6 +19,8 @@ rpn: rpn.o
 
 sdl: sdl.o
 	cc -o $@ $< -lSDL2
+
+list: list.o
 
 ../opelac:
 	make -C .. opelac

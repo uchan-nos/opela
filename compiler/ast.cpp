@@ -1102,9 +1102,16 @@ bool SetSymbolType(Node* n) {
     n->type = l;
     break;
   case Node::kBlock:
-    for (auto stmt{n->next}; stmt; stmt = stmt->next) {
+    if (auto stmt{n->next}) {
+      bool all_typed{true};
+      for (; stmt->next; stmt = stmt->next) {
+        changed |= SetSymbolType(stmt);
+        all_typed &= stmt->type != nullptr;
+      }
       changed |= SetSymbolType(stmt);
-      n->type = stmt->type;
+      if (all_typed && stmt->type) {
+        n->type = stmt->type;
+      }
     }
     return changed;
   case Node::kCall:

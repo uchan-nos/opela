@@ -209,12 +209,17 @@ class AsmX8664 : public Asm {
 
   void LEA(std::ostream& os, Register dest, Register base,
            int scale, Register index) override {
-    if (scale < 0) {
-      os << "    neg " << RegName(index) << "\n";
-      scale = -scale;
+    if (-8 <= scale && scale <= 8) {
+      if (scale < 0) {
+        os << "    neg " << RegName(index) << "\n";
+        scale = -scale;
+      }
+      os << "    lea " << RegName(dest) << ", [" << RegName(base)
+         << " + " << scale << "*" << RegName(index) << "]\n";
+    } else {
+      os << "    imul r10, " << RegName(index) << ", " << scale << "\n";
+      os << "    lea " << RegName(dest) << ", [" << RegName(base) << "+r10]\n";
     }
-    os << "    lea " << RegName(dest) << ", [" << RegName(base)
-       << " + " << scale << "*" << RegName(index) << "]\n";
   }
 
   void Load64(std::ostream& os, Register dest, Register addr) override {
