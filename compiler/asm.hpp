@@ -48,6 +48,7 @@ class Asm {
     kRegArg5,
     kRegRet,
     kRegZero,
+    kRegTmp,
     kRegNum,
   };
 
@@ -118,7 +119,7 @@ class AsmX8664 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "a", "di", "bp", "sp",
-    "di", "si", "d", "c", "r8", "r9", "a", "zero",
+    "di", "si", "d", "c", "r8", "r9", "a", "zero", "r10",
   };
   static std::string RegName(std::string stem, unsigned bytes) {
     if (stem == "zero") {
@@ -423,7 +424,7 @@ class AsmAArch64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "8", "9", "29", "sp",
-    "0", "1", "2", "3", "4", "5", "0", "zr",
+    "0", "1", "2", "3", "4", "5", "0", "zr", "10",
   };
   static std::string RegName(std::string stem, unsigned bytes) {
     if (stem == "sp") {
@@ -441,12 +442,25 @@ class AsmAArch64 : public Asm {
   }
 
   void Mov64(std::ostream& os, Register dest, uint64_t value) override {
-    os << "    mov " << RegName(dest) << ", #" << value << "\n";
+    if (value <= 0xffffu) {
+      os << "    mov " << RegName(dest) << ", #" << value << "\n";
+      return;
+    }
+
+    bool first = true;
+    for (int shift = 0; shift < 4; ++shift) {
+      if (uint16_t v = value & 0xffffu; v != 0) {
+        os << (first ? "    movz " : "    movk ") << RegName(dest)
+           << ", #" << v << ", lsl #" << (shift * 16) << "\n";
+        first = false;
+      }
+      value >>= 16;
+    }
   }
 
   void Push64(std::ostream& os, uint64_t v) override {
-    os << "    mov x8, " << v << '\n';
-    os << "    str x8, [sp, #-16]!\n";
+    Mov64(os, Asm::kRegTmp, v);
+    os << "    str x10, [sp, #-16]!\n";
   }
 
   void Push64(std::ostream& os, Register reg) override {

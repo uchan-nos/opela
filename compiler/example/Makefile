@@ -18,7 +18,7 @@ clean:
 rpn: rpn.o
 
 sdl: sdl.o
-	cc -o $@ $< -lSDL2
+	cc -o $@ $< $(LDFLAGS) -lSDL2
 
 list: list.o
 
