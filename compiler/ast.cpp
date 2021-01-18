@@ -169,6 +169,13 @@ pair<char*, size_t> DecodeEscapeSequence(Token* tk_str) {
 
 //vector<Node*> unknown_type_nodes;
 
+bool IsIntegerLiteral(Node* n) {
+  if (!n->token) {
+   return false;
+  }
+  return n->token->kind == Token::kInt || n->token->kind == Token::kChar;
+}
+
 } // namespace
 
 std::size_t Context::StackSize() const {
@@ -846,12 +853,13 @@ bool SetTypeIntegerBinaryExpr(Node* n) {
   } else if (l->kind == Type::kUInt && r->kind == Type::kUInt) {
     n->type = NewTypeUInt(nullptr, max(l->num, r->num));
   } else {
-    if (n->lhs->token->kind == Token::kInt &&
-        n->rhs->token->kind == Token::kInt) {
+    bool lhs_literal = IsIntegerLiteral(n->lhs);
+    bool rhs_literal = IsIntegerLiteral(n->rhs);
+    if (lhs_literal && rhs_literal) {
       // 両辺が定数
       auto new_type{NewTypeInt(nullptr, max(l->num, r->num))};
       n->lhs->type = n->rhs->type = new_type;
-    } else if (n->lhs->token->kind == Token::kInt) {
+    } else if (lhs_literal) {
       if (IsCastable(n->lhs, r)) {
         n->type = n->lhs->type = r;
       } else {
@@ -859,7 +867,7 @@ bool SetTypeIntegerBinaryExpr(Node* n) {
              << "' is not castable to " << r << endl;
         ErrorAt(n->lhs->token->loc);
       }
-    } else if (n->rhs->token->kind == Token::kInt) {
+    } else if (rhs_literal) {
       if (IsCastable(n->rhs, l)) {
         n->type = n->rhs->type = l;
       } else {
