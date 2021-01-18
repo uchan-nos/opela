@@ -646,7 +646,44 @@ int main(int argc, char** argv) {
   if (!gvar_init_values.empty()) {
     asmgen->FuncPrologue(cout, "_init_opela");
     for (auto [ sym, init ] : gvar_init_values) {
-      if (init && init->kind != Node::kInt) {
+      if (init && init->kind == Node::kInitList) {
+        if (sym->type->kind == Type::kArray) {
+          auto stride{Sizeof(sym->token, sym->type->base)};
+          auto elem{init->next}; // 初期化リストの先頭要素
+          int64_t i;
+          for (i = 0; i < init->value.i; ++i) {
+            GenerateAsm(cout, elem, "", "");
+            LoadSymAddr(cout, sym->token);
+            asmgen->Pop64(cout, Asm::kRegR);
+            asmgen->StoreN(cout, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
+            elem = elem->next;
+          }
+          for (; i < sym->type->num; ++i) {
+            LoadSymAddr(cout, sym->token);
+            asmgen->StoreN(cout, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
+          }
+        } else if (GetEssentialType(sym->type)->kind == Type::kStruct) {
+          size_t field_off{0};
+          auto elem{init->next};
+          for (auto ft{GetEssentialType(sym->type)->next}; ft; ft = ft->next) {
+            auto field_size{Sizeof(ft->name, ft->base)};
+            if (elem) {
+              GenerateAsm(cout, elem, "", "");
+              LoadSymAddr(cout, sym->token);
+              asmgen->Pop64(cout, Asm::kRegR);
+              asmgen->StoreN(cout, Asm::kRegL, field_off, Asm::kRegR, 8 * field_size);
+              elem = elem->next;
+            } else {
+              LoadSymAddr(cout, sym->token);
+              asmgen->StoreN(cout, Asm::kRegL, field_off, Asm::kRegZero, 8 * field_size);
+            }
+            field_off += field_size;
+          }
+        } else {
+          cerr << "initializer list is not supported for " << sym->type << endl;
+          ErrorAt(init->token->loc);
+        }
+      } else if (init && init->kind != Node::kInt) {
         GenerateAsm(cout, init, "", "");
         asmgen->Pop64(cout, Asm::kRegL);
         asmgen->StoreN(cout, sym->token->Raw(), Asm::kRegL, 64);
@@ -658,12 +695,13 @@ int main(int argc, char** argv) {
 
     asmgen->SectionData(cout, false);
     for (auto [ sym, init ] : gvar_init_values) {
+      size_t sym_size = Sizeof(sym->token, sym->type);
       cout << asmgen->SymLabel(sym->token->Raw()) << ":\n";
-      cout << "    " << size_map[Sizeof(sym->token, sym->type)] << ' ';
       if (init && init->kind == Node::kInt) {
+        cout << "    " << size_map[sym_size] << ' ';
         cout << init->value.i << "\n";
       } else {
-        cout << "0\n";
+        cout << "    .zero " << sym_size << "\n";
       }
     }
   }
