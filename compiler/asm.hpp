@@ -22,6 +22,17 @@ constexpr unsigned WordSize(unsigned bits) {
   return std::numeric_limits<unsigned>::max();
 }
 
+int ShiftAmount(uint64_t value) {
+  uint64_t mask = 1;
+  for (int i = 0; i < 64; ++i) {
+    if (value == mask) {
+      return i;
+    }
+    mask <<= 1;
+  }
+  return -1; // value is not 2-power number.
+}
+
 class Asm {
  public:
   enum Register {
@@ -489,13 +500,8 @@ class AsmAArch64 : public Asm {
       scale = -scale;
     }
 
-    int shift_amount = 0;
-    switch (scale) {
-    case 1: shift_amount = 0; break;
-    case 2: shift_amount = 1; break;
-    case 4: shift_amount = 2; break;
-    case 8: shift_amount = 3; break;
-    default:
+    int shift_amount = ShiftAmount(scale);
+    if (shift_amount == -1) {
       std::cerr << "cannot handle non 2-power scale" << std::endl;
     }
     os << "    " << op << " " << RegName(dest) << ", " << RegName(base)
