@@ -61,6 +61,8 @@ void LoadSymAddr(ostream& os, Token* sym_id) {
 
 void GenerateFuncCall(ostream& os, Node* node,
                       string_view label_break, string_view label_cont);
+void GenerateInitList(ostream& os, Symbol* sym, Node* init_list,
+                      string_view label_break, string_view label_cont);
 
 void GenerateAsm(ostream& os, Node* node,
                  string_view label_break, string_view label_cont,
@@ -190,50 +192,11 @@ void GenerateAsm(ostream& os, Node* node,
     asmgen->FuncEpilogue(os, cur_ctx);
     return;
   case Node::kDefVar:
-    if (node->lhs->value.sym->kind == Symbol::kGVar) {
-      gvar_init_values[node->lhs->value.sym] = node->rhs;
+    if (auto sym{node->lhs->value.sym}; sym->kind == Symbol::kGVar) {
+      gvar_init_values[sym] = node->rhs;
       return;
     } else if (node->rhs && node->rhs->kind == Node::kInitList) {
-      if (node->lhs->type->kind == Type::kArray) {
-        auto stride{Sizeof(node->lhs->token, node->lhs->type->base)};
-        auto elem{node->rhs->next}; // 初期化リストの先頭要素
-        int64_t i;
-        for (i = 0; i < node->rhs->value.i; ++i) {
-          GenerateAsm(os, elem, label_break, label_cont);
-          GenerateAsm(os, node->lhs, label_break, label_cont, true);
-          asmgen->Pop64(os, Asm::kRegL);
-          asmgen->Pop64(os, Asm::kRegR);
-          asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
-          elem = elem->next;
-        }
-        for (; i < node->lhs->type->num; ++i) {
-          GenerateAsm(os, node->lhs, label_break, label_cont, true);
-          asmgen->Pop64(os, Asm::kRegL);
-          asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
-        }
-      } else if (GetEssentialType(node->lhs->type)->kind == Type::kStruct) {
-        size_t field_off{0};
-        auto elem{node->rhs->next};
-        for (auto ft{GetEssentialType(node->lhs->type)->next}; ft; ft = ft->next) {
-          auto field_size{Sizeof(ft->name, ft->base)};
-          if (elem) {
-            GenerateAsm(os, elem, label_break, label_cont);
-            GenerateAsm(os, node->lhs, label_break, label_cont, true);
-            asmgen->Pop64(os, Asm::kRegL);
-            asmgen->Pop64(os, Asm::kRegR);
-            asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegR, 8 * field_size);
-            elem = elem->next;
-          } else {
-            GenerateAsm(os, node->lhs, label_break, label_cont, true);
-            asmgen->Pop64(os, Asm::kRegL);
-            asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegZero, 8 * field_size);
-          }
-          field_off += field_size;
-        }
-      } else {
-        cerr << "initializer list is not supported for " << node->lhs->type << endl;
-        ErrorAt(node->lhs->token->loc);
-      }
+      GenerateInitList(os, sym, node->rhs, label_break, label_cont);
     } else if (node->rhs) { // 初期値付き変数定義
       break;
     }
@@ -553,6 +516,46 @@ void GenerateFuncCall(ostream& os, Node* node,
   asmgen->Push64(os, Asm::kRegRet);
 }
 
+void GenerateInitList(ostream& os, Symbol* sym, Node* init_list,
+                      string_view label_break, string_view label_cont) {
+  if (sym->type->kind == Type::kArray) {
+    auto stride{Sizeof(sym->token, sym->type->base)};
+    auto elem{init_list->next}; // 初期化リストの先頭要素
+    int64_t i;
+    for (i = 0; i < init_list->value.i; ++i) {
+      GenerateAsm(os, elem, label_break, label_cont);
+      LoadSymAddr(os, sym->token);
+      asmgen->Pop64(os, Asm::kRegR);
+      asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
+      elem = elem->next;
+    }
+    for (; i < sym->type->num; ++i) {
+      LoadSymAddr(os, sym->token);
+      asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
+    }
+  } else if (GetEssentialType(sym->type)->kind == Type::kStruct) {
+    size_t field_off{0};
+    auto elem{init_list->next};
+    for (auto ft{GetEssentialType(sym->type)->next}; ft; ft = ft->next) {
+      auto field_size{Sizeof(ft->name, ft->base)};
+      if (elem) {
+        GenerateAsm(os, elem, "", "");
+        LoadSymAddr(os, sym->token);
+        asmgen->Pop64(os, Asm::kRegR);
+        asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegR, 8 * field_size);
+        elem = elem->next;
+      } else {
+        LoadSymAddr(os, sym->token);
+        asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegZero, 8 * field_size);
+      }
+      field_off += field_size;
+    }
+  } else {
+    cerr << "initializer list is not supported for " << sym->type << endl;
+    ErrorAt(init_list->token->loc);
+  }
+}
+
 int ParseArgs(int argc, char** argv) {
   int i = 1;
   while (i < argc) {
@@ -647,42 +650,7 @@ int main(int argc, char** argv) {
     asmgen->FuncPrologue(cout, "_init_opela");
     for (auto [ sym, init ] : gvar_init_values) {
       if (init && init->kind == Node::kInitList) {
-        if (sym->type->kind == Type::kArray) {
-          auto stride{Sizeof(sym->token, sym->type->base)};
-          auto elem{init->next}; // 初期化リストの先頭要素
-          int64_t i;
-          for (i = 0; i < init->value.i; ++i) {
-            GenerateAsm(cout, elem, "", "");
-            LoadSymAddr(cout, sym->token);
-            asmgen->Pop64(cout, Asm::kRegR);
-            asmgen->StoreN(cout, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
-            elem = elem->next;
-          }
-          for (; i < sym->type->num; ++i) {
-            LoadSymAddr(cout, sym->token);
-            asmgen->StoreN(cout, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
-          }
-        } else if (GetEssentialType(sym->type)->kind == Type::kStruct) {
-          size_t field_off{0};
-          auto elem{init->next};
-          for (auto ft{GetEssentialType(sym->type)->next}; ft; ft = ft->next) {
-            auto field_size{Sizeof(ft->name, ft->base)};
-            if (elem) {
-              GenerateAsm(cout, elem, "", "");
-              LoadSymAddr(cout, sym->token);
-              asmgen->Pop64(cout, Asm::kRegR);
-              asmgen->StoreN(cout, Asm::kRegL, field_off, Asm::kRegR, 8 * field_size);
-              elem = elem->next;
-            } else {
-              LoadSymAddr(cout, sym->token);
-              asmgen->StoreN(cout, Asm::kRegL, field_off, Asm::kRegZero, 8 * field_size);
-            }
-            field_off += field_size;
-          }
-        } else {
-          cerr << "initializer list is not supported for " << sym->type << endl;
-          ErrorAt(init->token->loc);
-        }
+        GenerateInitList(cout, sym, init, "", "");
       } else if (init && init->kind != Node::kInt) {
         GenerateAsm(cout, init, "", "");
         asmgen->Pop64(cout, Asm::kRegL);
