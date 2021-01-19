@@ -10,7 +10,7 @@ ARCH = x86_64
 endif
 
 opelac: $(OBJS)
-	$(CXX) $(CXXFLAGS) -o $@ $^
+	$(CXX) $(CXXFLAGS) -Wl,--export-dynamic -o $@ $^
 
 .PHONY: test test-x86_64 test-aarch64
 test:

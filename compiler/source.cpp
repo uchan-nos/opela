@@ -1,7 +1,9 @@
 #include "source.hpp"
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
+#include <execinfo.h>
 
 using namespace std;
 
@@ -17,6 +19,11 @@ void ErrorAt(const char* loc) {
 
   cerr << string(line, line_end - line) << endl;
   cerr << string(loc - line, ' ') << '^' << endl;
+
+  array<void*, 128> trace;
+  int n{backtrace(&trace[0], trace.size())};
+  backtrace_symbols_fd(&trace[0], n, 2);
+
   exit(1);
 }
 
