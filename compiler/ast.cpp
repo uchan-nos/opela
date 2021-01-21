@@ -571,16 +571,6 @@ Node* Primary() {
     auto node{Expr()};
     Expect(")");
     return node;
-  } else if (auto tk{Consume(Token::kId)}) {
-    auto node{NewNode(Node::kId, tk)};
-    if (auto sym{LookupSymbol(cur_ctx, tk->Raw())}) {
-      node->value.sym = sym;
-    } else if (auto t = FindType(tk)) {
-      node->type = t;
-    } else {
-      undeclared_id_nodes.push_back(node);
-    }
-    return node;
   } else if (auto tk{Consume(Token::kStr)}) {
     auto decoded{DecodeEscapeSequence(tk)};
     auto node{NewNode(Node::kStr, tk)};
@@ -591,13 +581,35 @@ Node* Primary() {
     auto n{NewNodeInt(tk, tk->value, 8)};
     n->type = NewTypeUInt(nullptr, 8);
     return n;
+  } else if (auto tspec{TypeSpecifier(false)}) {
+    if (tspec->token->kind == Token::kId) {
+      auto tk{tspec->token};
+      auto node{NewNode(Node::kId, tk)};
+      if (auto sym{LookupSymbol(cur_ctx, tk->Raw())}) {
+        node->value.sym = sym;
+      } else if (auto t = FindType(tk)) {
+        node->type = t;
+      } else {
+        undeclared_id_nodes.push_back(node);
+      }
+      return node;
+    } else if (Peek("{")) {
+      auto init_list{InitializerList()};
+      auto node{NewNode(Node::kCompoLit, init_list->token)};
+      node->lhs = tspec;
+      node->rhs = init_list;
+      return node;
+    } else {
+      cerr << "unexpected type specifier" << endl;
+      ErrorAt(tspec->token->loc);
+    }
   }
 
   auto tk{Expect(Token::kInt)};
   return NewNodeInt(tk, tk->value, 64);
 }
 
-Node* TypeSpecifier() {
+Node* TypeSpecifier(bool register_type) {
   if (auto op{Consume("[")}) { // 配列
     auto num{Expect(Token::kInt)};
     Expect("]");
@@ -653,7 +665,7 @@ Node* TypeSpecifier() {
   if (auto type_name{Consume(Token::kId)}) {
     auto node{NewNode(Node::kType, type_name)};
     auto t{FindType(type_name)};
-    if (!t) {
+    if (register_type && !t) {
       t = NewType(Type::kUnknown, type_name);
       types[type_name->Raw()] = t;
     }
@@ -1231,6 +1243,20 @@ bool SetSymbolType(Node* n) {
     }
     cerr << "non-pointer type: " << l << endl;
     ErrorAt(n->lhs->token->loc);
+  case Node::kCompoLit:
+    {
+      Node* init_list{n->rhs};
+      bool all_typed{true};
+      for (auto elem{init_list->next}; elem; elem = elem->next) {
+        changed |= SetSymbolType(elem);
+        all_typed &= (elem->type != nullptr);
+      }
+      if (all_typed) {
+        n->type = l;
+        changed = true;
+      }
+    }
+    return changed;
   }
   return true;
 }

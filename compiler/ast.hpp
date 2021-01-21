@@ -119,6 +119,7 @@ struct Node {
     kInitList, // initializer list
     kDot, // struct.field
     kArrow, // pointer->field
+    kCompoLit, // composite literal
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -162,7 +163,7 @@ Node* Multiplicative();
 Node* Unary();
 Node* Postfix();
 Node* Primary();
-Node* TypeSpecifier();
+Node* TypeSpecifier(bool register_type = true);
 Node* ParameterDeclList();
 Node* VariableDefinition();
 Node* TypeDeclaration();

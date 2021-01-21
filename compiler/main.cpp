@@ -63,6 +63,8 @@ void GenerateFuncCall(ostream& os, Node* node,
                       string_view label_break, string_view label_cont);
 void GenerateInitList(ostream& os, Symbol* sym, Node* init_list,
                       string_view label_break, string_view label_cont);
+void GenerateCompoLit(ostream& os, Node* compo_lit,
+                      string_view label_break, string_view label_cont);
 
 void GenerateAsm(ostream& os, Node* node,
                  string_view label_break, string_view label_cont,
@@ -303,6 +305,14 @@ void GenerateAsm(ostream& os, Node* node,
     }
     asmgen->Push64(os, Asm::kRegL);
     return;
+  case Node::kCompoLit:
+    {
+      auto compo_type{GetEssentialType(node->lhs->type)};
+      auto compo_size{Sizeof(node->lhs->token, compo_type)};
+      asmgen->Sub64(os, Asm::kRegSP, (compo_size + 15) & -16);
+      GenerateCompoLit(os, node, label_break, label_cont);
+    }
+    return;
   default: // caseが足りないという警告を抑制する
     break;
   }
@@ -320,7 +330,9 @@ void GenerateAsm(ostream& os, Node* node,
     GenerateAsm(os, node->rhs, label_break, label_cont);
     asmgen->Pop64(os, Asm::kRegR);
   }
-  asmgen->Pop64(os, Asm::kRegL);
+  if (node->lhs->kind != Node::kCompoLit) {
+    asmgen->Pop64(os, Asm::kRegL);
+  }
 
   switch (node->kind) {
   case Node::kAdd:
@@ -394,11 +406,12 @@ void GenerateAsm(ostream& os, Node* node,
   case Node::kSubscr:
     {
       auto scale{Sizeof(node->token, node->type)};
+      auto addr{node->lhs->kind == Node::kCompoLit ? Asm::kRegSP : Asm::kRegL};
       if (lval) {
-        asmgen->LEA(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
+        asmgen->LEA(os, Asm::kRegL, addr, scale, Asm::kRegR);
       } else {
         if (scale == 1 || scale == 2 || scale == 4 || scale == 8) {
-          asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, scale, Asm::kRegR);
+          asmgen->LoadN(os, Asm::kRegL, addr, scale, Asm::kRegR);
         } else {
           cerr << "non-standard scale is not supported: " << scale << endl;
           ErrorAt(node->token->loc);
@@ -408,6 +421,11 @@ void GenerateAsm(ostream& os, Node* node,
     break;
   default: // caseが足りないという警告を抑制する
     break;
+  }
+
+  if (node->lhs->kind == Node::kCompoLit) {
+    auto compo_size{Sizeof(node->lhs->token, node->lhs->type)};
+    asmgen->Add64(os, Asm::kRegSP, (compo_size + 15) & -16);
   }
 
   asmgen->Push64(os, Asm::kRegL);
@@ -552,6 +570,44 @@ void GenerateInitList(ostream& os, Symbol* sym, Node* init_list,
     }
   } else {
     cerr << "initializer list is not supported for " << sym->type << endl;
+    ErrorAt(init_list->token->loc);
+  }
+}
+
+void GenerateCompoLit(ostream& os, Node* compo_lit,
+                      string_view label_break, string_view label_cont) {
+  auto compo_type{GetEssentialType(compo_lit->lhs->type)};
+  auto init_list{compo_lit->rhs};
+  if (compo_type->kind == Type::kArray) {
+    auto stride{Sizeof(compo_lit->lhs->token, compo_type->base)};
+    auto elem{init_list->next}; // 初期化リストの先頭要素
+    int64_t i;
+    for (i = 0; i < init_list->value.i; ++i) {
+      GenerateAsm(os, elem, label_break, label_cont);
+      asmgen->Pop64(os, Asm::kRegR);
+      asmgen->StoreN(os, Asm::kRegSP, stride * i, Asm::kRegR, 8 * stride);
+      elem = elem->next;
+    }
+    for (; i < compo_type->num; ++i) {
+      asmgen->StoreN(os, Asm::kRegSP, stride * i, Asm::kRegZero, 8 * stride);
+    }
+  } else if (compo_type->kind == Type::kStruct) {
+    size_t field_off{0};
+    auto elem{init_list->next};
+    for (auto ft{compo_type->next}; ft; ft = ft->next) {
+      auto field_size{Sizeof(ft->name, ft->base)};
+      if (elem) {
+        GenerateAsm(os, elem, "", "");
+        asmgen->Pop64(os, Asm::kRegR);
+        asmgen->StoreN(os, Asm::kRegSP, field_off, Asm::kRegR, 8 * field_size);
+        elem = elem->next;
+      } else {
+        asmgen->StoreN(os, Asm::kRegSP, field_off, Asm::kRegZero, 8 * field_size);
+      }
+      field_off += field_size;
+    }
+  } else {
+    cerr << "initializer list is not supported for " << compo_type << endl;
     ErrorAt(init_list->token->loc);
   }
 }

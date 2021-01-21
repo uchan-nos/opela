@@ -62,11 +62,13 @@ class Asm {
   };
 
   virtual void Mov64(std::ostream& os, Register dest, uint64_t value) = 0;
+  virtual void Mov64(std::ostream& os, Register dest, Register src) = 0;
   virtual void Push64(std::ostream& os, uint64_t v) = 0;
   virtual void Push64(std::ostream& os, Register reg) = 0;
   virtual void Pop64(std::ostream& os, Register reg) = 0;
   virtual void Add64(std::ostream& os, Register lhs, uint64_t v) = 0;
   virtual void Add64(std::ostream& os, Register lhs, Register rhs) = 0;
+  virtual void Sub64(std::ostream& os, Register lhs, uint64_t v) = 0;
   virtual void Sub64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IMul64(std::ostream& os, Register lhs, Register rhs) = 0;
   virtual void IDiv64(std::ostream& os, Register lhs, Register rhs) = 0;
@@ -172,6 +174,10 @@ class AsmX8664 : public Asm {
     os << "    mov " << RegName(dest) << ", " << value << "\n";
   }
 
+  void Mov64(std::ostream& os, Register dest, Register src) override {
+    os << "    mov " << RegName(dest) << ", " << RegName(src) << "\n";
+  }
+
   void Push64(std::ostream& os, uint64_t v) override {
     os << "    push " << v << '\n';
   }
@@ -190,6 +196,10 @@ class AsmX8664 : public Asm {
 
   void Add64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    add " << RegName(lhs) << ", " << RegName(rhs) << "\n";
+  }
+
+  void Sub64(std::ostream& os, Register lhs, uint64_t v) override {
+    os << "    sub " << RegName(lhs) << ", " << v << "\n";
   }
 
   void Sub64(std::ostream& os, Register lhs, Register rhs) override {
@@ -458,6 +468,10 @@ class AsmAArch64 : public Asm {
     }
   }
 
+  void Mov64(std::ostream& os, Register dest, Register src) override {
+    os << "    mov " << RegName(dest) << ", " << RegName(src) << "\n";
+  }
+
   void Push64(std::ostream& os, uint64_t v) override {
     Mov64(os, Asm::kRegTmp, v);
     os << "    str x10, [sp, #-16]!\n";
@@ -479,6 +493,11 @@ class AsmAArch64 : public Asm {
   void Add64(std::ostream& os, Register lhs, Register rhs) override {
     os << "    add " << RegName(lhs) << ", "
        << RegName(lhs) << ", " << RegName(rhs) << "\n";
+  }
+
+  void Sub64(std::ostream& os, Register lhs, uint64_t v) override {
+    os << "    sub " << RegName(lhs) << ", "
+       << RegName(lhs) << ", #" << v << "\n";
   }
 
   void Sub64(std::ostream& os, Register lhs, Register rhs) override {

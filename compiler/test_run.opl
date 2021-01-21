@@ -97,6 +97,7 @@ func main() {
   TEST_INT(42, testRecursiveType());
   TEST_INT(42, testRecursiveType());
   TEST_INT(0x10f, testGVarInitList());
+  TEST_INT(5,  testArrayLiteral());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -213,6 +214,7 @@ func testStructArrowOp() int { var x myIntStruct = {3, 2}; p := &x; p->a + x.b; 
 func testStructArg() int { var x myIntStruct = {7}; myIncField(&x); x.a; }
 func testRecursiveType() int { var x myNode = {42}; var y myNode = {2, &x}; y.next->value; }
 func testGVarInitList() int { gnode.value + int(gnode.next); }
+func testArrayLiteral() int { [3]int{3, 5, 7}[1]; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
