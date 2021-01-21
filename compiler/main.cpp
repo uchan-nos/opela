@@ -271,7 +271,11 @@ void GenerateAsm(ostream& os, Node* node,
     return;
   case Node::kDot:
     GenerateAsm(os, node->lhs, label_break, label_cont, true);
-    asmgen->Pop64(os, Asm::kRegL);
+    if (node->lhs->kind == Node::kCompoLit) {
+      asmgen->Mov64(os, Asm::kRegL, Asm::kRegSP);
+    } else {
+      asmgen->Pop64(os, Asm::kRegL);
+    }
     {
       size_t field_off{0};
       auto ft{GetEssentialType(node->lhs->type)->next};
@@ -285,11 +289,18 @@ void GenerateAsm(ostream& os, Node* node,
                       8 * Sizeof(node->rhs->token, ft->base));
       }
     }
+    if (node->lhs->kind == Node::kCompoLit) {
+      asmgen->Add64(os, Asm::kRegSP, (Sizeof(node->lhs->token, node->lhs->type) + 15) & -16);
+    }
     asmgen->Push64(os, Asm::kRegL);
     return;
   case Node::kArrow:
     GenerateAsm(os, node->lhs, label_break, label_cont, false);
-    asmgen->Pop64(os, Asm::kRegL);
+    if (node->lhs->kind == Node::kCompoLit) {
+      asmgen->Mov64(os, Asm::kRegL, Asm::kRegSP);
+    } else {
+      asmgen->Pop64(os, Asm::kRegL);
+    }
     {
       size_t field_off{0};
       for (auto ft{GetEssentialType(node->lhs->type->base)->next};
@@ -302,6 +313,9 @@ void GenerateAsm(ostream& os, Node* node,
       } else {
         asmgen->LoadN(os, Asm::kRegL, Asm::kRegL, field_off, 64);
       }
+    }
+    if (node->lhs->kind == Node::kCompoLit) {
+      asmgen->Add64(os, Asm::kRegSP, (Sizeof(node->lhs->token, node->lhs->type) + 15) & -16);
     }
     asmgen->Push64(os, Asm::kRegL);
     return;
