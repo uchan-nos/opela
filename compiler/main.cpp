@@ -198,6 +198,8 @@ void GenerateAsm(ostream& os, Node* node,
       return;
     } else if (node->rhs && node->rhs->kind == Node::kInitList) {
       GenerateInitList(os, sym, node->rhs, label_break, label_cont);
+    } else if (node->rhs && node->rhs->kind == Node::kCompoLit) {
+      GenerateInitList(os, sym, node->rhs->rhs, label_break, label_cont);
     } else if (node->rhs) { // 初期値付き変数定義
       break;
     }
@@ -388,45 +390,6 @@ void GenerateAsm(ostream& os, Node* node,
       auto bits = t->num;
       asmgen->MaskBits(os, Asm::kRegR, bits);
       asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, bits);
-    } else if (node->rhs->kind == Node::kCompoLit) {
-      auto compo_type{node->rhs->lhs->type};
-      auto init_list{node->rhs->rhs};
-      if (compo_type->kind == Type::kArray) {
-        auto stride{Sizeof(node->rhs->lhs->token, compo_type->base)};
-        auto elem{init_list->next}; // 初期化リストの先頭要素
-        int64_t i;
-        for (i = 0; i < init_list->value.i; ++i) {
-          asmgen->Push64(os, Asm::kRegL);
-          GenerateAsm(os, elem, label_break, label_cont);
-          asmgen->Pop64(os, Asm::kRegR);
-          asmgen->Pop64(os, Asm::kRegL);
-          asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegR, 8 * stride);
-          elem = elem->next;
-        }
-        for (; i < compo_type->num; ++i) {
-          asmgen->StoreN(os, Asm::kRegL, stride * i, Asm::kRegZero, 8 * stride);
-        }
-      } else if (compo_type->kind == Type::kStruct) {
-        size_t field_off{0};
-        auto elem{init_list->next};
-        for (auto ft{GetEssentialType(node->lhs->type)->next}; ft; ft = ft->next) {
-          auto field_size{Sizeof(ft->name, ft->base)};
-          if (elem) {
-            asmgen->Push64(os, Asm::kRegL);
-            GenerateAsm(os, elem, label_break, label_cont);
-            asmgen->Pop64(os, Asm::kRegR);
-            asmgen->Pop64(os, Asm::kRegL);
-            asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegR, 8 * field_size);
-            elem = elem->next;
-          } else {
-            asmgen->StoreN(os, Asm::kRegL, field_off, Asm::kRegZero, 8 * field_size);
-          }
-          field_off += field_size;
-        }
-      } else {
-        cerr << "initializer list is not supported for " << compo_type << endl;
-        ErrorAt(init_list->token->loc);
-      }
     } else {
       asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, 64);
     }
