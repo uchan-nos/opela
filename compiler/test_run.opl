@@ -99,6 +99,7 @@ func main() {
   TEST_INT(0x10f, testGVarInitList());
   TEST_INT(5,  testArrayLiteral());
   TEST_INT(15, testStructLiteral());
+  TEST_INT(5,  testStructLiteral2());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -217,6 +218,7 @@ func testRecursiveType() int { var x myNode = {42}; var y myNode = {2, &x}; y.ne
 func testGVarInitList() int { gnode.value + int(gnode.next); }
 func testArrayLiteral() int { [3]int{3, 5, 7}[1]; }
 func testStructLiteral() int { 2 * struct {a int; b int; c int;}{3, 7, 5}.b + 1; }
+func testStructLiteral2() int { x := struct {a int32; b int8;}{-3, 4}; x.b + 1; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
