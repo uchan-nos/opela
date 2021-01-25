@@ -198,8 +198,6 @@ void GenerateAsm(ostream& os, Node* node,
       return;
     } else if (node->rhs && node->rhs->kind == Node::kInitList) {
       GenerateInitList(os, sym, node->rhs, label_break, label_cont);
-    } else if (node->rhs && node->rhs->kind == Node::kCompoLit) {
-      GenerateInitList(os, sym, node->rhs->rhs, label_break, label_cont);
     } else if (node->rhs) { // 初期値付き変数定義
       break;
     }
@@ -390,6 +388,8 @@ void GenerateAsm(ostream& os, Node* node,
       auto bits = t->num;
       asmgen->MaskBits(os, Asm::kRegR, bits);
       asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, bits);
+    } else if (node->rhs->kind == Node::kCompoLit) {
+      GenerateInitList(os, node->lhs->value.sym, node->rhs->rhs, label_break, label_cont);
     } else {
       asmgen->StoreN(os, Asm::kRegL, 0, Asm::kRegR, 64);
     }
