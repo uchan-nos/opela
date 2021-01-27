@@ -80,11 +80,7 @@ func main() int {
 }
 
 func DrawRect(ren *int, w, h, x, y int) {
-  var r [4]uint32;
-  r[0] = uint32(x);
-  r[1] = uint32(y);
-  r[2] = uint32(w);
-  r[3] = uint32(h);
+  r := [4]uint32{uint32(x), uint32(y), uint32(w), uint32(h)};
   SDL_RenderDrawRect(ren, &r[0]);
 }
 
