@@ -38,7 +38,30 @@ function test_stdout() {
   rm tmp tmp.s
 }
 
+function test_argv() {
+  want="$1"
+  input_arg="$2"
+  input_src="$3"
+
+  echo "$input_src" | $opelac > tmp.s
+  cc -o tmp tmp.s cfunc.o
+  ./tmp $input_arg
+  got=$?
+
+  if [ $want -eq $got ]
+  then
+    echo "[  OK  ]: '$input_arg' -> $got"
+    (( ++passed ))
+  else
+    echo "[FAILED]: '$input_arg' -> $got, want $want"
+    (( ++failed ))
+  fi
+
+  rm tmp tmp.s
+}
+
 test_stdout 'foo' 'func main() { write(int32(1),"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
+test_argv 7 "3 4" "func main(argc int, argv **byte) { int(argv[1][0]) - '0' + int(argv[2][0]) - '0'; }"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
