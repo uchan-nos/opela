@@ -947,7 +947,7 @@ bool SetSymbolType(Node* n) {
     if (n->rhs) {
       changed |= SetSymbolType(n->rhs);
     }
-    if (!n->lhs->type || (n->rhs && !n->rhs->type)) {
+    if (!n->cond->type || !n->lhs->type || (n->rhs && !n->rhs->type)) {
       return changed;
     }
   } else if (n->kind == Node::kDefVar) {
