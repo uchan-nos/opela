@@ -1,0 +1,97 @@
+(**********************
+ * トップレベルの構文 *
+ **********************)
+program = { declaration_sequence };
+declaration_sequence = func_or_isr_definition
+                     | extern_declaration
+                     | variable_definition
+                     | type_declaration
+                     ;
+func_or_isr_definition = func_or_isr, identifier, "(", parameter_declaration_list, ")",
+                         [ type_specifier ], compound_statement;
+extern_declaration = "extern", string_literal, identifier, type_specifier, ";";
+variable_definition = "var", variable_specifier, ";"
+                    | "var", "(", { variable_specifier, ";" }, ")";
+type_declaration = "type", identifier, type_specifier, ";";
+func_or_isr = "func" | "isr";
+type_specifier = identifer
+               | "[", integer, "]", type_specifier
+               | "*", type_specifier
+               | func_or_isr, "(", parameter_declaration_list, ")", [ type_specifier ]
+               | "struct", "{", { identifier, type_specifier, ";" } "}"
+               ;
+variable_specifier = identifier, type_specifier;
+
+(******************
+ * ステートメント *
+ ******************)
+statement = jump_statement
+          | selection_statement
+          | iteration_statement
+          | compound_statement
+          | variable_definition
+          | expression_statement
+          ;
+jump_statement = "return", expression, ";"
+               | "break", ";"
+               | "continue", ";"
+               ;
+selection_statement = "if", expression, compound_statement,
+                      [ "else", ( compound_statement | selection_statement ) ];
+iteration_statement = "for", [ expression ], compound_statement
+                    | "for", expression, ";", expression, ";", expression, compound_statement;
+compound_statement = "{", [ statement ], "}";
+expression_statement = expression, [ "++" | "--" ], ";";
+
+(******
+ * 式 *
+ ******)
+assignment_operator = "+=" | "-=" | "*=" | "/=";
+relational_operator = "<" | "<=" | ">" | ">=";
+unary_operator = "+" | "-" | "&" | "*";
+
+expression = assignment_expression;
+
+assignmet_expression = logical_or_expression
+                     | logical_or_expression, assignment_operator, assignment_expression
+                     | identifier, ":=", assignment_expression
+                     ;
+logical_or_expression = logical_and_expression
+                      | logical_or_expression, "||", logical_and_expression
+                      ;
+logical_and_expression = equality_expression
+                      | logical_and_expression, "&&", equality_expression
+                      ;
+equality_expression = relational_expression
+                    | equality_expression, "==", relational_expression
+                    | equality_expression, "!=", relational_expression
+                    ;
+relational_expression = additive_expression
+                      | relational_expression, relational_operator, additive_expression
+                      ;
+additive_expression = multiplicative_expression
+                    | additive_expression, "+", multiplicative_expression
+                    | additive_expression, "-", multiplicative_expression
+                    ;
+multiplicative_expression = unary_expression
+                          | multiplicative_expression, "*", unary_expression
+                          | multiplicative_expression, "/", unary_expression
+                          ;
+unary_expression = postfix_expression
+                 | unary_operator, unary_expression
+                 | "sizeof", "(", type_spec, ")"
+                 ;
+postfix_expression = primary_expression
+                   | postfix_expression, "(", expression_list, ")"
+                   | postfix_expression, "[", expression, "]"
+                   | postfix_expression, ".", identifier
+                   | postfix_expression, "->", identifier
+                   | postfix_expression, "@", type_spec
+                   ;
+primary_expression = "(", expression, ")"
+                   | string_literal
+                   | character_literal
+                   | identifier
+                   | type_spec, initializer_list
+                   | integer
+                   ;
