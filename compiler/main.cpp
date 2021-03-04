@@ -306,9 +306,6 @@ void GenerateAsm(ostream& os, Node* node,
       asmgen->Pop64(os, Asm::kRegL);
       asmgen->MaskBits(os, Asm::kRegL, int_type->num);
       asmgen->Push64(os, Asm::kRegL);
-    } else {
-      cerr << "cast is supported only for integer types" << endl;
-      ErrorAt(node->token->loc);
     }
     return;
   default: // caseが足りないという警告を抑制する

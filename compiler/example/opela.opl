@@ -1,0 +1,133 @@
+func main() {
+  ReadSrc();
+  Tokenize();
+
+  for i := 0; i < tokensLen; i += 1 {
+    printf("tokens[%ld] = %ld, %.*s\n",
+           i, tokens[i].kind, tokens[i].len, tokens[i].loc);
+  }
+}
+
+func ReadSrc() {
+  srcSize := 8;
+  srcLen = 0;
+  src = malloc(srcSize);
+
+  for {
+    remains := srcSize - srcLen;
+    len := read(0, &src[srcLen], remains);
+    srcLen += len;
+
+    if len < remains {
+      break;
+    }
+
+    if srcLen == srcSize {
+      old := src;
+      srcSize *= 2;
+      src = malloc(srcSize);
+      memcpy(src, old, srcLen);
+      free(old);
+    }
+  }
+
+  write(1, "read: ", 6);
+  write(1, src, srcLen);
+
+  0;
+}
+
+type Token struct {
+  kind int;
+  loc *byte;
+  len int;
+  value int64;
+};
+
+func Tokenize() {
+  p := src;
+  for *p {
+    if IsSpace(*p) {
+      p++;
+      continue;
+    }
+
+    if p[0] == '/' {
+      if p[1] == '/' {
+        lf := StrChar(p + 2, '\n');
+        if lf {
+          p = lf + 1;
+          continue;
+        }
+      }
+    }
+
+    if IsDigit(p[0]) {
+      var non_digit *byte;
+      v := strtol(p, &non_digit, 0);
+      len := non_digit - p;
+      var token Token = {1, p, len, v};
+      AppendToken(&token);
+      p = non_digit;
+      continue;
+    }
+
+    if strncmp(p, &"..."[0], 3) == 0 {
+    }
+  }
+}
+
+func IsSpace(c byte) int1 {
+  return c == ' ' || c == '\t' || c == '\n';
+}
+
+func StrChar(s *byte, c byte) *byte {
+  for s[0] && s[0] != c {
+    s++;
+  }
+  if s[0] == c {
+    return s;
+  }
+  return 0;
+}
+
+func IsDigit(c byte) int1 {
+  return '0' <= c && c <= '9';
+}
+
+func AppendToken(token *Token) *Token {
+  if tokensSize == 0 {
+    tokensSize = 8;
+    tokens = malloc(tokensSize * sizeof(Token))@*Token;
+    0;
+  } else if tokensSize == tokensLen {
+    old := tokens;
+    tokensSize *= 2;
+    tokens = malloc(tokensSize * sizeof(Token))@*Token;
+    memcpy(tokens@*uint8, old@*uint8, tokensLen * sizeof(Token));
+    free(old@*uint8);
+    0;
+  }
+  newToken := tokens + tokensLen;
+  *newToken = *token;
+  tokensLen++;
+  return newToken;
+}
+
+var (
+  src *byte;
+  srcLen int;
+
+  tokens *Token;
+  tokensLen int;
+  tokensSize int;
+)
+
+extern "C" malloc func(size int) *byte;
+extern "C" free func(p *byte);
+extern "C" read func(fd int, buf *byte, size int) int;
+extern "C" write func(fd int, buf *byte, size int) int;
+extern "C" memcpy func(dest *byte, src *byte, size int) *byte;
+extern "C" strtol func(dest *byte, endp **byte, base int) int;
+extern "C" strncmp func(a, b *byte, size int) int;
+extern "C" printf func(format *byte, ...) int;

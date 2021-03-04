@@ -9,7 +9,7 @@ ARCH = x86_64
 endif
 
 .PHONY: all
-all: rpn sdl list
+all: rpn sdl list opela
 
 .PHONY: clean
 clean:
@@ -21,6 +21,8 @@ sdl: sdl.o
 	cc -o $@ $< $(LDFLAGS) -lSDL2
 
 list: list.o
+
+opela: opela.o
 
 ../opelac:
 	make -C .. opelac
