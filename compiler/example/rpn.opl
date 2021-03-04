@@ -35,7 +35,7 @@ func main() {
       stk_i -= 1;
     } else { // digit
       stk_i += 1;
-      stk[stk_i] = int(p[i]) - '0';
+      stk[stk_i] = p[i]@int - '0';
     }
   }
 

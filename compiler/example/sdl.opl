@@ -1,11 +1,11 @@
 func main() int {
-  if SDL_Init(uint(0x20)) < 0 { // SDL_INIT_VIDEO
+  if SDL_Init(0x20@uint) < 0 { // SDL_INIT_VIDEO
     printf("Failed to initialize SDL: %s\n", SDL_GetError());
     return 1;
   }
   printf("Creating a window\n");
-  window := SDL_CreateWindow("SDL by OpeLa", 0x1fff0000, 0x1fff0000, 300, 200, uint(0));
-  renderer := SDL_CreateRenderer(window, -1, uint(6));
+  window := SDL_CreateWindow("SDL by OpeLa", 0x1fff0000, 0x1fff0000, 300, 200, 0@uint);
+  renderer := SDL_CreateRenderer(window, -1, 6@uint);
 
   color := 0;
   color_type := 1;
@@ -16,11 +16,11 @@ func main() int {
 
   for {
     for SDL_PollEvent(&event) != 0 {
-      if event.event_type == uint32(256) { // SDL_QUIT
+      if event.event_type == 256@uint32 { // SDL_QUIT
         SDL_DestroyWindow(window);
         SDL_Quit();
         return 0;
-      } else if event.event_type == uint32(0x300) { // SDL_KEYDOWN
+      } else if event.event_type == 0x300@uint32 { // SDL_KEYDOWN
         if event.keysym.keycode == 0x4000004f { // SDLK_RIGHT
           logo_x += 1;
         } else if event.keysym.keycode == 0x40000050 { // SDLK_LEFT
@@ -80,7 +80,7 @@ func main() int {
 }
 
 func DrawRect(ren *int, w, h, x, y int) {
-  r := [4]uint32{uint32(x), uint32(y), uint32(w), uint32(h)};
+  r := [4]uint32{x@uint32, y@uint32, w@uint32, h@uint32};
   SDL_RenderDrawRect(ren, &r[0]);
 }
 

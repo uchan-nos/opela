@@ -172,7 +172,7 @@ func testSizeofByte() int { sizeof(byte); }
 func testVarByte() int { var c byte = 42; c+1; }
 func testVarInt64() int { var c int64 = 255; c=c+1; c/100; }
 func testOverflow() int { var c int8 = 255; c=c+1; c/100; }
-func testOverflow2() int { var c byte = 255; i:=int(c)+1; i/100; }
+func testOverflow2() int { var c byte = 255; i:=c@int+1; i/100; }
 func testInt8Array() int { var arr [3]int8; arr[0]=-1; arr[1]=5; arr[2]=arr[0]+arr[1]; }
 func testInt16Ptr() int { var p *int16 = 8; p+1; }
 func testInt32Ptr() int { var p *int32 = 32; p-1; }
@@ -196,13 +196,13 @@ func testContinue2() int { i := 1; for i = 1; i < 12; i += 1 { continue; } i; }
 func testBreak2() int { i := 1; for { if i >= 10 { break; } i = 10; continue; i = 42; } i; }
 func testBreak3() int { i := 1; for { if i >= 42 { break; } i += 1; continue; } i; }
 func testSizeofUserType() int { sizeof(myInt); }
-func testUserType() int { var v myInt; v = myInt(3); v + myInt(2) - myInt(1); }
+func testUserType() int { var v myInt; v = 3@myInt; v + 2@myInt - 1@myInt; }
 func testInt8Overflow() int { var (i int8=2; j int8=-1;) i-j; }
-func testUInt() int { var i uint = 7; i - uint(2); }
-func testUInt2() int { var i uint = -1; i > uint(3); }
+func testUInt() int { var i uint = 7; i - 2@uint; }
+func testUInt2() int { var i uint = -1; i > 3@uint; }
 func testIncDec() int { i := 3; i++; i++; i--; i; }
-func testNonByteType() int { var i uint2 = 2; i + uint2(3); }
-func testNonByteType2() int { uint3(10); }
+func testNonByteType() int { var i uint2 = 2; i + 3@uint2; }
+func testNonByteType2() int { 10@uint3; }
 func testVariadicArg() int { variadic_sum(3, 4, 5, -2); }
 func testHexLiteral() int { 0x001f; }
 func testBinaryLiteral() int { 0b0110; }
@@ -212,11 +212,11 @@ func testStruct2() int { var x struct{a int;b int;}; x.a=2; x.b=5; x.a-x.b; }
 func testStructPtr() int { var p *struct{a int;}; var x struct{a int;}; p=&x; x.a=2; (*p).a+3;}
 func testStructInit() int { var x struct{a int;b int;c int;} = {5, -1}; x.a-x.b+x.c; }
 func testStructType() int { var x myIntStruct = {3, 8}; x.c = x.a + x.b; x.c; }
-func testUserTypeParam() int { var x myInt = 5; myAdd32(myInt(3), x); }
+func testUserTypeParam() int { var x myInt = 5; myAdd32(3@myInt, x); }
 func testStructArrowOp() int { var x myIntStruct = {3, 2}; p := &x; p->a + x.b; }
 func testStructArg() int { var x myIntStruct = {7}; myIncField(&x); x.a; }
 func testRecursiveType() int { var x myNode = {42}; var y myNode = {2, &x}; y.next->value; }
-func testGVarInitList() int { gnode.value + int(gnode.next); }
+func testGVarInitList() int { gnode.value + gnode.next@int; }
 func testArrayLiteral() int { [3]int{3, 5, 7}[1]; }
 func testStructLiteral() int { 2 * struct {a int; b int; c int;}{3, 7, 5}.b + 1; }
 func testStructLiteral2() int { x := struct {a int32; b int8;}{-3, 4}; x.b + 1; }

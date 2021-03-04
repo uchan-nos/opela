@@ -162,19 +162,6 @@ void GenerateAsm(ostream& os, Node* node,
     }
     return;
   case Node::kCall:
-    if (auto t = FindType(node->lhs->token);
-        node->lhs->kind == Node::kId && t) {
-      // 型変換
-      GenerateAsm(os, node->rhs->next, label_break, label_cont);
-      if (auto [is_int, int_type] = IsInteger(t);
-          is_int && int_type->num < 64) {
-        asmgen->Pop64(os, Asm::kRegL);
-        asmgen->MaskBits(os, Asm::kRegL, int_type->num);
-        asmgen->Push64(os, Asm::kRegL);
-      }
-      return;
-    }
-
     GenerateFuncCall(os, node, label_break, label_cont);
     return;
   case Node::kDeclSeq:
@@ -311,6 +298,17 @@ void GenerateAsm(ostream& os, Node* node,
       compo_literal_nodes.push_back(node);
       asmgen->LoadSymAddr(os, Asm::kRegL, oss.str());
       asmgen->Push64(os, Asm::kRegL);
+    }
+    return;
+  case Node::kCast:
+    GenerateAsm(os, node->lhs, label_break, label_cont);
+    if (auto [is_int, int_type] = IsInteger(node->rhs->type); is_int) {
+      asmgen->Pop64(os, Asm::kRegL);
+      asmgen->MaskBits(os, Asm::kRegL, int_type->num);
+      asmgen->Push64(os, Asm::kRegL);
+    } else {
+      cerr << "cast is supported only for integer types" << endl;
+      ErrorAt(node->token->loc);
     }
     return;
   default: // caseが足りないという警告を抑制する

@@ -491,13 +491,31 @@ Node* Additive() {
 }
 
 Node* Multiplicative() {
-  auto node{Unary()};
+  auto node{Cast()};
 
   for (;;) {
     if (auto op{Consume("*")}) {
-      node = NewNodeExpr(Node::kMul, op, node, Unary());
+      node = NewNodeExpr(Node::kMul, op, node, Cast());
     } else if (auto op{Consume("/")}) {
-      node = NewNodeExpr(Node::kDiv, op, node, Unary());
+      node = NewNodeExpr(Node::kDiv, op, node, Cast());
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* Cast() {
+  auto node{Unary()};
+
+  for (;;) {
+    if (auto op{Consume("@")}) {
+      auto tspec{TypeSpecifier()};
+      if (!tspec) {
+        cerr << "@ requires a type specifier" << endl;
+        ErrorAt(op->loc);
+      }
+      node = NewNodeExpr(Node::kCast, op, node, tspec);
+      node->tspec = tspec;
     } else {
       return node;
     }
@@ -506,16 +524,16 @@ Node* Multiplicative() {
 
 Node* Unary() {
   if (Consume("+")) {
-    return Unary();
+    return Cast();
   } else if (auto op{Consume("-")}) {
     auto zero{NewNodeInt(nullptr, 0, 64)};
-    auto node{Unary()};
+    auto node{Cast()};
     return NewNodeExpr(Node::kSub, op, zero, node);
   }
 
   for (auto [ k, v ] : kUnaryOps) {
     if (auto op{Consume(v)}) {
-      return NewNodeExpr(k, op, Unary(), nullptr);
+      return NewNodeExpr(k, op, Cast(), nullptr);
     }
   }
 
@@ -912,7 +930,7 @@ bool SetSymbolType(Node* n) {
       n->kind == Node::kGT  || n->kind == Node::kLE ||
       n->kind == Node::kAssign ||
       n->kind == Node::kCall ||
-      n->kind == Node::kSubscr ||
+      n->kind == Node::kSubscr || n->kind == Node::kCast ||
       n->kind == Node::kLOr || n->kind == Node::kLAnd) {
     changed |= SetSymbolType(n->lhs);
     changed |= SetSymbolType(n->rhs);
@@ -1257,6 +1275,9 @@ bool SetSymbolType(Node* n) {
       }
     }
     return changed;
+  case Node::kCast:
+    n->type = n->tspec->type;
+    break;
   }
   return true;
 }

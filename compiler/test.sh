@@ -60,8 +60,8 @@ function test_argv() {
   rm tmp tmp.s
 }
 
-test_stdout 'foo' 'func main() { write(int32(1),"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
-test_argv 7 "3 4" "func main(argc int, argv **byte) { int(argv[1][0]) - '0' + int(argv[2][0]) - '0'; }"
+test_stdout 'foo' 'func main() { write(1@int32,"foo",3); } extern "C" write func(fd int32,s *byte,n int64);'
+test_argv 7 "3 4" "func main(argc int, argv **byte) { argv[1][0]@int - '0' + argv[2][0]@int - '0'; }"
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

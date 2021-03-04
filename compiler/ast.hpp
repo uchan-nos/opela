@@ -120,6 +120,7 @@ struct Node {
     kDot, // struct.field
     kArrow, // pointer->field
     kCompoLit, // composite literal
+    kCast,
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -160,6 +161,7 @@ Node* Equality();
 Node* Relational();
 Node* Additive();
 Node* Multiplicative();
+Node* Cast();
 Node* Unary();
 Node* Postfix();
 Node* Primary();
