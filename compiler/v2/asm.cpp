@@ -68,6 +68,40 @@ class AsmX86_64 : public Asm {
   void Sub64(Register dest, Register v) {
     out_ << "    sub " << RegName(dest) << ',' << RegName(v) << '\n';
   }
+
+  void Mul64(Register dest, Register v) {
+    if (dest == kRegA) {
+      out_ << "    push rdx\n"
+              "    mul " << RegName(v) << "\n"
+              "    pop rdx\n";
+    } else {
+      out_ << "    push rax\n"
+              "    push rdx\n"
+              "    mov rax, " << RegName(dest) << "\n"
+              "    mul " << RegName(v) << "\n"
+              "    mov " << RegName(dest) << ", rax\n"
+              "    pop rdx\n"
+              "    pop rax\n";
+    }
+  }
+
+  void Div64(Register dest, Register v) {
+    if (dest == kRegA) {
+      out_ << "    push rdx\n"
+              "    xor edx, edx\n"
+              "    div " << RegName(v) << "\n"
+              "    pop rdx\n";
+    } else {
+      out_ << "    push rax\n"
+              "    push rdx\n"
+              "    mov rax, " << RegName(dest) << "\n"
+              "    xor rdx, rdx\n"
+              "    div " << RegName(v) << "\n"
+              "    mov " << RegName(dest) << ", rax\n"
+              "    pop rdx\n"
+              "    pop rax\n";
+    }
+  }
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out) {

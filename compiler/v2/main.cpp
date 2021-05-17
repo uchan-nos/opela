@@ -55,16 +55,44 @@ void GenerateAsm(Source& src, Asm* asmgen, Node* node,
     return;
   }
 
-  if (node->lhs->ershov >= node->rhs->ershov) {
+  Asm::Register reg;
+  const bool lhs_in_dest = node->lhs->ershov >= node->rhs->ershov;
+  if (lhs_in_dest) {
     GenerateAsm(src, asmgen, node->lhs, dest, free_calc_regs);
-    auto reg = UseAnyCalcReg(free_calc_regs);
+    reg = UseAnyCalcReg(free_calc_regs);
     GenerateAsm(src, asmgen, node->rhs, reg, free_calc_regs);
-    asmgen->Add64(dest, reg);
   } else {
     GenerateAsm(src, asmgen, node->rhs, dest, free_calc_regs);
-    auto reg = UseAnyCalcReg(free_calc_regs);
+    reg = UseAnyCalcReg(free_calc_regs);
     GenerateAsm(src, asmgen, node->lhs, reg, free_calc_regs);
+  }
+
+  switch (node->kind) {
+  case Node::kAdd:
     asmgen->Add64(dest, reg);
+    break;
+  case Node::kSub:
+    if (lhs_in_dest) {
+      asmgen->Sub64(dest, reg);
+    } else {
+      asmgen->Sub64(reg, dest);
+      asmgen->Mov64(dest, reg);
+    }
+    break;
+  case Node::kMul:
+    asmgen->Mul64(dest, reg);
+    break;
+  case Node::kDiv:
+    if (lhs_in_dest) {
+      asmgen->Div64(dest, reg);
+    } else {
+      asmgen->Div64(reg, dest);
+      asmgen->Mov64(dest, reg);
+    }
+    break;
+  default:
+    cerr << "should not come here" << endl;
+    ErrorAt(src, *node->token);
   }
 }
 

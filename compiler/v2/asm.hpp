@@ -45,6 +45,8 @@ class Asm {
   virtual void Mov64(Register dest, Register v) = 0;
   virtual void Add64(Register dest, Register v) = 0;
   virtual void Sub64(Register dest, Register v) = 0;
+  virtual void Mul64(Register dest, Register v) = 0;
+  virtual void Div64(Register dest, Register v) = 0;
 
  protected:
   std::ostream& out_;
