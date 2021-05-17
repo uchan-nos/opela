@@ -39,6 +39,10 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kInt, {p, non_digit}, v};
     }
 
+    if (strchr("+-*/()", *p)) {
+      return new Token{Token::kReserved, {p, 1}, 0};
+    }
+
     cerr << "failed to tokenize" << endl;
     ErrorAt(src, p);
   }
@@ -84,21 +88,25 @@ Token* Tokenizer::Expect(Token::Kind kind) {
   if (auto token = Consume(kind)) {
     return token;
   }
-  ErrorAt(src_, *cur_token_);
+  Unexpected(src_, *cur_token_);
 }
 
 Token* Tokenizer::Expect(string_view raw) {
   if (auto token = Consume(raw)) {
     return token;
   }
-  ErrorAt(src_, *cur_token_);
+  Unexpected(src_, *cur_token_);
 }
 
 void ErrorAt(Source& src, Token& token) {
+  ErrorAt(src, token.raw.begin());
+}
+
+void Unexpected(Source& src, Token& token) {
   cerr << "unexpected token "
     << magic_enum::enum_name(token.kind)
     << " '" << token.raw << "'\n";
-  ErrorAt(src, token.raw.begin());
+  ErrorAt(src, token);
 }
 
 char GetEscapeValue(char escape_char) {

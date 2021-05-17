@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string_view>
+#include <variant>
 #include <vector>
 
 #include "types.hpp"
@@ -15,9 +16,7 @@ struct Token {
 
   std::string_view raw;
 
-  union {
-    opela_type::Int as_int;
-  } value;
+  std::variant<opela_type::Int> value;
 };
 
 class Tokenizer {
@@ -45,6 +44,7 @@ inline bool operator==(Token* token, std::string_view raw) {
 }
 
 [[noreturn]] void ErrorAt(Source& src, Token& token);
+[[noreturn]] void Unexpected(Source& src, Token& token);
 
 // 与えられた文字に対応するエスケープ済み文字の ASCII コードを返す。
 // 0, a, b, t, n, v, f, r 以外は、引数をそのまま返す。
