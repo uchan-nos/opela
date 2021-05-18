@@ -54,7 +54,7 @@ class AsmX86_64 : public Asm {
 
   using Asm::Asm;
 
-  void Mov64(Register dest, std::uint64_t v) {
+  void Mov64(Register dest, std::uint64_t v) override {
     if (v <= numeric_limits<uint32_t>::max()) {
       out_ << "    mov " << RegName(dest, 4) << ',' << v << '\n';
     } else {
@@ -62,19 +62,19 @@ class AsmX86_64 : public Asm {
     }
   }
 
-  void Mov64(Register dest, Register v) {
+  void Mov64(Register dest, Register v) override {
     out_ << "    mov " << RegName(dest) << ',' << RegName(v) << '\n';
   }
 
-  void Add64(Register dest, Register v) {
+  void Add64(Register dest, Register v) override {
     out_ << "    add " << RegName(dest) << ',' << RegName(v) << '\n';
   }
 
-  void Sub64(Register dest, Register v) {
+  void Sub64(Register dest, Register v) override {
     out_ << "    sub " << RegName(dest) << ',' << RegName(v) << '\n';
   }
 
-  void Mul64(Register dest, Register v) {
+  void Mul64(Register dest, Register v) override {
     if (dest == kRegA) {
       out_ << "    push rdx\n"
               "    mul " << RegName(v) << "\n"
@@ -90,7 +90,7 @@ class AsmX86_64 : public Asm {
     }
   }
 
-  void Div64(Register dest, Register v) {
+  void Div64(Register dest, Register v) override {
     if (dest == kRegA) {
       out_ << "    push rdx\n"
               "    xor edx, edx\n"

@@ -48,6 +48,9 @@ class Asm {
   virtual void Mul64(Register dest, Register v) = 0;
   virtual void Div64(Register dest, Register v) = 0;
 
+  // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
+  std::ostream& Output() { return out_; }
+
  protected:
   std::ostream& out_;
 };

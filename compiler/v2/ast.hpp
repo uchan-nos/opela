@@ -32,3 +32,4 @@ Node* Multiplicative(Tokenizer& t);
 Node* Primary(Tokenizer& t);
 
 void PrintAST(std::ostream& os, Node* ast);
+void PrintASTRec(std::ostream& os, Node* ast);

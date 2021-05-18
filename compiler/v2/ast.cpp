@@ -1,5 +1,7 @@
 #include "ast.hpp"
 
+#include <map>
+#include <sstream>
 #include <string>
 
 #include "magic_enum.hpp"
@@ -12,22 +14,53 @@ Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
   return new Node{kind, op, lhs, rhs, {}};
 }
 
-void PrintAST(std::ostream& os, Node* ast, int indent) {
+map<Node*, size_t> node_number;
+size_t NodeNo(Node* node) {
+  if (auto it = node_number.find(node); it != node_number.end()) {
+    return it->second;
+  }
+  auto n = node_number.size();
+  node_number.insert({node, n});
+  return n;
+}
+
+std::string NodeName(Node* node) {
+  if (node == nullptr) {
+    return "null";
+  }
+  ostringstream oss;
+  oss << "Node_" << NodeNo(node);
+  return oss.str();
+}
+
+void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
   if (ast == nullptr) {
-    os << "null\n";
-  }
-  os << "Node{" << magic_enum::enum_name(ast->kind)
-     << " \"" << ast->token->raw << "\" value=";
-  if (ast->kind == Node::kInt) {
-    os << get<opela_type::Int>(ast->value) << "}\n";
+    os << "null";
     return;
-  } else if (ast->kind <= Node::kDiv) {
-    os << '\n' << string(indent + 2, ' ') << "lhs=";
-    PrintAST(os, ast->lhs, indent + 2);
-    os << string(indent + 2, ' ') << "rhs=";
-    PrintAST(os, ast->rhs, indent + 2);
   }
-  os << string(indent, ' ') << "}\n";
+
+  os << NodeName(ast) << "{" << magic_enum::enum_name(ast->kind)
+     << " \"" << ast->token->raw << "\"";
+
+  if (ast->kind == Node::kInt) {
+    os << " value=" << get<opela_type::Int>(ast->value);
+  }
+
+  const bool multiline = recursive && (ast->lhs || ast->rhs);
+  if (multiline) {
+    os << '\n' << string(indent + 2, ' ') << "lhs=";
+    PrintAST(os, ast->lhs, indent + 2, recursive);
+    os << '\n' << string(indent + 2, ' ') << "rhs=";
+    PrintAST(os, ast->rhs, indent + 2, recursive);
+  } else {
+    os << " lhs=" << NodeName(ast->lhs) << " rhs=" << NodeName(ast->rhs);
+  }
+
+  if (multiline) {
+    os << '\n' << string(indent, ' ') << '}';
+  } else {
+    os << '}';
+  }
 }
 
 } // namespace
@@ -76,5 +109,9 @@ Node* Primary(Tokenizer& t) {
 }
 
 void PrintAST(std::ostream& os, Node* ast) {
-  PrintAST(os, ast, 0);
+  PrintAST(os, ast, 0, false);
+}
+
+void PrintASTRec(std::ostream& os, Node* ast) {
+  PrintAST(os, ast, 0, true);
 }

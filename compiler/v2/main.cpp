@@ -48,9 +48,16 @@ int SetErshovNumber(Source& src, Node* expr) {
 
 void GenerateAsm(Source& src, Asm* asmgen, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs) {
+  auto comment_node = [asmgen, node]{
+    asmgen->Output() << "    # ";
+    PrintAST(asmgen->Output(), node);
+    asmgen->Output() << '\n';
+  };
+
   SetErshovNumber(src, node);
 
   if (node->kind == Node::kInt) {
+    comment_node();
     asmgen->Mov64(dest, get<opela_type::Int>(node->value));
     return;
   }
@@ -66,6 +73,8 @@ void GenerateAsm(Source& src, Asm* asmgen, Node* node,
     reg = UseAnyCalcReg(free_calc_regs);
     GenerateAsm(src, asmgen, node->lhs, reg, free_calc_regs);
   }
+
+  comment_node();
 
   switch (node->kind) {
   case Node::kAdd:
@@ -101,7 +110,9 @@ int main(int argc, char** argv) {
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
   auto ast = Expression(tokenizer);
-  PrintAST(cerr, ast);
+  cout << "/* AST\n";
+  PrintASTRec(cout, ast);
+  cout << "\n*/\n";
 
   Asm::RegSet free_calc_regs;
   free_calc_regs.set(Asm::kRegV0);
