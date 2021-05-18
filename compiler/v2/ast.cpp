@@ -153,9 +153,9 @@ Node* Multiplicative(Tokenizer& t) {
 
   for (;;) {
     if (auto op = t.Consume("*")) {
-      node = NewNodeBinOp(Node::kMul, op, node, Primary(t));
+      node = NewNodeBinOp(Node::kMul, op, node, Unary(t));
     } else if (auto op = t.Consume("/")) {
-      node = NewNodeBinOp(Node::kDiv, op, node, Primary(t));
+      node = NewNodeBinOp(Node::kDiv, op, node, Unary(t));
     } else {
       return node;
     }
