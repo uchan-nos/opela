@@ -29,6 +29,7 @@ struct Node {
 Node* Expression(Tokenizer& t);
 Node* Additive(Tokenizer& t);
 Node* Multiplicative(Tokenizer& t);
+Node* Unary(Tokenizer& t);
 Node* Primary(Tokenizer& t);
 
 void PrintAST(std::ostream& os, Node* ast);

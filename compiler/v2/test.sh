@@ -82,6 +82,7 @@ function test_argv() {
 
 test_exit 42 '42'
 test_exit 30 '(1+2) / 2+ (( 3 -4) +5 *  6 )'
+test_exit 5  '-3 + (+8)'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

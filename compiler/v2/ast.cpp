@@ -10,9 +10,14 @@ using namespace std;
 
 namespace {
 
+Node* NewNodeInt(Token* token, opela_type::Int value) {
+  return new Node{Node::kInt, token, nullptr, nullptr, value};
+}
+
 Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
   return new Node{kind, op, lhs, rhs, {}};
 }
+
 
 map<Node*, size_t> node_number;
 size_t NodeNo(Node* node) {
@@ -40,7 +45,7 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
   }
 
   os << NodeName(ast) << "{" << magic_enum::enum_name(ast->kind)
-     << " \"" << ast->token->raw << "\"";
+     << " \"" << (ast->token ? ast->token->raw : "") << "\"";
 
   if (ast->kind == Node::kInt) {
     os << " value=" << get<opela_type::Int>(ast->value);
@@ -84,7 +89,7 @@ Node* Additive(Tokenizer& t) {
 }
 
 Node* Multiplicative(Tokenizer& t) {
-  auto node = Primary(t);
+  auto node = Unary(t);
 
   for (;;) {
     if (auto op = t.Consume("*")) {
@@ -97,6 +102,18 @@ Node* Multiplicative(Tokenizer& t) {
   }
 }
 
+Node* Unary(Tokenizer& t) {
+  if (t.Consume("+")) {
+    return Unary(t);
+  } else if (auto op = t.Consume("-")) {
+    auto zero = NewNodeInt(nullptr, 0);
+    auto node = Unary(t);
+    return NewNodeBinOp(Node::kSub, op, zero, node);
+  }
+
+  return Primary(t);
+}
+
 Node* Primary(Tokenizer& t) {
   if (t.Consume("(")) {
     auto node = Expression(t);
@@ -104,8 +121,7 @@ Node* Primary(Tokenizer& t) {
     return node;
   }
   auto token = t.Expect(Token::kInt);
-  return new Node{Node::kInt, token, nullptr, nullptr,
-                  get<opela_type::Int>(token->value)};
+  return NewNodeInt(token, get<opela_type::Int>(token->value));
 }
 
 void PrintAST(std::ostream& os, Node* ast) {
