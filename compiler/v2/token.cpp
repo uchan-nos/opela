@@ -39,15 +39,23 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kInt, {p, non_digit}, v};
     }
 
-    if (strchr("+-*/()", *p)) {
-      return new Token{Token::kReserved, {p, 1}, 0};
+    if (p[1] == '=' && strchr("=!<>", p[0])) {
+      return new Token{Token::kReserved, {p, 2}, {}};
+    }
+
+    if (string_view op{p, 2}; op == "||" || op == "&&") {
+      return new Token{Token::kReserved, {p, 2}, {}};
+    }
+
+    if (strchr("+-*/()<>", *p)) {
+      return new Token{Token::kReserved, {p, 1}, {}};
     }
 
     cerr << "failed to tokenize" << endl;
     ErrorAt(src, p);
   }
 
-  return new Token{Token::kEOF, {p, 0}, 0};
+  return new Token{Token::kEOF, {p, 0}, {}};
 }
 
 } // namespace

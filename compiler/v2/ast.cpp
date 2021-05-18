@@ -71,7 +71,39 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 } // namespace
 
 Node* Expression(Tokenizer& t) {
-  return Additive(t);
+  return Equality(t);
+}
+
+Node* Equality(Tokenizer& t) {
+  auto node = Relational(t);
+
+  for (;;) {
+    if (auto op = t.Consume("==")) {
+      node = NewNodeBinOp(Node::kEqu, op, node, Relational(t));
+    } else if (auto op = t.Consume("!=")) {
+      node = NewNodeBinOp(Node::kNEqu, op, node, Relational(t));
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* Relational(Tokenizer& t) {
+  auto node = Additive(t);
+
+  for (;;) {
+    if (auto op = t.Consume("<")) {
+      node = NewNodeBinOp(Node::kGT, op, Additive(t), node);
+    } else if (auto op = t.Consume("<=")) {
+      node = NewNodeBinOp(Node::kLE, op, node, Additive(t));
+    } else if (auto op = t.Consume(">")) {
+      node = NewNodeBinOp(Node::kGT, op, node, Additive(t));
+    } else if (auto op = t.Consume(">=")) {
+      node = NewNodeBinOp(Node::kLE, op, Additive(t), node);
+    } else {
+      return node;
+    }
+  }
 }
 
 Node* Additive(Tokenizer& t) {

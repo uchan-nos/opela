@@ -38,6 +38,15 @@ class Asm {
   };
   using RegSet = std::bitset<kRegNum>;
 
+  enum Compare {
+    kCmpE,
+    kCmpNE,
+    kCmpG,  // a > b (signed)
+    kCmpLE, // a <= b (signed)
+    kCmpA,  // a > b (unsigned)
+    kCmpBE, // a <= b (unsigned)
+  };
+
   Asm(std::ostream& out) : out_{out} {}
   virtual ~Asm() = default;
 
@@ -47,6 +56,7 @@ class Asm {
   virtual void Sub64(Register dest, Register v) = 0;
   virtual void Mul64(Register dest, Register v) = 0;
   virtual void Div64(Register dest, Register v) = 0;
+  virtual void CmpSet(Compare c, Register dest, Register lhs, Register rhs) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

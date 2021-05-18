@@ -99,6 +99,26 @@ void GenerateAsm(Source& src, Asm* asmgen, Node* node,
       asmgen->Mov64(dest, reg);
     }
     break;
+  case Node::kEqu:
+    asmgen->CmpSet(Asm::kCmpE, dest, dest, reg);
+    break;
+  case Node::kNEqu:
+    asmgen->CmpSet(Asm::kCmpNE, dest, dest, reg);
+    break;
+  case Node::kGT:
+    if (lhs_in_dest) {
+      asmgen->CmpSet(Asm::kCmpG, dest, dest, reg);
+    } else {
+      asmgen->CmpSet(Asm::kCmpG, dest, reg, dest);
+    }
+    break;
+  case Node::kLE:
+    if (lhs_in_dest) {
+      asmgen->CmpSet(Asm::kCmpLE, dest, dest, reg);
+    } else {
+      asmgen->CmpSet(Asm::kCmpLE, dest, reg, dest);
+    }
+    break;
   default:
     cerr << "should not come here" << endl;
     ErrorAt(src, *node->token);

@@ -107,6 +107,21 @@ class AsmX86_64 : public Asm {
               "    pop rax\n";
     }
   }
+
+  void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
+    out_ << "    cmp " << RegName(lhs) << ',' << RegName(rhs) << '\n';
+    out_ << "    set";
+    switch (c) {
+      case kCmpE:  out_ << "e"; break;
+      case kCmpNE: out_ << "ne"; break;
+      case kCmpG:  out_ << "g"; break;
+      case kCmpLE: out_ << "le"; break;
+      case kCmpA:  out_ << "a"; break;
+      case kCmpBE: out_ << "be"; break;
+    }
+    out_ << ' ' << RegName(dest, 1) << '\n';
+    out_ << "    movzx " << RegName(dest, 4) << ',' << RegName(dest, 1) << '\n';
+  }
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out) {

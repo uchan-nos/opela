@@ -14,6 +14,10 @@ struct Node {
     kSub, // 2項演算子 -
     kMul, // 2項演算子 *
     kDiv, // 2項演算子 /
+    kEqu, // 2項演算子 ==
+    kNEqu,// 2項演算子 !=
+    kGT,  // 2項演算子 >
+    kLE,  // 2項演算子 <=
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -27,6 +31,8 @@ struct Node {
 };
 
 Node* Expression(Tokenizer& t);
+Node* Equality(Tokenizer& t);
+Node* Relational(Tokenizer& t);
 Node* Additive(Tokenizer& t);
 Node* Multiplicative(Tokenizer& t);
 Node* Unary(Tokenizer& t);
