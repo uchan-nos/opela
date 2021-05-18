@@ -104,14 +104,14 @@ int main(int argc, char** argv) {
   PrintAST(cerr, ast);
 
   Asm::RegSet free_calc_regs;
-  free_calc_regs.set(Asm::kRegX);
-  free_calc_regs.set(Asm::kRegY);
   free_calc_regs.set(Asm::kRegV0);
   free_calc_regs.set(Asm::kRegV1);
   free_calc_regs.set(Asm::kRegV2);
   free_calc_regs.set(Asm::kRegV3);
   free_calc_regs.set(Asm::kRegV4);
   free_calc_regs.set(Asm::kRegV5);
+  free_calc_regs.set(Asm::kRegX);
+  free_calc_regs.set(Asm::kRegY);
 
   auto asmgen = NewAsm(AsmArch::kX86_64, cout);
   cout << ".intel_syntax noprefix\n"

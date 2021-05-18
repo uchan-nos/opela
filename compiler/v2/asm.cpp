@@ -2,6 +2,7 @@
 
 #include <array>
 #include <iostream>
+#include <limits>
 #include <string>
 
 using namespace std;
@@ -10,7 +11,7 @@ class AsmX86_64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "a", "di", "si", "d", "c", "r8", "r9",          // 戻り値、引数
-    "r10", "r11", "di", "si", "d", "c", "r8", "r9", // 計算用
+    "di", "si", "d", "c", "r8", "r9", "r10", "r11", // 計算用
     "rbx", "r12", "r13", "r14", "r15",              // 計算用（不揮発）
     "bp", "sp", "zero",
   };
@@ -54,7 +55,11 @@ class AsmX86_64 : public Asm {
   using Asm::Asm;
 
   void Mov64(Register dest, std::uint64_t v) {
-    out_ << "    mov " << RegName(dest) << ',' << v << '\n';
+    if (v <= numeric_limits<uint32_t>::max()) {
+      out_ << "    mov " << RegName(dest, 4) << ',' << v << '\n';
+    } else {
+      out_ << "    mov " << RegName(dest) << ',' << v << '\n';
+    }
   }
 
   void Mov64(Register dest, Register v) {

@@ -17,11 +17,11 @@ class Asm {
     // 引数レジスタ
     kRegArg0, kRegArg1, kRegArg2, kRegArg3, kRegArg4, kRegArg5,
 
-    // 引数および戻り値レジスタと重複しない計算用レジスタ
-    kRegX, kRegY,
-
     // 引数レジスタと重複する可能性がある計算用レジスタ
     kRegV0, kRegV1, kRegV2, kRegV3, kRegV4, kRegV5,
+
+    // 引数および戻り値レジスタと重複しない計算用レジスタ
+    kRegX, kRegY,
 
     // **************************
     // **** 不揮発性レジスタ ****
