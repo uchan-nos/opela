@@ -80,13 +80,15 @@ function test_argv() {
   fi
 }
 
-test_exit 42 '42'
-test_exit 30 '(1+2) / 2+ (( 3 -4) +5 *  6 )'
-test_exit 5  '-3 + (+8)'
-test_exit 0  '3 < (1 + 1)'
-test_exit 1  '3 > (1 + 1)'
-test_exit 1  '2*3 >= 13/2'
-test_exit 1  '2>2 == 4<=3'
+test_exit 42 '42;'
+test_exit 30 '(1+2) / 2+ (( 3 -4) +5 *  6 );'
+test_exit 5  '-3 + (+8);'
+test_exit 0  '3 < (1 + 1);'
+test_exit 1  '3 > (1 + 1);'
+test_exit 1  '2*3 >= 13/2;'
+test_exit 1  '2>2 == 4<=3;'
+test_exit 0  '{ }'
+test_exit 3  '{ 42; 3; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

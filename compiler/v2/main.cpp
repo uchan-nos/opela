@@ -48,12 +48,23 @@ int SetErshovNumber(Source& src, Node* expr) {
 
 void GenerateAsm(Source& src, Asm* asmgen, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs) {
+  switch (node->kind) {
+  case Node::kBlock:
+    for (auto stmt = node->next; stmt; stmt = stmt->next) {
+      GenerateAsm(src, asmgen, stmt, dest, free_calc_regs);
+    }
+    return;
+  default:
+    ; // pass
+  }
+
   auto comment_node = [asmgen, node]{
     asmgen->Output() << "    # ";
     PrintAST(asmgen->Output(), node);
     asmgen->Output() << '\n';
   };
 
+  // ここから Expression に対する処理
   SetErshovNumber(src, node);
 
   if (node->kind == Node::kInt) {
@@ -129,7 +140,7 @@ int main(int argc, char** argv) {
   Source src;
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
-  auto ast = Expression(tokenizer);
+  auto ast = Program(tokenizer);
   cout << "/* AST\n";
   PrintASTRec(cout, ast);
   cout << "\n*/\n";
@@ -147,7 +158,8 @@ int main(int argc, char** argv) {
   auto asmgen = NewAsm(AsmArch::kX86_64, cout);
   cout << ".intel_syntax noprefix\n"
           ".global main\n"
-          "main:\n";
+          "main:\n"
+          "    xor eax,eax\n";
   GenerateAsm(src, asmgen, ast, Asm::kRegA, free_calc_regs);
   cout << "    ret\n";
 }

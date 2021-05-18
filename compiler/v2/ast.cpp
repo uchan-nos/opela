@@ -11,13 +11,12 @@ using namespace std;
 namespace {
 
 Node* NewNodeInt(Token* token, opela_type::Int value) {
-  return new Node{Node::kInt, token, nullptr, nullptr, value};
+  return new Node{Node::kInt, token, nullptr, nullptr, nullptr, value};
 }
 
 Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
-  return new Node{kind, op, lhs, rhs, {}};
+  return new Node{kind, op, nullptr, lhs, rhs, {}};
 }
-
 
 map<Node*, size_t> node_number;
 size_t NodeNo(Node* node) {
@@ -69,6 +68,35 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 }
 
 } // namespace
+
+Node* Program(Tokenizer& t) {
+  Node* node;
+  if (t.Peek() == string_view{"{"}) {
+    node = CompoundStatement(t);
+  } else {
+    node = ExpressionStatement(t);
+  }
+  t.Expect(Token::kEOF);
+  return node;
+}
+
+Node* CompoundStatement(Tokenizer& t) {
+  auto node = new Node{Node::kBlock, t.Expect("{")};
+  auto cur = node;
+  while (!t.Consume("}")) {
+    cur->next = ExpressionStatement(t);
+    while (cur->next) {
+      cur = cur->next;
+    }
+  }
+  return node;
+}
+
+Node* ExpressionStatement(Tokenizer& t) {
+  auto node = Expression(t);
+  t.Expect(";");
+  return node;
+}
 
 Node* Expression(Tokenizer& t) {
   return Equality(t);
