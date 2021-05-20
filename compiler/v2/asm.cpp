@@ -70,6 +70,10 @@ class AsmX86_64 : public Asm {
     out_ << "    add " << RegName(dest) << ',' << RegName(v) << '\n';
   }
 
+  void Sub64(Register dest, std::uint64_t v) override {
+    out_ << "    sub " << RegName(dest) << ',' << v << '\n';
+  }
+
   void Sub64(Register dest, Register v) override {
     out_ << "    sub " << RegName(dest) << ',' << RegName(v) << '\n';
   }
@@ -106,6 +110,24 @@ class AsmX86_64 : public Asm {
               "    pop rdx\n"
               "    pop rax\n";
     }
+  }
+
+  void Push64(Register reg) override {
+    out_ << "    push " << RegName(reg) << '\n';
+  }
+
+  void Leave() override {
+    out_ << "    leave\n";
+  }
+
+  void Load64(Register dest, Register addr, int disp) override {
+    out_ << "    mov " << RegName(dest)
+         << ",[" << RegName(addr) << (disp > 0 ? "+" : "") << disp << "]\n";
+  }
+
+  void Store64(Register addr, int disp, Register v) override {
+    out_ << "    mov [" << RegName(addr) << (disp > 0 ? "+" : "") << disp
+         << "]," << RegName(v) << '\n';
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {

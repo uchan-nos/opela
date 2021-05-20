@@ -12,6 +12,7 @@ struct Token {
     kEOF,
     kReserved,
     kInt,
+    kId,
   } kind;
 
   std::string_view raw;
@@ -29,6 +30,8 @@ class Tokenizer {
   Token* Consume(std::string_view raw);
   Token* Expect(Token::Kind kind);
   Token* Expect(std::string_view raw);
+
+  void Unexpected(Token& token);
 
  private:
   Source& src_;

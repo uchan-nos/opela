@@ -39,7 +39,7 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kInt, {p, non_digit}, v};
     }
 
-    if (p[1] == '=' && strchr("=!<>", p[0])) {
+    if (p[1] == '=' && strchr("=!<>:", p[0])) {
       return new Token{Token::kReserved, {p, 2}, {}};
     }
 
@@ -49,6 +49,14 @@ Token* NextToken(Source& src, const char* p) {
 
     if (strchr("+-*/()<>;{}", *p)) {
       return new Token{Token::kReserved, {p, 1}, {}};
+    }
+
+    if (isalpha(*p) || *p == '_') {
+      auto id = p++;
+      while (p < src.End() && (isalnum(*p) || *p == '_')) {
+        ++p;
+      }
+      return new Token{Token::kId, {id, p}, {}};
     }
 
     cerr << "failed to tokenize" << endl;
@@ -96,14 +104,18 @@ Token* Tokenizer::Expect(Token::Kind kind) {
   if (auto token = Consume(kind)) {
     return token;
   }
-  Unexpected(src_, *cur_token_);
+  ::Unexpected(src_, *cur_token_);
 }
 
 Token* Tokenizer::Expect(string_view raw) {
   if (auto token = Consume(raw)) {
     return token;
   }
-  Unexpected(src_, *cur_token_);
+  ::Unexpected(src_, *cur_token_);
+}
+
+void Tokenizer::Unexpected(Token& token) {
+  ::Unexpected(src_, token);
 }
 
 void ErrorAt(Source& src, Token& token) {

@@ -10,6 +10,7 @@
 #include "asm.hpp"
 #include "ast.hpp"
 #include "magic_enum.hpp"
+#include "object.hpp"
 #include "source.hpp"
 #include "token.hpp"
 
@@ -48,30 +49,53 @@ int SetErshovNumber(Source& src, Node* expr) {
 
 void GenerateAsm(Source& src, Asm* asmgen, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs) {
-  switch (node->kind) {
-  case Node::kBlock:
-    for (auto stmt = node->next; stmt; stmt = stmt->next) {
-      GenerateAsm(src, asmgen, stmt, dest, free_calc_regs);
-    }
-    return;
-  default:
-    ; // pass
-  }
-
   auto comment_node = [asmgen, node]{
     asmgen->Output() << "    # ";
     PrintAST(asmgen->Output(), node);
     asmgen->Output() << '\n';
   };
 
-  // ここから Expression に対する処理
-  SetErshovNumber(src, node);
+  switch (node->kind) {
+  case Node::kBlock:
+    {
+      auto func = get<Object*>(node->value);
+      int stack_size = 0;
+      for (Object* obj : func->locals) {
+        stack_size += 8;
+        obj->bp_offset = -stack_size;
+      }
+      stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
 
-  if (node->kind == Node::kInt) {
+      asmgen->Push64(Asm::kRegBP);
+      asmgen->Mov64(Asm::kRegBP, Asm::kRegSP);
+      asmgen->Sub64(Asm::kRegSP, stack_size);
+      for (auto stmt = node->next; stmt; stmt = stmt->next) {
+        GenerateAsm(src, asmgen, stmt, dest, free_calc_regs);
+      }
+      asmgen->Leave();
+      return;
+    }
+  case Node::kInt:
     comment_node();
     asmgen->Mov64(dest, get<opela_type::Int>(node->value));
     return;
+  case Node::kId:
+    comment_node();
+    asmgen->Load64(dest, Asm::kRegBP, get<Object*>(node->value)->bp_offset);
+    return;
+  case Node::kDefVar:
+    {
+      comment_node();
+      GenerateAsm(src, asmgen, node->rhs, dest, free_calc_regs);
+      asmgen->Store64(Asm::kRegBP, get<Object*>(node->value)->bp_offset, dest);
+      return;
+    }
+  default:
+    ; // pass
   }
+
+  // ここから Expression に対する処理
+  SetErshovNumber(src, node);
 
   Asm::Register reg;
   const bool lhs_in_dest = node->lhs->ershov >= node->rhs->ershov;
@@ -141,6 +165,7 @@ int main(int argc, char** argv) {
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
   auto ast = Program(tokenizer);
+
   cout << "/* AST\n";
   PrintASTRec(cout, ast);
   cout << "\n*/\n";

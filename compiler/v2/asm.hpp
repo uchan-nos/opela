@@ -53,9 +53,15 @@ class Asm {
   virtual void Mov64(Register dest, std::uint64_t v) = 0;
   virtual void Mov64(Register dest, Register v) = 0;
   virtual void Add64(Register dest, Register v) = 0;
+  virtual void Sub64(Register dest, std::uint64_t v) = 0;
   virtual void Sub64(Register dest, Register v) = 0;
   virtual void Mul64(Register dest, Register v) = 0;
   virtual void Div64(Register dest, Register v) = 0;
+  virtual void Push64(Register reg) = 0;
+  virtual void Leave() = 0;
+  virtual void Load64(Register dest, Register addr, int disp) = 0;
+  virtual void Store64(Register addr, int disp, Register v) = 0;
+
   virtual void CmpSet(Compare c, Register dest, Register lhs, Register rhs) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
