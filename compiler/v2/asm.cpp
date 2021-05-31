@@ -141,8 +141,13 @@ class AsmX86_64 : public Asm {
     out_ << "    ret\n";
   }
 
-  void Jump(std::string_view label) override {
+  void Jmp(std::string_view label) override {
     out_ << "    jmp " << label << '\n';
+  }
+
+  void JmpIfZero(Register v, std::string_view label) override {
+    out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n';
+    out_ << "    jz " << label << '\n';
   }
 };
 

@@ -65,7 +65,8 @@ class Asm {
   virtual void CmpSet(Compare c, Register dest, Register lhs, Register rhs) = 0;
   virtual void Xor64(Register dest, Register v) = 0;
   virtual void Ret() = 0;
-  virtual void Jump(std::string_view label) = 0;
+  virtual void Jmp(std::string_view label) = 0;
+  virtual void JmpIfZero(Register v, std::string_view label) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

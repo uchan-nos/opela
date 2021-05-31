@@ -93,6 +93,10 @@ test_exit 3  '{ 42; 3; }'
 test_exit 15 '{ foo:=5; bar:=3; foo*bar; }'
 test_exit 6  '{ foo:=2; { foo:=3; } foo+4; }'
 test_exit 42 '{ return 41+1; 3; }'
+test_exit 2  '{ 1; if 42 > 10 { 2; } }'
+test_exit 2  '{ cond := 10 < 200; if cond { return 2; } }'
+test_exit 4  '{ if 0 { 3; } else { 4; } }'
+test_exit 5  '{ if 0 { 3; } else if 1 { 5; } else { 4; } }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

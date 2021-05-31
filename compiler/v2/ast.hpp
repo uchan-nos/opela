@@ -24,6 +24,7 @@ struct Node {
     kDefVar,  // 変数定義
     kDefFunc, // 関数定義
     kRet,     // return 文
+    kIf,      // if 文
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -31,14 +32,19 @@ struct Node {
   // 子ノード
   Node* lhs = nullptr;
   Node* rhs = nullptr;
-  Node* next = nullptr; // kBlock: 次の文
+  Node* cond = nullptr; // 条件式
+  Node* next = nullptr; // 複文中での次の文
 
 
   /* 2項演算以外での lhs と rhs の用途
    *
-   * lhs
-   *   kDefFunc 関数本体の複文
-   *   kRet     戻り値を表す式（式が無い場合は nullptr）
+   * kDefFunc
+   *   lhs: 関数本体の複文
+   * kRet
+   *   lhs: 戻り値を表す式（式が無い場合は nullptr）
+   * kIf
+   *   lhs: then 節
+   *   rhs: else 節
    */
 
   std::variant<opela_type::Int, Object*> value = {};
@@ -55,6 +61,7 @@ struct ASTContext {
 Node* Program(Source& src, Tokenizer& t);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);
+Node* SelectionStatement(ASTContext& ctx);
 Node* ExpressionStatement(ASTContext& ctx);
 Node* Expression(ASTContext& ctx);
 Node* Assignment(ASTContext& ctx);

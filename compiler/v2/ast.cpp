@@ -12,12 +12,34 @@ using namespace std;
 
 namespace {
 
+Node* NewNode(Node::Kind kind, Token* token) {
+  return new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
+}
+
 Node* NewNodeInt(Token* token, opela_type::Int value) {
-  return new Node{Node::kInt, token, nullptr, nullptr, nullptr, value};
+  auto node = NewNode(Node::kInt, token);
+  node->value = value;
+  return node;
 }
 
 Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
-  return new Node{kind, op, lhs, rhs, nullptr, {}};
+  auto node = NewNode(kind, op);
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+Node* NewNodeOneChild(Node::Kind kind, Token* token, Node* child) {
+  auto node = NewNode(kind, token);
+  node->lhs = child;
+  return node;
+}
+
+Node* NewNodeCond(Node::Kind kind, Token* token,
+                  Node* cond, Node* lhs, Node* rhs) {
+  auto node = NewNodeBinOp(kind, token, lhs, rhs);
+  node->cond = cond;
+  return node;
 }
 
 map<Node*, size_t> node_number;
@@ -52,17 +74,20 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
     os << " value=" << get<opela_type::Int>(ast->value);
   }
 
-  const bool multiline = recursive && (ast->next || ast->lhs || ast->rhs);
+  const bool multiline = recursive && (
+      ast->lhs || ast->rhs || ast->cond || ast->next);
   if (multiline) {
     os << '\n' << string(indent + 2, ' ') << "lhs=";
     PrintAST(os, ast->lhs, indent + 2, recursive);
     os << '\n' << string(indent + 2, ' ') << "rhs=";
     PrintAST(os, ast->rhs, indent + 2, recursive);
+    os << '\n' << string(indent + 2, ' ') << "cond=";
+    PrintAST(os, ast->cond, indent + 2, recursive);
     os << '\n' << string(indent + 2, ' ') << "next=";
     PrintAST(os, ast->next, indent + 2, recursive);
   } else {
     os << " lhs=" << NodeName(ast->lhs) << " rhs=" << NodeName(ast->rhs)
-       << " next=" << NodeName(ast->next);
+       << " cond=" << NodeName(ast->cond) << " next=" << NodeName(ast->next);
   }
 
   if (multiline) {
@@ -80,7 +105,8 @@ Node* Program(Source& src, Tokenizer& t) {
   vector<Object*> locals;
   ASTContext ctx{src, t, sc, locals};
 
-  Node* node = new Node{Node::kDefFunc, nullptr, Statement(ctx)};
+  Node* node = NewNode(Node::kDefFunc, nullptr);
+  node->lhs = Statement(ctx);
   ctx.t.Expect(Token::kEOF);
 
   node->value = new Object{Object::kFunc, nullptr, false, 0, std::move(locals)};
@@ -92,8 +118,11 @@ Node* Statement(ASTContext& ctx) {
     return CompoundStatement(ctx);
   }
   if (auto token = ctx.t.Consume(Token::kRet)) {
-    auto node = new Node{Node::kRet, token, ExpressionStatement(ctx)};
+    auto node = NewNodeOneChild(Node::kRet, token, ExpressionStatement(ctx));
     return node;
+  }
+  if (ctx.t.Peek(Token::kIf)) {
+    return SelectionStatement(ctx);
   }
 
   return ExpressionStatement(ctx);
@@ -102,7 +131,7 @@ Node* Statement(ASTContext& ctx) {
 Node* CompoundStatement(ASTContext& ctx) {
   ctx.sc.Enter();
 
-  auto node = new Node{Node::kBlock, ctx.t.Expect("{")};
+  auto node = NewNode(Node::kBlock, ctx.t.Expect("{"));
   auto cur = node;
   while (!ctx.t.Consume("}")) {
     cur->next = Statement(ctx);
@@ -113,6 +142,21 @@ Node* CompoundStatement(ASTContext& ctx) {
 
   ctx.sc.Leave();
   return node;
+}
+
+Node* SelectionStatement(ASTContext& ctx) {
+  auto if_token = ctx.t.Expect(Token::kIf);
+  auto cond = Expression(ctx);
+  auto body_then = CompoundStatement(ctx);
+  Node* body_else = nullptr;
+  if (ctx.t.Consume(Token::kElse)) {
+    if (ctx.t.Peek(Token::kIf)) {
+      body_else = SelectionStatement(ctx);
+    } else {
+      body_else = CompoundStatement(ctx);
+    }
+  }
+  return NewNodeCond(Node::kIf, if_token, cond, body_then, body_else);
 }
 
 Node* ExpressionStatement(ASTContext& ctx) {
@@ -230,7 +274,7 @@ Node* Primary(ASTContext& ctx) {
     return node;
   } else if (auto id = ctx.t.Consume(Token::kId)) {
     auto symbol = ctx.sc.FindObject(id->raw);
-    auto node = new Node{Node::kId, id};
+    auto node = NewNode(Node::kId, id);
     node->value = symbol;
     return node;
   }

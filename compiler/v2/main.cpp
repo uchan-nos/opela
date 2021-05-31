@@ -53,6 +53,13 @@ struct GenContext {
   Object* func;
 };
 
+size_t label_counter = 0;
+string GenerateLabel() {
+  ostringstream oss;
+  oss << "LABEL" << label_counter++;
+  return oss.str();
+}
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs) {
   auto comment_node = [ctx, node]{
@@ -105,10 +112,27 @@ void GenerateAsm(GenContext& ctx, Node* node,
       return;
     }
   case Node::kRet:
+    comment_node();
     if (node->lhs) {
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
     }
-    ctx.asmgen.Jump(string{ctx.func->id->raw} + ".exit");
+    ctx.asmgen.Jmp(string{ctx.func->id->raw} + ".exit");
+    return;
+  case Node::kIf:
+    comment_node();
+    {
+      auto label_exit = GenerateLabel();
+      auto label_else = node->rhs ? GenerateLabel() : label_exit;
+      GenerateAsm(ctx, node->cond, dest, free_calc_regs);
+      ctx.asmgen.JmpIfZero(dest, label_else);
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      if (node->rhs) {
+        ctx.asmgen.Jmp(label_exit);
+        ctx.asmgen.Output() << label_else << ": # else clause\n";
+        GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      }
+      ctx.asmgen.Output() << label_exit << ": # if stmt exit\n";
+    }
     return;
   default:
     ; // pass

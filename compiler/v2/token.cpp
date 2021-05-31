@@ -15,6 +15,8 @@ namespace {
 
 const map<Token::Kind, string> kKeywords{
   {Token::kRet,    "return"},
+  {Token::kIf,     "if"},
+  {Token::kElse,   "else"},
 };
 
 Token* NextToken(Source& src, const char* p) {

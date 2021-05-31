@@ -16,6 +16,8 @@ struct Token {
 
     // キーワード
     kRet,
+    kIf,
+    kElse,
   } kind;
 
   std::string_view raw;
