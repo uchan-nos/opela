@@ -110,11 +110,11 @@ class AsmX86_64 : public Asm {
 
   void Load64(Register dest, Register addr, int disp) override {
     out_ << "    mov " << RegName(dest)
-         << ",[" << RegName(addr) << (disp > 0 ? "+" : "") << disp << "]\n";
+         << ",[" << RegName(addr) << (disp >= 0 ? "+" : "") << disp << "]\n";
   }
 
   void Store64(Register addr, int disp, Register v) override {
-    out_ << "    mov [" << RegName(addr) << (disp > 0 ? "+" : "") << disp
+    out_ << "    mov [" << RegName(addr) << (disp >= 0 ? "+" : "") << disp
          << "]," << RegName(v) << '\n';
   }
 
@@ -148,6 +148,12 @@ class AsmX86_64 : public Asm {
   void JmpIfZero(Register v, std::string_view label) override {
     out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n';
     out_ << "    jz " << label << '\n';
+  }
+
+  void LEA(Register dest, Register base, int disp) override {
+    out_ << "    lea " << RegName(dest)
+         << ", [" << RegName(base)
+         << (disp >= 0 ? "+" : "") << disp << "]\n";
   }
 };
 

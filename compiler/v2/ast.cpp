@@ -172,7 +172,11 @@ Node* Expression(ASTContext& ctx) {
 Node* Assignment(ASTContext& ctx) {
   auto node = Equality(ctx);
 
-  if (auto op = ctx.t.Consume(":=")) {
+  if (auto op = ctx.t.Consume("=")) {
+    auto obj = ctx.sc.FindObject(node->token->raw);
+    node = NewNodeBinOp(Node::kAssign, op, node, Assignment(ctx));
+    node->value = obj;
+  } else if (auto op = ctx.t.Consume(":=")) {
     if (node->kind != Node::kId) {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ctx.t.Unexpected(*node->token);

@@ -25,6 +25,7 @@ struct Node {
     kDefFunc, // 関数定義
     kRet,     // return 文
     kIf,      // if 文
+    kAssign,  // 2項演算子 =
   } kind;
 
   Token* token; // このノードを代表するトークン

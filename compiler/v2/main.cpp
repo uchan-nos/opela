@@ -61,7 +61,8 @@ string GenerateLabel() {
 }
 
 void GenerateAsm(GenContext& ctx, Node* node,
-                 Asm::Register dest, Asm::RegSet free_calc_regs) {
+                 Asm::Register dest, Asm::RegSet free_calc_regs,
+                 bool lval = false) {
   auto comment_node = [ctx, node]{
     ctx.asmgen.Output() << "    # ";
     PrintAST(ctx.asmgen.Output(), node);
@@ -80,7 +81,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kId:
     comment_node();
-    ctx.asmgen.Load64(dest, Asm::kRegBP, get<Object*>(node->value)->bp_offset);
+    {
+      auto bp_offset = get<Object*>(node->value)->bp_offset;
+      if (lval) {
+        ctx.asmgen.LEA(dest, Asm::kRegBP, bp_offset);
+      } else {
+        ctx.asmgen.Load64(dest, Asm::kRegBP, bp_offset);
+      }
+    }
     return;
   case Node::kDefVar:
     {
@@ -141,17 +149,24 @@ void GenerateAsm(GenContext& ctx, Node* node,
   // ここから Expression に対する処理
   SetErshovNumber(ctx.src, node);
 
+  const bool request_lval =
+    node->kind == Node::kAssign ||
+    node->kind == Node::kDefVar
+    ;
+
   Asm::Register reg;
   const bool lhs_in_dest = node->lhs->ershov >= node->rhs->ershov;
   if (lhs_in_dest) {
-    GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, request_lval);
     reg = UseAnyCalcReg(free_calc_regs);
     GenerateAsm(ctx, node->rhs, reg, free_calc_regs);
   } else {
     GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
     reg = UseAnyCalcReg(free_calc_regs);
-    GenerateAsm(ctx, node->lhs, reg, free_calc_regs);
+    GenerateAsm(ctx, node->lhs, reg, free_calc_regs, request_lval);
   }
+  auto lhs_reg = lhs_in_dest ? dest : reg;
+  auto rhs_reg = lhs_in_dest ? reg : dest;
 
   comment_node();
 
@@ -185,17 +200,17 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ctx.asmgen.CmpSet(Asm::kCmpNE, dest, dest, reg);
     break;
   case Node::kGT:
-    if (lhs_in_dest) {
-      ctx.asmgen.CmpSet(Asm::kCmpG, dest, dest, reg);
-    } else {
-      ctx.asmgen.CmpSet(Asm::kCmpG, dest, reg, dest);
-    }
+    ctx.asmgen.CmpSet(Asm::kCmpG, dest, lhs_reg, rhs_reg);
     break;
   case Node::kLE:
-    if (lhs_in_dest) {
-      ctx.asmgen.CmpSet(Asm::kCmpLE, dest, dest, reg);
-    } else {
-      ctx.asmgen.CmpSet(Asm::kCmpLE, dest, reg, dest);
+    ctx.asmgen.CmpSet(Asm::kCmpLE, dest, lhs_reg, rhs_reg);
+    break;
+  case Node::kAssign:
+    ctx.asmgen.Store64(lhs_reg, 0, rhs_reg);
+    if (lval && !lhs_in_dest) {
+      ctx.asmgen.Mov64(dest, reg);
+    } else if (!lval && lhs_in_dest) {
+      ctx.asmgen.Mov64(dest, reg);
     }
     break;
   default:
