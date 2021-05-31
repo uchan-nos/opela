@@ -3,6 +3,7 @@
 #include <bitset>
 #include <cstdint>
 #include <ostream>
+#include <string_view>
 
 class Asm {
  public:
@@ -61,8 +62,10 @@ class Asm {
   virtual void Leave() = 0;
   virtual void Load64(Register dest, Register addr, int disp) = 0;
   virtual void Store64(Register addr, int disp, Register v) = 0;
-
   virtual void CmpSet(Compare c, Register dest, Register lhs, Register rhs) = 0;
+  virtual void Xor64(Register dest, Register v) = 0;
+  virtual void Ret() = 0;
+  virtual void Jump(std::string_view label) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

@@ -132,6 +132,18 @@ class AsmX86_64 : public Asm {
     out_ << ' ' << RegName(dest, 1) << '\n';
     out_ << "    movzx " << RegName(dest, 4) << ',' << RegName(dest, 1) << '\n';
   }
+
+  void Xor64(Register dest, Register v) override {
+    out_ << "    xor " << RegName(dest) << ',' << RegName(v) << '\n';
+  }
+
+  void Ret() override {
+    out_ << "    ret\n";
+  }
+
+  void Jump(std::string_view label) override {
+    out_ << "    jmp " << label << '\n';
+  }
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out) {

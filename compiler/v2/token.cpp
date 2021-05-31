@@ -13,6 +13,10 @@ using namespace std;
 
 namespace {
 
+const map<Token::Kind, string> kKeywords{
+  {Token::kRet,    "return"},
+};
+
 Token* NextToken(Source& src, const char* p) {
   while (p < src.End()) {
     if (isspace(*p)) {
@@ -49,6 +53,14 @@ Token* NextToken(Source& src, const char* p) {
 
     if (strchr("+-*/()<>;{}", *p)) {
       return new Token{Token::kReserved, {p, 1}, {}};
+    }
+
+    bool match_keyword = false;
+    for (auto& [ kind, name ] : kKeywords) {
+      if (string_view raw{p, name.size()};
+          raw == name && !isalpha(p[name.size()]) && p[name.size()] != '_') {
+        return new Token{kind, raw, {}};
+      }
     }
 
     if (isalpha(*p) || *p == '_') {

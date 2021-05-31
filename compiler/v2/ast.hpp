@@ -23,14 +23,23 @@ struct Node {
     kId,      // 識別子（変数、関数、型）
     kDefVar,  // 変数定義
     kDefFunc, // 関数定義
+    kRet,     // return 文
   } kind;
 
   Token* token; // このノードを代表するトークン
 
   // 子ノード
-  Node* lhs = nullptr;  // kDefFunc: 関数本体の複文
+  Node* lhs = nullptr;
   Node* rhs = nullptr;
   Node* next = nullptr; // kBlock: 次の文
+
+
+  /* 2項演算以外での lhs と rhs の用途
+   *
+   * lhs
+   *   kDefFunc 関数本体の複文
+   *   kRet     戻り値を表す式（式が無い場合は nullptr）
+   */
 
   std::variant<opela_type::Int, Object*> value = {};
   int ershov = 0;

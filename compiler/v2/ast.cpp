@@ -91,6 +91,10 @@ Node* Statement(ASTContext& ctx) {
   if (ctx.t.Peek("{")) {
     return CompoundStatement(ctx);
   }
+  if (auto token = ctx.t.Consume(Token::kRet)) {
+    auto node = new Node{Node::kRet, token, ExpressionStatement(ctx)};
+    return node;
+  }
 
   return ExpressionStatement(ctx);
 }

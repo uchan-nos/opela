@@ -13,6 +13,9 @@ struct Token {
     kReserved,
     kInt,
     kId,
+
+    // キーワード
+    kRet,
   } kind;
 
   std::string_view raw;

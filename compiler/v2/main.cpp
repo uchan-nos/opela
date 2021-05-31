@@ -47,38 +47,46 @@ int SetErshovNumber(Source& src, Node* expr) {
   ErrorAt(src, *expr->token);
 }
 
-void GenerateAsm(Source& src, Asm* asmgen, Node* node,
+struct GenContext {
+  Source& src;
+  Asm& asmgen;
+  Object* func;
+};
+
+void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs) {
-  auto comment_node = [asmgen, node]{
-    asmgen->Output() << "    # ";
-    PrintAST(asmgen->Output(), node);
-    asmgen->Output() << '\n';
+  auto comment_node = [ctx, node]{
+    ctx.asmgen.Output() << "    # ";
+    PrintAST(ctx.asmgen.Output(), node);
+    ctx.asmgen.Output() << '\n';
   };
 
   switch (node->kind) {
   case Node::kInt:
     comment_node();
-    asmgen->Mov64(dest, get<opela_type::Int>(node->value));
+    ctx.asmgen.Mov64(dest, get<opela_type::Int>(node->value));
     return;
   case Node::kBlock:
     for (auto stmt = node->next; stmt; stmt = stmt->next) {
-      GenerateAsm(src, asmgen, stmt, dest, free_calc_regs);
+      GenerateAsm(ctx, stmt, dest, free_calc_regs);
     }
     return;
   case Node::kId:
     comment_node();
-    asmgen->Load64(dest, Asm::kRegBP, get<Object*>(node->value)->bp_offset);
+    ctx.asmgen.Load64(dest, Asm::kRegBP, get<Object*>(node->value)->bp_offset);
     return;
   case Node::kDefVar:
     {
       comment_node();
-      GenerateAsm(src, asmgen, node->rhs, dest, free_calc_regs);
-      asmgen->Store64(Asm::kRegBP, get<Object*>(node->value)->bp_offset, dest);
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      ctx.asmgen.Store64(Asm::kRegBP, get<Object*>(node->value)->bp_offset, dest);
       return;
     }
   case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
+      GenContext func_ctx{ctx.src, ctx.asmgen, func};
+
       int stack_size = 0;
       for (Object* obj : func->locals) {
         stack_size += 8;
@@ -86,80 +94,89 @@ void GenerateAsm(Source& src, Asm* asmgen, Node* node,
       }
       stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
 
-      asmgen->Push64(Asm::kRegBP);
-      asmgen->Mov64(Asm::kRegBP, Asm::kRegSP);
-      asmgen->Sub64(Asm::kRegSP, stack_size);
-      GenerateAsm(src, asmgen, node->lhs, dest, free_calc_regs);
-      asmgen->Leave();
+      ctx.asmgen.Push64(Asm::kRegBP);
+      ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
+      ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
+      ctx.asmgen.Xor64(dest, dest);
+      GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs);
+      ctx.asmgen.Output() << ctx.func->id->raw << ".exit:\n";
+      ctx.asmgen.Leave();
+      ctx.asmgen.Ret();
       return;
     }
+  case Node::kRet:
+    if (node->lhs) {
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+    }
+    ctx.asmgen.Jump(string{ctx.func->id->raw} + ".exit");
+    return;
   default:
     ; // pass
   }
 
   // ここから Expression に対する処理
-  SetErshovNumber(src, node);
+  SetErshovNumber(ctx.src, node);
 
   Asm::Register reg;
   const bool lhs_in_dest = node->lhs->ershov >= node->rhs->ershov;
   if (lhs_in_dest) {
-    GenerateAsm(src, asmgen, node->lhs, dest, free_calc_regs);
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
     reg = UseAnyCalcReg(free_calc_regs);
-    GenerateAsm(src, asmgen, node->rhs, reg, free_calc_regs);
+    GenerateAsm(ctx, node->rhs, reg, free_calc_regs);
   } else {
-    GenerateAsm(src, asmgen, node->rhs, dest, free_calc_regs);
+    GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
     reg = UseAnyCalcReg(free_calc_regs);
-    GenerateAsm(src, asmgen, node->lhs, reg, free_calc_regs);
+    GenerateAsm(ctx, node->lhs, reg, free_calc_regs);
   }
 
   comment_node();
 
   switch (node->kind) {
   case Node::kAdd:
-    asmgen->Add64(dest, reg);
+    ctx.asmgen.Add64(dest, reg);
     break;
   case Node::kSub:
     if (lhs_in_dest) {
-      asmgen->Sub64(dest, reg);
+      ctx.asmgen.Sub64(dest, reg);
     } else {
-      asmgen->Sub64(reg, dest);
-      asmgen->Mov64(dest, reg);
+      ctx.asmgen.Sub64(reg, dest);
+      ctx.asmgen.Mov64(dest, reg);
     }
     break;
   case Node::kMul:
-    asmgen->Mul64(dest, reg);
+    ctx.asmgen.Mul64(dest, reg);
     break;
   case Node::kDiv:
     if (lhs_in_dest) {
-      asmgen->Div64(dest, reg);
+      ctx.asmgen.Div64(dest, reg);
     } else {
-      asmgen->Div64(reg, dest);
-      asmgen->Mov64(dest, reg);
+      ctx.asmgen.Div64(reg, dest);
+      ctx.asmgen.Mov64(dest, reg);
     }
     break;
   case Node::kEqu:
-    asmgen->CmpSet(Asm::kCmpE, dest, dest, reg);
+    ctx.asmgen.CmpSet(Asm::kCmpE, dest, dest, reg);
     break;
   case Node::kNEqu:
-    asmgen->CmpSet(Asm::kCmpNE, dest, dest, reg);
+    ctx.asmgen.CmpSet(Asm::kCmpNE, dest, dest, reg);
     break;
   case Node::kGT:
     if (lhs_in_dest) {
-      asmgen->CmpSet(Asm::kCmpG, dest, dest, reg);
+      ctx.asmgen.CmpSet(Asm::kCmpG, dest, dest, reg);
     } else {
-      asmgen->CmpSet(Asm::kCmpG, dest, reg, dest);
+      ctx.asmgen.CmpSet(Asm::kCmpG, dest, reg, dest);
     }
     break;
   case Node::kLE:
     if (lhs_in_dest) {
-      asmgen->CmpSet(Asm::kCmpLE, dest, dest, reg);
+      ctx.asmgen.CmpSet(Asm::kCmpLE, dest, dest, reg);
     } else {
-      asmgen->CmpSet(Asm::kCmpLE, dest, reg, dest);
+      ctx.asmgen.CmpSet(Asm::kCmpLE, dest, reg, dest);
     }
     break;
   default:
     cerr << "should not come here" << endl;
-    ErrorAt(src, *node->token);
+    ErrorAt(ctx.src, *node->token);
   }
 }
 
@@ -184,10 +201,12 @@ int main(int argc, char** argv) {
   free_calc_regs.set(Asm::kRegY);
 
   auto asmgen = NewAsm(AsmArch::kX86_64, cout);
+
+  GenContext ctx{src, *asmgen, get<Object*>(ast->value)};
+  ctx.func->id = new Token{Token::kId, "main", {}};
+
   cout << ".intel_syntax noprefix\n"
           ".global main\n"
-          "main:\n"
-          "    xor eax,eax\n";
-  GenerateAsm(src, asmgen, ast, Asm::kRegA, free_calc_regs);
-  cout << "    ret\n";
+          "main:\n";
+  GenerateAsm(ctx, ast, Asm::kRegA, free_calc_regs);
 }
