@@ -67,6 +67,7 @@ class Asm {
   virtual void Ret() = 0;
   virtual void Jmp(std::string_view label) = 0;
   virtual void JmpIfZero(Register v, std::string_view label) = 0;
+  virtual void JmpIfNotZero(Register v, std::string_view label) = 0;
   virtual void LEA(Register dest, Register base, int disp) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド

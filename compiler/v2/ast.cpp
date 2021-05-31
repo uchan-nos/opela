@@ -125,6 +125,9 @@ Node* Statement(ASTContext& ctx) {
   if (ctx.t.Peek(Token::kIf)) {
     return SelectionStatement(ctx);
   }
+  if (ctx.t.Peek(Token::kFor)) {
+    return IterationStatement(ctx);
+  }
 
   return ExpressionStatement(ctx);
 }
@@ -158,6 +161,26 @@ Node* SelectionStatement(ASTContext& ctx) {
     }
   }
   return NewNodeCond(Node::kIf, if_token, cond, body_then, body_else);
+}
+
+Node* IterationStatement(ASTContext& ctx) {
+  auto for_token = ctx.t.Expect(Token::kFor);
+  if (ctx.t.Peek("{")) {
+    auto node = NewNode(Node::kLoop, for_token);
+    node->lhs = CompoundStatement(ctx);
+    return node;
+  }
+
+  auto cond = Expression(ctx);
+  Node* init = nullptr;
+  if (ctx.t.Consume(";")) {
+    init = cond;
+    cond = Expression(ctx);
+    ctx.t.Expect(";");
+    init->next = Expression(ctx);
+  }
+  auto body = CompoundStatement(ctx);
+  return NewNodeCond(Node::kFor, for_token, cond, body, init);
 }
 
 Node* ExpressionStatement(ASTContext& ctx) {

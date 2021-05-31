@@ -17,6 +17,7 @@ const map<Token::Kind, string> kKeywords{
   {Token::kRet,    "return"},
   {Token::kIf,     "if"},
   {Token::kElse,   "else"},
+  {Token::kFor,    "for"},
 };
 
 Token* NextToken(Source& src, const char* p) {
@@ -57,7 +58,6 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kReserved, {p, 1}, {}};
     }
 
-    bool match_keyword = false;
     for (auto& [ kind, name ] : kKeywords) {
       if (string_view raw{p, name.size()};
           raw == name && !isalpha(p[name.size()]) && p[name.size()] != '_') {

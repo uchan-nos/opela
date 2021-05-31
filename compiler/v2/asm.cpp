@@ -150,6 +150,11 @@ class AsmX86_64 : public Asm {
     out_ << "    jz " << label << '\n';
   }
 
+  void JmpIfNotZero(Register v, std::string_view label) override {
+    out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n';
+    out_ << "    jnz " << label << '\n';
+  }
+
   void LEA(Register dest, Register base, int disp) override {
     out_ << "    lea " << RegName(dest)
          << ", [" << RegName(base)

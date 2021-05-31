@@ -141,6 +141,27 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Output() << label_exit << ": # if stmt exit\n";
     }
     return;
+  case Node::kFor:
+    comment_node();
+    {
+      auto label_loop = GenerateLabel();
+      auto label_cond = GenerateLabel();
+      auto label_next = node->rhs ? GenerateLabel() : label_cond;
+      if (node->rhs) {
+        GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      }
+      ctx.asmgen.Jmp(label_cond);
+      ctx.asmgen.Output() << label_loop << ": # loop body\n";
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      if (node->rhs) {
+        ctx.asmgen.Output() << label_next << ": # update\n";
+        GenerateAsm(ctx, node->rhs->next, dest, free_calc_regs);
+      }
+      ctx.asmgen.Output() << label_cond << ": # condition\n";
+      GenerateAsm(ctx, node->cond, dest, free_calc_regs);
+      ctx.asmgen.JmpIfNotZero(dest, label_loop);
+    }
+    return;
   default:
     ; // pass
   }

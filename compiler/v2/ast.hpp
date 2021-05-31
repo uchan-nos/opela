@@ -26,6 +26,8 @@ struct Node {
     kRet,     // return 文
     kIf,      // if 文
     kAssign,  // 2項演算子 =
+    kLoop,    // 無限ループ
+    kFor,     // 条件付きループ
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -46,6 +48,11 @@ struct Node {
    * kIf
    *   lhs: then 節
    *   rhs: else 節
+   * kLoop
+   *   lhs: body
+   * kFor
+   *   lhs: body
+   *   rhs: 初期化式（rhs->next が更新式）
    */
 
   std::variant<opela_type::Int, Object*> value = {};
@@ -63,6 +70,7 @@ Node* Program(Source& src, Tokenizer& t);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);
 Node* SelectionStatement(ASTContext& ctx);
+Node* IterationStatement(ASTContext& ctx);
 Node* ExpressionStatement(ASTContext& ctx);
 Node* Expression(ASTContext& ctx);
 Node* Assignment(ASTContext& ctx);

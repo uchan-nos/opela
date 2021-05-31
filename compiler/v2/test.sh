@@ -100,6 +100,10 @@ test_exit 5  '{ if 0 { 3; } else if 1 { 5; } else { 4; } }'
 test_exit 8  '{ foo := 3; foo = 4; foo * 2; }'
 test_exit 38 '{ foo:=5; bar:=7; foo=(bar=1)=42; foo-4; }'
 test_exit 42 '{ foo:=5; bar:=7; foo=bar=42; }'
+test_exit 55 '{ i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } s; }'
+test_exit 9  '{ a:=5; a=b:=3; a*b; }'
+test_exit 55 '{ s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }'
+test_exit 9  '{ s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
