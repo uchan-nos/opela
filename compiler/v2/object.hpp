@@ -21,10 +21,19 @@ struct Object {
 
   Token* id; // オブジェクト名（マングルされた名前ではない）
   bool is_local; // グローバルなら false
+
   int bp_offset; // ローカル変数の BP からのオフセット
 
-  std::vector<Object*> locals;
+  std::vector<Object*> locals; // 関数のローカル変数リスト
 };
+
+inline Object* NewLVar(Token* id) {
+  return new Object{Object::kVar, id, true, -1, {}};
+}
+
+inline Object* NewFunc(Token* id) {
+  return new Object{Object::kFunc, id, false, -1, {}};
+}
 
 class Scope {
  public:

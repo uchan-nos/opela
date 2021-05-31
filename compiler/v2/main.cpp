@@ -91,12 +91,11 @@ void GenerateAsm(GenContext& ctx, Node* node,
     }
     return;
   case Node::kDefVar:
-    {
-      comment_node();
-      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
-      ctx.asmgen.Store64(Asm::kRegBP, get<Object*>(node->value)->bp_offset, dest);
-      return;
-    }
+    comment_node();
+    GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+    ctx.asmgen.Store64(
+        Asm::kRegBP, get<Object*>(node->lhs->value)->bp_offset, dest);
+    return;
   case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
@@ -242,7 +241,6 @@ int main(int argc, char** argv) {
   auto asmgen = NewAsm(AsmArch::kX86_64, cout);
 
   GenContext ctx{src, *asmgen, get<Object*>(ast->value)};
-  ctx.func->id = new Token{Token::kId, "main", {}};
 
   cout << ".intel_syntax noprefix\n"
           ".global main\n"

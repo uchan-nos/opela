@@ -100,16 +100,17 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 } // namespace
 
 Node* Program(Source& src, Tokenizer& t) {
+  auto dummy_func_name = new Token{Token::kId, "main", {}};
+  auto func = NewFunc(dummy_func_name);
+
   Scope sc;
   sc.Enter();
-  vector<Object*> locals;
-  ASTContext ctx{src, t, sc, locals};
-
-  Node* node = NewNode(Node::kDefFunc, nullptr);
+  ASTContext ctx{src, t, sc, func->locals};
+  Node* node = NewNode(Node::kDefFunc, dummy_func_name);
   node->lhs = Statement(ctx);
-  ctx.t.Expect(Token::kEOF);
+  node->value = func;
 
-  node->value = new Object{Object::kFunc, nullptr, false, 0, std::move(locals)};
+  ctx.t.Expect(Token::kEOF);
   return node;
 }
 
@@ -173,27 +174,24 @@ Node* Assignment(ASTContext& ctx) {
   auto node = Equality(ctx);
 
   if (auto op = ctx.t.Consume("=")) {
-    auto obj = ctx.sc.FindObject(node->token->raw);
     node = NewNodeBinOp(Node::kAssign, op, node, Assignment(ctx));
-    node->value = obj;
   } else if (auto op = ctx.t.Consume(":=")) {
     if (node->kind != Node::kId) {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ctx.t.Unexpected(*node->token);
     }
 
-    if (auto obj = ctx.sc.FindObjectCurrentBlock(node->token->raw)) {
+    if (ctx.sc.FindObjectCurrentBlock(node->token->raw)) {
       cerr << "local variable is redefined" << endl;
       ErrorAt(ctx.src, *node->token);
     }
 
-    auto lvar = new Object{Object::kVar, node->token, true};
+    auto lvar = NewLVar(node->token);
+    node->value = lvar;
     ctx.locals.push_back(lvar);
     ctx.sc.PutObject(lvar);
 
-    auto init = Assignment(ctx);
-    node = NewNodeBinOp(Node::kDefVar, op, node, init);
-    node->value = lvar;
+    node = NewNodeBinOp(Node::kDefVar, op, node, Assignment(ctx));
   }
 
   return node;
@@ -277,9 +275,9 @@ Node* Primary(ASTContext& ctx) {
     ctx.t.Expect(")");
     return node;
   } else if (auto id = ctx.t.Consume(Token::kId)) {
-    auto symbol = ctx.sc.FindObject(id->raw);
+    auto obj = ctx.sc.FindObject(id->raw);
     auto node = NewNode(Node::kId, id);
-    node->value = symbol;
+    node->value = obj;
     return node;
   }
   auto token = ctx.t.Expect(Token::kInt);
