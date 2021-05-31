@@ -32,6 +32,7 @@ class Scope {
   void Leave();
 
   Object* FindObject(std::string_view name);
+  Object* FindObjectCurrentBlock(std::string_view name);
   void PutObject(Object* obj);
 
  private:

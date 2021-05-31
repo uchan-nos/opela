@@ -76,6 +76,20 @@ Token* Tokenizer::Peek() {
   return cur_token_;
 }
 
+Token* Tokenizer::Peek(Token::Kind kind) {
+  if (cur_token_->kind == kind) {
+   return cur_token_;
+  }
+  return nullptr;
+}
+
+Token* Tokenizer::Peek(std::string_view raw) {
+  if (cur_token_->kind == Token::kReserved && cur_token_->raw == raw) {
+    return cur_token_;
+  }
+  return nullptr;
+}
+
 Token* Tokenizer::Consume() {
   if (cur_token_->kind == Token::kEOF) {
     return cur_token_;
@@ -87,14 +101,14 @@ Token* Tokenizer::Consume() {
 }
 
 Token* Tokenizer::Consume(Token::Kind kind) {
-  if (cur_token_ == kind) {
+  if (Peek(kind)) {
     return Consume();
   }
   return nullptr;
 }
 
 Token* Tokenizer::Consume(string_view raw) {
-  if (cur_token_ == raw) {
+  if (Peek(raw)) {
     return Consume();
   }
   return nullptr;

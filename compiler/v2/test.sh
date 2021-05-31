@@ -91,6 +91,7 @@ test_exit 1  '{ 2>2 == 4<=3; }'
 test_exit 0  '{ }'
 test_exit 3  '{ 42; 3; }'
 test_exit 15 '{ foo:=5; bar:=3; foo*bar; }'
+test_exit 6  '{ foo:=2; { foo:=3; } foo+4; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

@@ -74,28 +74,40 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 
 } // namespace
 
-Node* Program(Tokenizer& t) {
+Node* Program(Source& src, Tokenizer& t) {
   Scope sc;
   sc.Enter();
   vector<Object*> locals;
-  ASTContext ctx{t, sc, locals};
+  ASTContext ctx{src, t, sc, locals};
 
-  Node* node = CompoundStatement(ctx);
+  Node* node = new Node{Node::kDefFunc, nullptr, Statement(ctx)};
   ctx.t.Expect(Token::kEOF);
 
   node->value = new Object{Object::kFunc, nullptr, false, 0, std::move(locals)};
   return node;
 }
 
+Node* Statement(ASTContext& ctx) {
+  if (ctx.t.Peek("{")) {
+    return CompoundStatement(ctx);
+  }
+
+  return ExpressionStatement(ctx);
+}
+
 Node* CompoundStatement(ASTContext& ctx) {
+  ctx.sc.Enter();
+
   auto node = new Node{Node::kBlock, ctx.t.Expect("{")};
   auto cur = node;
   while (!ctx.t.Consume("}")) {
-    cur->next = ExpressionStatement(ctx);
+    cur->next = Statement(ctx);
     while (cur->next) {
       cur = cur->next;
     }
   }
+
+  ctx.sc.Leave();
   return node;
 }
 
@@ -116,6 +128,11 @@ Node* Assignment(ASTContext& ctx) {
     if (node->kind != Node::kId) {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ctx.t.Unexpected(*node->token);
+    }
+
+    if (auto obj = ctx.sc.FindObjectCurrentBlock(node->token->raw)) {
+      cerr << "local variable is redefined" << endl;
+      ErrorAt(ctx.src, *node->token);
     }
 
     auto lvar = new Object{Object::kVar, node->token, true};

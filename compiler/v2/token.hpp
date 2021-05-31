@@ -25,6 +25,8 @@ class Tokenizer {
   Tokenizer(Source& src);
 
   Token* Peek();
+  Token* Peek(Token::Kind kind);
+  Token* Peek(std::string_view raw);
   Token* Consume();
   Token* Consume(Token::Kind kind);
   Token* Consume(std::string_view raw);
@@ -37,14 +39,6 @@ class Tokenizer {
   Source& src_;
   Token* cur_token_;
 };
-
-inline bool operator==(Token* token, Token::Kind kind) {
-  return token ? token->kind == kind : false;
-}
-
-inline bool operator==(Token* token, std::string_view raw) {
-  return token ? token->kind == Token::kReserved && token->raw == raw : false;
-}
 
 [[noreturn]] void ErrorAt(Source& src, Token& token);
 [[noreturn]] void Unexpected(Source& src, Token& token);

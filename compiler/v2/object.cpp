@@ -21,6 +21,12 @@ Object* Scope::FindObject(std::string_view name) {
   return nullptr;
 }
 
+Object* Scope::FindObjectCurrentBlock(std::string_view name) {
+  auto& bl = layers_.back();
+  auto it = bl.find(string{name});
+  return it == bl.end() ? nullptr : it->second;
+}
+
 void Scope::PutObject(Object* object) {
   auto& l = layers_.back();
   l.insert({string{object->id->raw}, object});

@@ -56,7 +56,27 @@ void GenerateAsm(Source& src, Asm* asmgen, Node* node,
   };
 
   switch (node->kind) {
+  case Node::kInt:
+    comment_node();
+    asmgen->Mov64(dest, get<opela_type::Int>(node->value));
+    return;
   case Node::kBlock:
+    for (auto stmt = node->next; stmt; stmt = stmt->next) {
+      GenerateAsm(src, asmgen, stmt, dest, free_calc_regs);
+    }
+    return;
+  case Node::kId:
+    comment_node();
+    asmgen->Load64(dest, Asm::kRegBP, get<Object*>(node->value)->bp_offset);
+    return;
+  case Node::kDefVar:
+    {
+      comment_node();
+      GenerateAsm(src, asmgen, node->rhs, dest, free_calc_regs);
+      asmgen->Store64(Asm::kRegBP, get<Object*>(node->value)->bp_offset, dest);
+      return;
+    }
+  case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
       int stack_size = 0;
@@ -69,25 +89,8 @@ void GenerateAsm(Source& src, Asm* asmgen, Node* node,
       asmgen->Push64(Asm::kRegBP);
       asmgen->Mov64(Asm::kRegBP, Asm::kRegSP);
       asmgen->Sub64(Asm::kRegSP, stack_size);
-      for (auto stmt = node->next; stmt; stmt = stmt->next) {
-        GenerateAsm(src, asmgen, stmt, dest, free_calc_regs);
-      }
+      GenerateAsm(src, asmgen, node->lhs, dest, free_calc_regs);
       asmgen->Leave();
-      return;
-    }
-  case Node::kInt:
-    comment_node();
-    asmgen->Mov64(dest, get<opela_type::Int>(node->value));
-    return;
-  case Node::kId:
-    comment_node();
-    asmgen->Load64(dest, Asm::kRegBP, get<Object*>(node->value)->bp_offset);
-    return;
-  case Node::kDefVar:
-    {
-      comment_node();
-      GenerateAsm(src, asmgen, node->rhs, dest, free_calc_regs);
-      asmgen->Store64(Asm::kRegBP, get<Object*>(node->value)->bp_offset, dest);
       return;
     }
   default:
@@ -164,7 +167,7 @@ int main(int argc, char** argv) {
   Source src;
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
-  auto ast = Program(tokenizer);
+  auto ast = Program(src, tokenizer);
 
   cout << "/* AST\n";
   PrintASTRec(cout, ast);
