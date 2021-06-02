@@ -26,7 +26,7 @@ clean:
 	$(CXX) $(CXXFLAGS) -S -masm=intel -o $@ $<
 
 .PHONY: test
-test: opelac
+test: opelac cfunc.o
 	./test.sh $(ARCH)
 
 .PHONY: asm

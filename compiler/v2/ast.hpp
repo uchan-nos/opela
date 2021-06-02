@@ -28,6 +28,7 @@ struct Node {
     kAssign,  // 2項演算子 =
     kLoop,    // 無限ループ
     kFor,     // 条件付きループ
+    kCall,    // 関数呼び出し演算子 ( )
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -53,6 +54,9 @@ struct Node {
    * kFor
    *   lhs: body
    *   rhs: 初期化式（rhs->next が更新式）
+   * kCall
+   *   lhs: 呼び出し対象の式（関数名）
+   *   rhs: 引数（順に next で繋がる）
    */
 
   std::variant<opela_type::Int, Object*> value = {};
@@ -79,6 +83,7 @@ Node* Relational(ASTContext& ctx);
 Node* Additive(ASTContext& ctx);
 Node* Multiplicative(ASTContext& ctx);
 Node* Unary(ASTContext& ctx);
+Node* Postfix(ASTContext& ctx);
 Node* Primary(ASTContext& ctx);
 
 void PrintAST(std::ostream& os, Node* ast);

@@ -160,6 +160,14 @@ class AsmX86_64 : public Asm {
          << ", [" << RegName(base)
          << (disp >= 0 ? "+" : "") << disp << "]\n";
   }
+
+  void Call(Register addr) override {
+    out_ << "    call " << RegName(addr) << '\n';
+  }
+
+  void LoadLabelAddr(Register dest, std::string_view label) override {
+    out_ << "    movabs " << RegName(dest) << ",offset " << label << '\n';
+  }
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out) {

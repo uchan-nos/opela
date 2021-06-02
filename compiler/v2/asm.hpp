@@ -69,6 +69,8 @@ class Asm {
   virtual void JmpIfZero(Register v, std::string_view label) = 0;
   virtual void JmpIfNotZero(Register v, std::string_view label) = 0;
   virtual void LEA(Register dest, Register base, int disp) = 0;
+  virtual void Call(Register addr) = 0;
+  virtual void LoadLabelAddr(Register dest, std::string_view label) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

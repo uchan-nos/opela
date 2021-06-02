@@ -20,7 +20,7 @@ opelac="./opelac -target-arch $target_arch"
 
 function build_tmp() {
   echo "$1" | $opelac > tmp.s
-  cc -o tmp tmp.s
+  cc -o tmp tmp.s cfunc.o
 }
 
 function test_exit() {
@@ -104,6 +104,8 @@ test_exit 55 '{ i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } s; }'
 test_exit 9  '{ a:=5; a=b:=3; a*b; }'
 test_exit 55 '{ s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }'
 test_exit 9  '{ s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s; }'
+test_exit 39 '{ func42() - 3; }'
+test_exit 42 '{ funcfunc42()(); }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

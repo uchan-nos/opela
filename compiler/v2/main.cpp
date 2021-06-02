@@ -42,6 +42,8 @@ int SetErshovNumber(Source& src, Node* expr) {
   } else if (expr->lhs != nullptr && expr->rhs != nullptr) {
     return expr->ershov =
       SetErshovNumber(src, expr->lhs) + SetErshovNumber(src, expr->rhs);
+  } else if (expr->lhs != nullptr && expr->rhs == nullptr) {
+    return expr->ershov = SetErshovNumber(src, expr->lhs);
   }
   cerr << "unexpected node" << endl;
   ErrorAt(src, *expr->token);
@@ -81,13 +83,15 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kId:
     comment_node();
-    {
-      auto bp_offset = get<Object*>(node->value)->bp_offset;
+    if (auto p = get_if<Object*>(&node->value)) {
+      Object* obj = *p;
       if (lval) {
-        ctx.asmgen.LEA(dest, Asm::kRegBP, bp_offset);
+        ctx.asmgen.LEA(dest, Asm::kRegBP, obj->bp_offset);
       } else {
-        ctx.asmgen.Load64(dest, Asm::kRegBP, bp_offset);
+        ctx.asmgen.Load64(dest, Asm::kRegBP, obj->bp_offset);
       }
+    } else {
+      ctx.asmgen.LoadLabelAddr(dest, node->token->raw);
     }
     return;
   case Node::kDefVar:
@@ -160,6 +164,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Output() << label_cond << ": # condition\n";
       GenerateAsm(ctx, node->cond, dest, free_calc_regs);
       ctx.asmgen.JmpIfNotZero(dest, label_loop);
+    }
+    return;
+  case Node::kCall:
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+    ctx.asmgen.Call(dest);
+    if (Asm::kRegA != dest) {
+      ctx.asmgen.Mov64(dest, Asm::kRegA);
     }
     return;
   default:

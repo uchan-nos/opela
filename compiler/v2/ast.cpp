@@ -289,7 +289,26 @@ Node* Unary(ASTContext& ctx) {
     return NewNodeBinOp(Node::kSub, op, zero, node);
   }
 
-  return Primary(ctx);
+  return Postfix(ctx);
+}
+
+Node* Postfix(ASTContext& ctx) {
+  auto node = Primary(ctx);
+
+  for (;;) {
+    if (auto op = ctx.t.Consume("(")) {
+      node = NewNodeOneChild(Node::kCall, op, node);
+      if (!ctx.t.Consume(")")) {
+        node->rhs = Expression(ctx);
+        for (auto cur = node->rhs; ctx.t.Consume(","); cur = cur->next) {
+          cur->next = Expression(ctx);
+        }
+        ctx.t.Expect(")");
+      }
+    } else {
+      return node;
+    }
+  }
 }
 
 Node* Primary(ASTContext& ctx) {
@@ -298,9 +317,10 @@ Node* Primary(ASTContext& ctx) {
     ctx.t.Expect(")");
     return node;
   } else if (auto id = ctx.t.Consume(Token::kId)) {
-    auto obj = ctx.sc.FindObject(id->raw);
     auto node = NewNode(Node::kId, id);
-    node->value = obj;
+    if (auto obj = ctx.sc.FindObject(id->raw)) {
+      node->value = obj;
+    }
     return node;
   }
   auto token = ctx.t.Expect(Token::kInt);
