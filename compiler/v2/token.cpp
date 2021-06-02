@@ -54,7 +54,7 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kReserved, {p, 2}, {}};
     }
 
-    if (strchr("+-*/()<>;{}=", *p)) {
+    if (strchr("+-*/()<>;{}=,", *p)) {
       return new Token{Token::kReserved, {p, 1}, {}};
     }
 

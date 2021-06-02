@@ -15,10 +15,7 @@ class Asm {
     // 戻り値、演算結果、計算用レジスタ
     kRegA,
 
-    // 引数レジスタ
-    kRegArg0, kRegArg1, kRegArg2, kRegArg3, kRegArg4, kRegArg5,
-
-    // 引数レジスタと重複する可能性がある計算用レジスタ
+    // 引数、計算用レジスタ
     kRegV0, kRegV1, kRegV2, kRegV3, kRegV4, kRegV5,
 
     // 引数および戻り値レジスタと重複しない計算用レジスタ
@@ -51,6 +48,8 @@ class Asm {
   Asm(std::ostream& out) : out_{out} {}
   virtual ~Asm() = default;
 
+  virtual bool SameReg(Register a, Register b) = 0;
+
   virtual void Mov64(Register dest, std::uint64_t v) = 0;
   virtual void Mov64(Register dest, Register v) = 0;
   virtual void Add64(Register dest, Register v) = 0;
@@ -59,6 +58,7 @@ class Asm {
   virtual void Mul64(Register dest, Register v) = 0;
   virtual void Div64(Register dest, Register v) = 0;
   virtual void Push64(Register reg) = 0;
+  virtual void Pop64(Register reg) = 0;
   virtual void Leave() = 0;
   virtual void Load64(Register dest, Register addr, int disp) = 0;
   virtual void Store64(Register addr, int disp, Register v) = 0;
