@@ -334,3 +334,11 @@ void PrintAST(std::ostream& os, Node* ast) {
 void PrintASTRec(std::ostream& os, Node* ast) {
   PrintAST(os, ast, 0, true);
 }
+
+int CountListItems(Node* head) {
+  int num = 0;
+  for (auto node = head; node; node = node->next) {
+    ++num;
+  }
+  return num;
+}

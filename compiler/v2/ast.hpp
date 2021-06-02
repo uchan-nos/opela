@@ -88,3 +88,9 @@ Node* Primary(ASTContext& ctx);
 
 void PrintAST(std::ostream& os, Node* ast);
 void PrintASTRec(std::ostream& os, Node* ast);
+
+// 線形リスト（next によるリスト）の要素数を返す。
+// nullptr -> 0
+// Node{next=nullptr} -> 1
+// Node{next=Node{next=nullptr}} -> 2
+int CountListItems(Node* head);

@@ -10,9 +10,8 @@ using namespace std;
 class AsmX86_64 : public Asm {
  public:
   static constexpr std::array<const char*, kRegNum> kRegNames{
-    "a", "di", "si", "d", "c", "r8", "r9",          // 戻り値、引数
-    "di", "si", "d", "c", "r8", "r9", "r10", "r11", // 計算用
-    "rbx", "r12", "r13", "r14", "r15",              // 計算用（不揮発）
+    "a", "di", "si", "d", "c", "r8", "r9", "r10", "r11", // 戻り値、引数、計算用
+    "rbx", "r12", "r13", "r14", "r15",                   // 計算用（不揮発）
     "bp", "sp", "zero",
   };
   static std::string RegName(std::string stem, unsigned bytes) {
@@ -53,6 +52,10 @@ class AsmX86_64 : public Asm {
   }
 
   using Asm::Asm;
+
+  bool SameReg(Register a, Register b) override {
+    return RegName(a) == RegName(b);
+  }
 
   void Mov64(Register dest, std::uint64_t v) override {
     if (v <= numeric_limits<uint32_t>::max()) {
@@ -102,6 +105,10 @@ class AsmX86_64 : public Asm {
 
   void Push64(Register reg) override {
     out_ << "    push " << RegName(reg) << '\n';
+  }
+
+  void Pop64(Register reg) override {
+    out_ << "    pop " << RegName(reg) << '\n';
   }
 
   void Leave() override {

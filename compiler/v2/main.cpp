@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <array>
 #include <bit>
 #include <bitset>
@@ -37,6 +38,14 @@ bool HasChildren(Node* node) {
 int SetErshovNumber(Source& src, Node* expr) {
   if (expr->ershov > 0) {
     return expr->ershov;
+  } else if (expr->kind == Node::kCall) {
+    const int num_arg = CountListItems(expr->rhs);
+    int ershov = 0;
+    for (auto arg = expr->rhs; arg; arg = arg->next) {
+      ershov = max(ershov, SetErshovNumber(src, arg));
+    }
+    ershov = max({ershov, SetErshovNumber(src, expr->lhs), num_arg + 1});
+    return expr->ershov = ershov;
   } else if (expr->lhs == nullptr && expr->rhs == nullptr) {
     return expr->ershov = 1;
   } else if (expr->lhs != nullptr && expr->rhs != nullptr) {
@@ -167,10 +176,71 @@ void GenerateAsm(GenContext& ctx, Node* node,
     }
     return;
   case Node::kCall:
-    GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
-    ctx.asmgen.Call(dest);
-    if (Asm::kRegA != dest) {
-      ctx.asmgen.Mov64(dest, Asm::kRegA);
+    {
+      SetErshovNumber(ctx.src, node);
+      const int num_arg = CountListItems(node->rhs);
+
+      // 引数レジスタを退避
+      vector<Asm::Register> saved_regs;
+      for (int i = 0; i < num_arg; ++i) {
+        auto reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
+        if (!free_calc_regs.test(reg)) {
+          ctx.asmgen.Push64(reg);
+          free_calc_regs.set(reg);
+          saved_regs.push_back(reg);
+        }
+      }
+
+      // 関数名の評価結果を格納するレジスタを探す
+      Asm::Register lhs_reg = Asm::kRegNV0;
+      for (int i = Asm::kRegV0 + num_arg; i <= Asm::kRegY; ++i) {
+        if (free_calc_regs.test(i)) {
+          lhs_reg = static_cast<Asm::Register>(i);
+          break;
+        }
+      }
+      if (lhs_reg > Asm::kRegY) {
+        lhs_reg = Asm::kRegY;
+        ctx.asmgen.Push64(lhs_reg);
+        saved_regs.push_back(lhs_reg);
+        free_calc_regs.set(lhs_reg);
+      }
+
+      // Ershov 数が 2 以上の引数を事前に評価し、スタックに保存しておく
+      vector<Node*> args;
+      for (auto arg = node->rhs; arg; arg = arg->next) {
+        args.push_back(arg);
+        if (arg->ershov >= 2) {
+          GenerateAsm(ctx, arg, dest, free_calc_regs);
+          ctx.asmgen.Push64(dest);
+        }
+      }
+
+      GenerateAsm(ctx, node->lhs, lhs_reg, free_calc_regs);
+      free_calc_regs.reset(lhs_reg);
+
+      // 引数レジスタに実引数を設定する
+      for (int i = num_arg - 1; i >= 0; --i) {
+        auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
+        if (args[i]->ershov == 1) {
+          GenerateAsm(ctx, args[i], arg_reg, free_calc_regs);
+        } else {
+          ctx.asmgen.Pop64(arg_reg);
+        }
+      }
+
+      // 関数を呼び、結果を dest レジスタにコピーする
+      ctx.asmgen.Output() << "    # calling " << node->lhs->token->raw << '\n';
+      ctx.asmgen.Call(lhs_reg);
+      if (Asm::kRegA != dest) {
+        ctx.asmgen.Mov64(dest, Asm::kRegA);
+      }
+
+      // 退避したレジスタの復帰
+      while (!saved_regs.empty()) {
+        ctx.asmgen.Pop64(saved_regs.back());
+        saved_regs.pop_back();
+      }
     }
     return;
   default:
@@ -260,8 +330,12 @@ int main(int argc, char** argv) {
   PrintASTRec(cout, ast);
   cout << "\n*/\n";
 
+  auto asmgen = NewAsm(AsmArch::kX86_64, cout);
+
   Asm::RegSet free_calc_regs;
-  free_calc_regs.set(Asm::kRegV0);
+  if (!asmgen->SameReg(Asm::kRegA, Asm::kRegV0)) {
+    free_calc_regs.set(Asm::kRegV0);
+  }
   free_calc_regs.set(Asm::kRegV1);
   free_calc_regs.set(Asm::kRegV2);
   free_calc_regs.set(Asm::kRegV3);
@@ -269,8 +343,6 @@ int main(int argc, char** argv) {
   free_calc_regs.set(Asm::kRegV5);
   free_calc_regs.set(Asm::kRegX);
   free_calc_regs.set(Asm::kRegY);
-
-  auto asmgen = NewAsm(AsmArch::kX86_64, cout);
 
   GenContext ctx{src, *asmgen, get<Object*>(ast->value)};
 

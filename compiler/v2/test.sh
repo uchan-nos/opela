@@ -106,6 +106,7 @@ test_exit 55 '{ s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }'
 test_exit 9  '{ s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s; }'
 test_exit 39 '{ func42() - 3; }'
 test_exit 42 '{ funcfunc42()(); }'
+test_exit 43 '{ add((1+2)*(3+4), add(func42(), 1)) - 21; }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
