@@ -18,6 +18,7 @@ const map<Token::Kind, string> kKeywords{
   {Token::kIf,     "if"},
   {Token::kElse,   "else"},
   {Token::kFor,    "for"},
+  {Token::kFunc,   "func"},
 };
 
 Token* NextToken(Source& src, const char* p) {
@@ -60,7 +61,7 @@ Token* NextToken(Source& src, const char* p) {
 
     for (auto& [ kind, name ] : kKeywords) {
       if (string_view raw{p, name.size()};
-          raw == name && !isalpha(p[name.size()]) && p[name.size()] != '_') {
+          raw == name && !isalnum(p[name.size()]) && p[name.size()] != '_') {
         return new Token{kind, raw, {}};
       }
     }

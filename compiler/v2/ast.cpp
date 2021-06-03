@@ -100,17 +100,26 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 } // namespace
 
 Node* Program(Source& src, Tokenizer& t) {
-  auto dummy_func_name = new Token{Token::kId, "main", {}};
-  auto func = NewFunc(dummy_func_name);
+  auto node = FunctionDefinition(src, t);
+  t.Expect(Token::kEOF);
+  return node;
+}
 
+Node* FunctionDefinition(Source& src, Tokenizer& t) {
+  auto op = t.Expect(Token::kFunc);
+  auto name = t.Expect(Token::kId);
+
+  t.Expect("(");
+  t.Expect(")");
+
+  auto func = NewFunc(name);
   Scope sc;
   sc.Enter();
   ASTContext ctx{src, t, sc, func->locals};
-  Node* node = NewNode(Node::kDefFunc, dummy_func_name);
-  node->lhs = Statement(ctx);
-  node->value = func;
 
-  ctx.t.Expect(Token::kEOF);
+  auto node = NewNode(Node::kDefFunc, name);
+  node->lhs = CompoundStatement(ctx);
+  node->value = func;
   return node;
 }
 

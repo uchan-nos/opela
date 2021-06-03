@@ -19,6 +19,7 @@ struct Token {
     kIf,
     kElse,
     kFor,
+    kFunc,
   } kind;
 
   std::string_view raw;
