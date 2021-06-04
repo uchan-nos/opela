@@ -36,8 +36,8 @@ inline Object* NewLVar(Token* id) {
   return new Object{Object::kVar, id, Object::kLocal, -1, {}};
 }
 
-inline Object* NewFunc(Token* id) {
-  return new Object{Object::kFunc, id, Object::kGlobal, -1, {}};
+inline Object* NewFunc(Token* id, Object::Linkage linkage) {
+  return new Object{Object::kFunc, id, linkage, -1, {}};
 }
 
 class Scope {

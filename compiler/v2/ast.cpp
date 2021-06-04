@@ -136,6 +136,8 @@ Node* DeclarationSequence(ASTContext& ctx) {
   for (;;) {
     if (ctx.t.Peek(Token::kFunc)) {
       cur->next = FunctionDefinition(ctx);
+    } else if (ctx.t.Peek(Token::kExtern)) {
+      cur->next = ExternDeclaration(ctx);
     } else {
       return head->next;
     }
@@ -152,14 +154,33 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.t.Expect("(");
   ctx.t.Expect(")");
 
-  auto func = NewFunc(name);
+  auto func = NewFunc(name, Object::kGlobal);
   Scope sc;
   sc.Enter();
-  ASTContext func_ctx{ctx.src, ctx.t, ctx.strings, &sc, &func->locals};
+  ASTContext func_ctx{ctx.src, ctx.t, ctx.strings, ctx.decls,
+                      &sc, &func->locals};
 
   auto node = NewNode(Node::kDefFunc, name);
   node->lhs = CompoundStatement(func_ctx);
   node->value = func;
+  return node;
+}
+
+Node* ExternDeclaration(ASTContext& ctx) {
+  ctx.t.Expect(Token::kExtern);
+  auto attr = ctx.t.Expect(Token::kStr);
+  if (attr->raw != R"("C")") {
+    cerr << "unknown attribute" << endl;
+    ErrorAt(ctx.src, *attr);
+  }
+
+  auto id = ctx.t.Expect(Token::kId);
+  ctx.t.Expect(";");
+
+  auto node = NewNode(Node::kExtern, id);
+  auto obj = NewFunc(id, Object::kExternal);
+  node->value = obj;
+  ctx.decls.push_back(obj);
   return node;
 }
 

@@ -34,6 +34,7 @@ struct Node {
     kFor,     // 条件付きループ
     kCall,    // 関数呼び出し演算子 ( )
     kStr,     // 文字列リテラル
+    kExtern,  // extern 宣言
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -72,6 +73,7 @@ struct ASTContext {
   Source& src;
   Tokenizer& t;
   std::vector<opela_type::String>& strings;
+  std::vector<Object*>& decls;
   Scope* sc;
   std::vector<Object*>* locals;
 };
@@ -79,6 +81,7 @@ struct ASTContext {
 Node* Program(ASTContext& ctx);
 Node* DeclarationSequence(ASTContext& ctx);
 Node* FunctionDefinition(ASTContext& ctx);
+Node* ExternDeclaration(ASTContext& ctx);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);
 Node* SelectionStatement(ASTContext& ctx);

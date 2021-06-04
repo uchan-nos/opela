@@ -21,6 +21,7 @@ struct Token {
     kElse,
     kFor,
     kFunc,
+    kExtern,
   } kind;
 
   std::string_view raw;

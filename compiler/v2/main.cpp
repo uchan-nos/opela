@@ -139,7 +139,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
       ctx.asmgen.Xor64(dest, dest);
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs);
-      ctx.asmgen.Output() << ctx.func->id->raw << ".exit:\n";
+      ctx.asmgen.Output() << func->id->raw << ".exit:\n";
       ctx.asmgen.Leave();
       ctx.asmgen.Ret();
       return;
@@ -261,6 +261,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ctx.asmgen.LoadLabelAddr(
         dest, StringLabel(get<StringIndex>(node->value).i));
     return;
+  case Node::kExtern:
+    return;
   default:
     ; // pass
   }
@@ -343,7 +345,8 @@ int main(int argc, char** argv) {
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
   std::vector<opela_type::String> strings;
-  ASTContext ast_ctx{src, tokenizer, strings, nullptr, nullptr};
+  vector<Object*> decls;
+  ASTContext ast_ctx{src, tokenizer, strings, decls, nullptr, nullptr};
   auto ast = Program(ast_ctx);
 
   cout << "/* AST\n";
@@ -364,18 +367,14 @@ int main(int argc, char** argv) {
   free_calc_regs.set(Asm::kRegX);
   free_calc_regs.set(Asm::kRegY);
 
-  vector<Object*> decls{
-    new Object{Object::kFunc, new Token{Token::kId, "func42"}, Object::kExternal, 0, {}},
-    new Object{Object::kFunc, new Token{Token::kId, "funcfunc42"}, Object::kExternal, 0, {}},
-    new Object{Object::kFunc, new Token{Token::kId, "add"}, Object::kExternal, 0, {}},
-    new Object{Object::kFunc, new Token{Token::kId, "write"}, Object::kExternal, 0, {}},
-  };
   GenContext ctx{src, *asmgen, decls, get<Object*>(ast->value)};
 
   cout << ".intel_syntax noprefix\n"
           ".global main\n"
           "main:\n";
-  GenerateAsm(ctx, ast, Asm::kRegA, free_calc_regs);
+  for (auto decl = ast; decl; decl = decl->next) {
+    GenerateAsm(ctx, decl, Asm::kRegA, free_calc_regs);
+  }
 
   for (size_t i = 0; i < strings.size(); ++i) {
     cout << StringLabel(i) << ":\n    .byte ";
