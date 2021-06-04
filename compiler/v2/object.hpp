@@ -20,7 +20,12 @@ struct Object {
   } kind;
 
   Token* id; // オブジェクト名（マングルされた名前ではない）
-  bool is_local; // グローバルなら false
+
+  enum Linkage {
+    kLocal,
+    kGlobal,
+    kExternal,
+  } linkage;
 
   int bp_offset; // ローカル変数の BP からのオフセット
 
@@ -28,11 +33,11 @@ struct Object {
 };
 
 inline Object* NewLVar(Token* id) {
-  return new Object{Object::kVar, id, true, -1, {}};
+  return new Object{Object::kVar, id, Object::kLocal, -1, {}};
 }
 
 inline Object* NewFunc(Token* id) {
-  return new Object{Object::kFunc, id, false, -1, {}};
+  return new Object{Object::kFunc, id, Object::kGlobal, -1, {}};
 }
 
 class Scope {

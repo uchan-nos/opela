@@ -61,6 +61,7 @@ int SetErshovNumber(Source& src, Node* expr) {
 struct GenContext {
   Source& src;
   Asm& asmgen;
+  vector<Object*>& decls; // グローバル/外部の変数、関数
   Object* func;
 };
 
@@ -99,8 +100,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
       } else {
         ctx.asmgen.Load64(dest, Asm::kRegBP, obj->bp_offset);
       }
-    } else {
+    } else if (auto decl = find_if(ctx.decls.begin(), ctx.decls.end(),
+          [node](Object* o) {
+            return o->id->raw == node->token->raw;
+          }); decl != ctx.decls.end()) {
       ctx.asmgen.LoadLabelAddr(dest, node->token->raw);
+    } else {
+      cerr << "undeclared symbol: " << node->token->raw << endl;
+      ErrorAt(ctx.src, *node->token);
     }
     return;
   case Node::kDefVar:
@@ -112,7 +119,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
-      GenContext func_ctx{ctx.src, ctx.asmgen, func};
+      GenContext func_ctx{ctx.src, ctx.asmgen, ctx.decls, func};
 
       int stack_size = 0;
       for (Object* obj : func->locals) {
@@ -344,7 +351,12 @@ int main(int argc, char** argv) {
   free_calc_regs.set(Asm::kRegX);
   free_calc_regs.set(Asm::kRegY);
 
-  GenContext ctx{src, *asmgen, get<Object*>(ast->value)};
+  vector<Object*> decls{
+    new Object{Object::kFunc, new Token{Token::kId, "func42"}, Object::kExternal, 0, {}},
+    new Object{Object::kFunc, new Token{Token::kId, "funcfunc42"}, Object::kExternal, 0, {}},
+    new Object{Object::kFunc, new Token{Token::kId, "add"}, Object::kExternal, 0, {}},
+  };
+  GenContext ctx{src, *asmgen, decls, get<Object*>(ast->value)};
 
   cout << ".intel_syntax noprefix\n"
           ".global main\n"
