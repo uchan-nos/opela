@@ -71,6 +71,7 @@ struct ASTContext {
 };
 
 Node* Program(Source& src, Tokenizer& t);
+Node* DeclarationSequence(Source& src, Tokenizer& t);
 Node* FunctionDefinition(Source& src, Tokenizer& t);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);

@@ -100,13 +100,28 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 } // namespace
 
 Node* Program(Source& src, Tokenizer& t) {
-  auto node = FunctionDefinition(src, t);
+  auto node = DeclarationSequence(src, t);
   t.Expect(Token::kEOF);
   return node;
 }
 
+Node* DeclarationSequence(Source& src, Tokenizer& t) {
+  auto head = NewNode(Node::kInt, nullptr); // dummy
+  auto cur = head;
+  for (;;) {
+    if (t.Peek(Token::kFunc)) {
+      cur->next = FunctionDefinition(src, t);
+    } else {
+      return head->next;
+    }
+    while (cur->next) {
+      cur = cur->next;
+    }
+  }
+}
+
 Node* FunctionDefinition(Source& src, Tokenizer& t) {
-  auto op = t.Expect(Token::kFunc);
+  t.Expect(Token::kFunc);
   auto name = t.Expect(Token::kId);
 
   t.Expect("(");
