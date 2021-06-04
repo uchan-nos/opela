@@ -11,8 +11,9 @@ struct Token {
   enum Kind {
     kEOF,
     kReserved,
-    kInt,
-    kId,
+    kInt, // 整数リテラル
+    kId,  // 識別子
+    kStr, // 文字列リテラル
 
     // キーワード
     kRet,

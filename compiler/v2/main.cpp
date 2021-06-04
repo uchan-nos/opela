@@ -72,6 +72,12 @@ string GenerateLabel() {
   return oss.str();
 }
 
+string StringLabel(size_t index) {
+  ostringstream oss;
+  oss << "STR" << index;
+  return oss.str();
+}
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  bool lval = false) {
@@ -250,6 +256,11 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
     }
     return;
+  case Node::kStr:
+    comment_node();
+    ctx.asmgen.LoadLabelAddr(
+        dest, StringLabel(get<StringIndex>(node->value).i));
+    return;
   default:
     ; // pass
   }
@@ -331,7 +342,9 @@ int main(int argc, char** argv) {
   Source src;
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
-  auto ast = Program(src, tokenizer);
+  std::vector<opela_type::String> strings;
+  ASTContext ast_ctx{src, tokenizer, strings, nullptr, nullptr};
+  auto ast = Program(ast_ctx);
 
   cout << "/* AST\n";
   PrintASTRec(cout, ast);
@@ -355,6 +368,7 @@ int main(int argc, char** argv) {
     new Object{Object::kFunc, new Token{Token::kId, "func42"}, Object::kExternal, 0, {}},
     new Object{Object::kFunc, new Token{Token::kId, "funcfunc42"}, Object::kExternal, 0, {}},
     new Object{Object::kFunc, new Token{Token::kId, "add"}, Object::kExternal, 0, {}},
+    new Object{Object::kFunc, new Token{Token::kId, "write"}, Object::kExternal, 0, {}},
   };
   GenContext ctx{src, *asmgen, decls, get<Object*>(ast->value)};
 
@@ -362,4 +376,12 @@ int main(int argc, char** argv) {
           ".global main\n"
           "main:\n";
   GenerateAsm(ctx, ast, Asm::kRegA, free_calc_regs);
+
+  for (size_t i = 0; i < strings.size(); ++i) {
+    cout << StringLabel(i) << ":\n    .byte ";
+    for (auto ch : strings[i]) {
+      cout << static_cast<int>(ch) << ',';
+    }
+    cout << "0\n";
+  }
 }

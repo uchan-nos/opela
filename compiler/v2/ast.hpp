@@ -8,6 +8,10 @@
 #include "token.hpp"
 #include "types.hpp"
 
+struct StringIndex {
+  std::size_t i;
+};
+
 struct Node {
   enum Kind {
     kInt,     // 整数リテラル
@@ -29,6 +33,7 @@ struct Node {
     kLoop,    // 無限ループ
     kFor,     // 条件付きループ
     kCall,    // 関数呼び出し演算子 ( )
+    kStr,     // 文字列リテラル
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -59,20 +64,21 @@ struct Node {
    *   rhs: 引数（順に next で繋がる）
    */
 
-  std::variant<opela_type::Int, Object*> value = {};
+  std::variant<opela_type::Int, StringIndex, Object*> value = {};
   int ershov = 0;
 };
 
 struct ASTContext {
   Source& src;
   Tokenizer& t;
-  Scope& sc;
-  std::vector<Object*>& locals;
+  std::vector<opela_type::String>& strings;
+  Scope* sc;
+  std::vector<Object*>* locals;
 };
 
-Node* Program(Source& src, Tokenizer& t);
-Node* DeclarationSequence(Source& src, Tokenizer& t);
-Node* FunctionDefinition(Source& src, Tokenizer& t);
+Node* Program(ASTContext& ctx);
+Node* DeclarationSequence(ASTContext& ctx);
+Node* FunctionDefinition(ASTContext& ctx);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);
 Node* SelectionStatement(ASTContext& ctx);

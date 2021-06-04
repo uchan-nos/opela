@@ -107,6 +107,7 @@ test_exit 9  'func main() { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*
 test_exit 39 'func main() { func42() - 3; }'
 test_exit 42 'func main() { funcfunc42()(); }'
 test_exit 43 'func main() { add((1+2)*(3+4), add(func42(), 1)) - 21; }'
+test_stdout 'foo' 'func main() { write(1, "foo", 3); }'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

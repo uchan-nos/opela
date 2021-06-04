@@ -97,20 +97,45 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
   }
 }
 
+opela_type::String DecodeEscapeSequence(Source& src, Token& token) {
+  if (token.kind != Token::kStr || token.raw[0] != '"') {
+    cerr << "invalid string literal" << endl;
+    ErrorAt(src, token);
+  }
+
+  opela_type::String decoded;
+
+  for (size_t i = 1;;) {
+    if (i >= token.raw.length()) {
+      cerr << "incomplete string literal" << endl;
+      ErrorAt(src, token);
+    }
+    if (token.raw[i] == '"') {
+      return decoded;
+    }
+    if (token.raw[i] != '\\') {
+      decoded.push_back(token.raw[i++]);
+      continue;
+    }
+    decoded.push_back(GetEscapeValue(token.raw[i + 1]));
+    i += 2;
+  }
+}
+
 } // namespace
 
-Node* Program(Source& src, Tokenizer& t) {
-  auto node = DeclarationSequence(src, t);
-  t.Expect(Token::kEOF);
+Node* Program(ASTContext& ctx) {
+  auto node = DeclarationSequence(ctx);
+  ctx.t.Expect(Token::kEOF);
   return node;
 }
 
-Node* DeclarationSequence(Source& src, Tokenizer& t) {
+Node* DeclarationSequence(ASTContext& ctx) {
   auto head = NewNode(Node::kInt, nullptr); // dummy
   auto cur = head;
   for (;;) {
-    if (t.Peek(Token::kFunc)) {
-      cur->next = FunctionDefinition(src, t);
+    if (ctx.t.Peek(Token::kFunc)) {
+      cur->next = FunctionDefinition(ctx);
     } else {
       return head->next;
     }
@@ -120,20 +145,20 @@ Node* DeclarationSequence(Source& src, Tokenizer& t) {
   }
 }
 
-Node* FunctionDefinition(Source& src, Tokenizer& t) {
-  t.Expect(Token::kFunc);
-  auto name = t.Expect(Token::kId);
+Node* FunctionDefinition(ASTContext& ctx) {
+  ctx.t.Expect(Token::kFunc);
+  auto name = ctx.t.Expect(Token::kId);
 
-  t.Expect("(");
-  t.Expect(")");
+  ctx.t.Expect("(");
+  ctx.t.Expect(")");
 
   auto func = NewFunc(name);
   Scope sc;
   sc.Enter();
-  ASTContext ctx{src, t, sc, func->locals};
+  ASTContext func_ctx{ctx.src, ctx.t, ctx.strings, &sc, &func->locals};
 
   auto node = NewNode(Node::kDefFunc, name);
-  node->lhs = CompoundStatement(ctx);
+  node->lhs = CompoundStatement(func_ctx);
   node->value = func;
   return node;
 }
@@ -157,7 +182,7 @@ Node* Statement(ASTContext& ctx) {
 }
 
 Node* CompoundStatement(ASTContext& ctx) {
-  ctx.sc.Enter();
+  ctx.sc->Enter();
 
   auto node = NewNode(Node::kBlock, ctx.t.Expect("{"));
   auto cur = node;
@@ -168,7 +193,7 @@ Node* CompoundStatement(ASTContext& ctx) {
     }
   }
 
-  ctx.sc.Leave();
+  ctx.sc->Leave();
   return node;
 }
 
@@ -228,15 +253,15 @@ Node* Assignment(ASTContext& ctx) {
       ctx.t.Unexpected(*node->token);
     }
 
-    if (ctx.sc.FindObjectCurrentBlock(node->token->raw)) {
+    if (ctx.sc->FindObjectCurrentBlock(node->token->raw)) {
       cerr << "local variable is redefined" << endl;
       ErrorAt(ctx.src, *node->token);
     }
 
     auto lvar = NewLVar(node->token);
     node->value = lvar;
-    ctx.locals.push_back(lvar);
-    ctx.sc.PutObject(lvar);
+    ctx.locals->push_back(lvar);
+    ctx.sc->PutObject(lvar);
 
     node = NewNodeBinOp(Node::kDefVar, op, node, Assignment(ctx));
   }
@@ -342,9 +367,14 @@ Node* Primary(ASTContext& ctx) {
     return node;
   } else if (auto id = ctx.t.Consume(Token::kId)) {
     auto node = NewNode(Node::kId, id);
-    if (auto obj = ctx.sc.FindObject(id->raw)) {
+    if (auto obj = ctx.sc->FindObject(id->raw)) {
       node->value = obj;
     }
+    return node;
+  } else if (auto token = ctx.t.Consume(Token::kStr)) {
+    auto node = NewNode(Node::kStr, token);
+    node->value = StringIndex{ctx.strings.size()};
+    ctx.strings.push_back(DecodeEscapeSequence(ctx.src, *token));
     return node;
   }
   auto token = ctx.t.Expect(Token::kInt);

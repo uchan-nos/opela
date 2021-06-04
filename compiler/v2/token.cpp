@@ -21,6 +21,26 @@ const map<Token::Kind, string> kKeywords{
   {Token::kFunc,   "func"},
 };
 
+const char* FindStr(const char* p) {
+  if (*p != '"') {
+    return nullptr;
+  }
+
+  ++p;
+  while (*p && *p != '"') {
+    if (*p == '\\') {
+      p += 2;
+    } else {
+      ++p;
+    }
+  }
+
+  if (*p == '"') {
+    ++p;
+  }
+  return p;
+}
+
 Token* NextToken(Source& src, const char* p) {
   while (p < src.End()) {
     if (isspace(*p)) {
@@ -72,6 +92,15 @@ Token* NextToken(Source& src, const char* p) {
         ++p;
       }
       return new Token{Token::kId, {id, p}, {}};
+    }
+
+    if (*p == '"') {
+      auto str_end = FindStr(p);
+      if (*str_end == '\0') {
+        cerr << "incomplete string literal" << endl;
+        ErrorAt(src, p);
+      }
+      return new Token{Token::kStr, {p, str_end}, {}};
     }
 
     cerr << "failed to tokenize" << endl;
