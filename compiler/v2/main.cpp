@@ -351,7 +351,15 @@ int main(int argc, char** argv) {
 
   cout << "/* AST\n";
   PrintASTRec(cout, ast);
-  cout << "\n*/\n";
+  cout << '\n';
+  for (size_t i = 0; i < strings.size(); ++i) {
+    cout << StringLabel(i) << ": \"";
+    for (auto ch : strings[i]) {
+      cout << static_cast<char>(ch);
+    }
+    cout << "\"\n";
+  }
+  cout << "*/\n\n";
 
   auto asmgen = NewAsm(AsmArch::kX86_64, cout);
 

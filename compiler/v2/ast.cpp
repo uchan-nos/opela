@@ -42,6 +42,19 @@ Node* NewNodeCond(Node::Kind kind, Token* token,
   return node;
 }
 
+Node* NewNodeType(Token* token, Type* type) {
+  auto node = NewNode(Node::kType, token);
+  node->value = type;
+  return node;
+}
+
+Node* NewNodeStr(ASTContext& ctx, Token* str) {
+  auto node = NewNode(Node::kStr, str);
+  node->value = StringIndex{ctx.strings.size()};
+  ctx.strings.push_back(DecodeEscapeSequence(ctx.src, *str));
+  return node;
+}
+
 map<Node*, size_t> node_number;
 size_t NodeNo(Node* node) {
   if (auto it = node_number.find(node); it != node_number.end()) {
@@ -61,14 +74,55 @@ std::string NodeName(Node* node) {
   return oss.str();
 }
 
+struct NodeValuePrinter {
+  std::ostream& os;
+
+  void operator()(void*) {
+    os << "none";
+  }
+  void operator()(opela_type::Int v) {
+    os << v;
+  }
+  void operator()(StringIndex v) {
+    os << "STR" << v.i;
+  }
+  void operator()(Object* v) {
+    char linkage = '?';
+    switch (v->linkage) {
+    case Object::kLocal: linkage = 'L'; break;
+    case Object::kGlobal: linkage = 'G'; break;
+    case Object::kExternal: linkage = 'E'; break;
+    }
+
+    switch (v->kind) {
+    case Object::kUnresolved:
+      os << "Unresolved[" << v->id->raw << ']';
+      break;
+    case Object::kVar:
+      os << linkage << "Var[" << v->id->raw << ' ' << v->type << ']';
+      break;
+    case Object::kFunc:
+      os << linkage << "Func[" << v->id->raw << ' ' << v->type << ']';
+      break;
+    }
+  }
+  void operator()(Type* v) {
+    os << v;
+  }
+};
+
 void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
   if (ast == nullptr) {
     os << "null";
     return;
   }
 
-  os << NodeName(ast) << "{" << magic_enum::enum_name(ast->kind)
-     << " \"" << (ast->token ? ast->token->raw : "") << "\"";
+  os << NodeName(ast) << "{" << magic_enum::enum_name(ast->kind) << ' ';
+  if (ast->token) {
+    os << "'" << ast->token->raw << "'";
+  } else {
+    os << "null-token";
+  }
 
   if (ast->kind == Node::kInt) {
     os << " value=" << get<opela_type::Int>(ast->value);
@@ -85,40 +139,19 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
     PrintAST(os, ast->cond, indent + 2, recursive);
     os << '\n' << string(indent + 2, ' ') << "next=";
     PrintAST(os, ast->next, indent + 2, recursive);
+    os << '\n' << string(indent + 2, ' ') << "value=";
+    visit(NodeValuePrinter{os}, ast->value);
   } else {
     os << " lhs=" << NodeName(ast->lhs) << " rhs=" << NodeName(ast->rhs)
-       << " cond=" << NodeName(ast->cond) << " next=" << NodeName(ast->next);
+       << " cond=" << NodeName(ast->cond) << " next=" << NodeName(ast->next)
+       << " value=";
+    visit(NodeValuePrinter{os}, ast->value);
   }
 
   if (multiline) {
     os << '\n' << string(indent, ' ') << '}';
   } else {
     os << '}';
-  }
-}
-
-opela_type::String DecodeEscapeSequence(Source& src, Token& token) {
-  if (token.kind != Token::kStr || token.raw[0] != '"') {
-    cerr << "invalid string literal" << endl;
-    ErrorAt(src, token);
-  }
-
-  opela_type::String decoded;
-
-  for (size_t i = 1;;) {
-    if (i >= token.raw.length()) {
-      cerr << "incomplete string literal" << endl;
-      ErrorAt(src, token);
-    }
-    if (token.raw[i] == '"') {
-      return decoded;
-    }
-    if (token.raw[i] != '\\') {
-      decoded.push_back(token.raw[i++]);
-      continue;
-    }
-    decoded.push_back(GetEscapeValue(token.raw[i + 1]));
-    i += 2;
   }
 }
 
@@ -154,7 +187,8 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.t.Expect("(");
   ctx.t.Expect(")");
 
-  auto func = NewFunc(name, Object::kGlobal);
+  auto func_type = NewTypeFunc(builtin_types["void"], nullptr);
+  auto func = NewFunc(name, func_type, Object::kGlobal);
   Scope sc;
   sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.strings, ctx.decls,
@@ -168,17 +202,23 @@ Node* FunctionDefinition(ASTContext& ctx) {
 
 Node* ExternDeclaration(ASTContext& ctx) {
   ctx.t.Expect(Token::kExtern);
-  auto attr = ctx.t.Expect(Token::kStr);
-  if (attr->raw != R"("C")") {
+  auto attr = ctx.t.Consume(Token::kStr);
+  if (attr && attr->raw != R"("C")") {
     cerr << "unknown attribute" << endl;
     ErrorAt(ctx.src, *attr);
   }
 
   auto id = ctx.t.Expect(Token::kId);
-  ctx.t.Expect(";");
+  auto tspec = TypeSpecifier(ctx);
+  auto colon_token = ctx.t.Expect(";");
+  if (tspec == nullptr) {
+    cerr << "type must be specified" << endl;
+    ErrorAt(ctx.src, *colon_token);
+  }
 
-  auto node = NewNode(Node::kExtern, id);
-  auto obj = NewFunc(id, Object::kExternal);
+  auto node = NewNodeOneChild(Node::kExtern, id, tspec);
+  node->cond = attr ? NewNodeStr(ctx, attr) : nullptr;
+  auto obj = NewFunc(id, get<Type*>(tspec->value), Object::kExternal);
   node->value = obj;
   ctx.decls.push_back(obj);
   return node;
@@ -279,7 +319,7 @@ Node* Assignment(ASTContext& ctx) {
       ErrorAt(ctx.src, *node->token);
     }
 
-    auto lvar = NewLVar(node->token);
+    auto lvar = NewLVar(node->token, builtin_types["int"]);
     node->value = lvar;
     ctx.locals->push_back(lvar);
     ctx.sc->PutObject(lvar);
@@ -393,13 +433,92 @@ Node* Primary(ASTContext& ctx) {
     }
     return node;
   } else if (auto token = ctx.t.Consume(Token::kStr)) {
-    auto node = NewNode(Node::kStr, token);
-    node->value = StringIndex{ctx.strings.size()};
-    ctx.strings.push_back(DecodeEscapeSequence(ctx.src, *token));
-    return node;
+    return NewNodeStr(ctx, token);
   }
   auto token = ctx.t.Expect(Token::kInt);
   return NewNodeInt(token, get<opela_type::Int>(token->value));
+}
+
+Node* TypeSpecifier(ASTContext& ctx) {
+  if (auto ptr_token = ctx.t.Consume("*")) {
+    auto base_tspec = TypeSpecifier(ctx);
+    if (!base_tspec) {
+      cerr << "pointer base type must be specified" << endl;
+      ErrorAt(ctx.src, *ptr_token);
+    }
+    auto node = NewNodeType(
+        ptr_token, NewTypePointer(get<Type*>(base_tspec->value)));
+    return node;
+  }
+
+  if (auto func_token = ctx.t.Consume(Token::kFunc)) {
+    ctx.t.Expect("(");
+    auto plist = ParameterDeclList(ctx);
+    ctx.t.Expect(")");
+    auto ret_tspec = TypeSpecifier(ctx);
+    if (ret_tspec == nullptr) {
+      ret_tspec = NewNodeType(nullptr, builtin_types["void"]);
+    }
+
+    Type* param_type = nullptr;
+    if (plist) {
+      param_type = NewTypeParam(get<Type*>(plist->value));
+      plist = plist->next;
+      while (plist) {
+        param_type->next = NewTypeParam(get<Type*>(plist->value));
+        param_type = param_type->next;
+        plist = plist->next;
+      }
+    }
+    auto node = NewNodeType(
+        func_token, NewTypeFunc(get<Type*>(ret_tspec->value), param_type));
+    return node;
+  }
+
+  if (auto name_token = ctx.t.Consume(Token::kId)) {
+    auto t = FindType(ctx.src, *name_token);
+    if (t == nullptr) {
+      t = NewTypeUnresolved();
+      cerr << "not implemented: unresolved type handling" << endl;
+      ErrorAt(ctx.src, *name_token);
+    }
+    auto node = NewNodeType(name_token, t);
+    return node;
+  }
+
+  return nullptr;
+}
+
+Node* ParameterDeclList(ASTContext& ctx) {
+  auto head = NewNode(Node::kInt, nullptr); // dummy
+  auto cur = head;
+
+  vector<Token*> params_untyped;
+  for (;;) {
+    auto name_or_type = ctx.t.Consume(Token::kId);
+    if (name_or_type == nullptr) {
+      return head->next;
+    }
+    params_untyped.push_back(name_or_type);
+    if (ctx.t.Consume(",")) {
+      continue;
+    } else if (auto tspec = TypeSpecifier(ctx)) {
+      for (auto param_token : params_untyped) {
+        cur->next = NewNode(Node::kParam, param_token);
+        cur->next->value = get<Type*>(tspec->value);
+        // TODO Node に Node* tspec というフィールドを足すか？
+        cur = cur->next;
+      }
+      params_untyped.clear();
+    } else {
+      for (auto tname_token : params_untyped) {
+        cur->next = NewNode(Node::kParam, nullptr);
+        cur->value = FindType(ctx.src, *tname_token);
+        cur = cur->next;
+      }
+      params_untyped.clear();
+    }
+  }
 }
 
 void PrintAST(std::ostream& os, Node* ast) {
@@ -416,4 +535,29 @@ int CountListItems(Node* head) {
     ++num;
   }
   return num;
+}
+
+opela_type::String DecodeEscapeSequence(Source& src, Token& token) {
+  if (token.kind != Token::kStr || token.raw[0] != '"') {
+    cerr << "invalid string literal" << endl;
+    ErrorAt(src, token);
+  }
+
+  opela_type::String decoded;
+
+  for (size_t i = 1;;) {
+    if (i >= token.raw.length()) {
+      cerr << "incomplete string literal" << endl;
+      ErrorAt(src, token);
+    }
+    if (token.raw[i] == '"') {
+      return decoded;
+    }
+    if (token.raw[i] != '\\') {
+      decoded.push_back(token.raw[i++]);
+      continue;
+    }
+    decoded.push_back(GetEscapeValue(token.raw[i + 1]));
+    i += 2;
+  }
 }

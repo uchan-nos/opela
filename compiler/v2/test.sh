@@ -104,10 +104,11 @@ test_exit 55 'func main() { i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } s; }'
 test_exit 9  'func main() { a:=5; a=b:=3; a*b; }'
 test_exit 55 'func main() { s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }'
 test_exit 9  'func main() { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s; }'
-test_exit 39 'extern "C" func42; func main() { func42() - 3; }'
-test_exit 42 'extern "C" funcfunc42; func main() { funcfunc42()(); }'
-test_exit 43 'func main() { add((1+2)*(3+4), add(func42(), 1)) - 21; } extern "C" add; extern "C" func42;'
-test_stdout 'foo' 'func main() { write(1, "foo", 3); } extern "C" write;'
+test_exit 39 'extern "C" func42 func()int; func main() { func42() - 3; }'
+test_exit 42 'extern "C" funcfunc42 func() *func(); func main() { funcfunc42()(); }'
+test_exit 43 'func main() { add((1+2)*(3+4), add(func42(), 1)) - 21; }
+  extern "C" add func(a, b int); extern "C" func42 func();'
+test_stdout 'foo' 'func main() { write(1, "foo", 3); } extern "C" write func();'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

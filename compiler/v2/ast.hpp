@@ -7,6 +7,7 @@
 #include "object.hpp"
 #include "token.hpp"
 #include "types.hpp"
+#include "typespec.hpp"
 
 struct StringIndex {
   std::size_t i;
@@ -35,6 +36,8 @@ struct Node {
     kCall,    // 関数呼び出し演算子 ( )
     kStr,     // 文字列リテラル
     kExtern,  // extern 宣言
+    kType,    // 型指定子
+    kParam,   // 関数の仮引数
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -43,10 +46,9 @@ struct Node {
   Node* lhs = nullptr;
   Node* rhs = nullptr;
   Node* cond = nullptr; // 条件式
-  Node* next = nullptr; // 複文中での次の文
+  Node* next = nullptr;
 
-
-  /* 2項演算以外での lhs と rhs の用途
+  /* 2項演算以外での lhs と rhs、cond の用途
    *
    * kDefFunc
    *   lhs: 関数本体の複文
@@ -63,9 +65,20 @@ struct Node {
    * kCall
    *   lhs: 呼び出し対象の式（関数名）
    *   rhs: 引数（順に next で繋がる）
+   * kExtern
+   *   lhs: 型情報
+   *   cond: 属性（kStr ノード。無い場合は nullptr）
    */
 
-  std::variant<opela_type::Int, StringIndex, Object*> value = {};
+  /* next の用途
+   * （各種 expression の next の用法は上記の通り）
+   *
+   * kBlock: 次の文
+   * kDefFunc, kExtern: 次の宣言
+   * kParam: 次の仮引数
+   */
+
+  std::variant<void*, opela_type::Int, StringIndex, Object*, Type*> value = {};
   int ershov = 0;
 };
 
@@ -96,6 +109,8 @@ Node* Multiplicative(ASTContext& ctx);
 Node* Unary(ASTContext& ctx);
 Node* Postfix(ASTContext& ctx);
 Node* Primary(ASTContext& ctx);
+Node* TypeSpecifier(ASTContext& ctx);
+Node* ParameterDeclList(ASTContext& ctx);
 
 void PrintAST(std::ostream& os, Node* ast);
 void PrintASTRec(std::ostream& os, Node* ast);
@@ -105,3 +120,5 @@ void PrintASTRec(std::ostream& os, Node* ast);
 // Node{next=nullptr} -> 1
 // Node{next=Node{next=nullptr}} -> 2
 int CountListItems(Node* head);
+
+opela_type::String DecodeEscapeSequence(Source& src, Token& token);

@@ -7,6 +7,7 @@
 #include <vector>
 
 #include "token.hpp"
+#include "typespec.hpp"
 
 // アドレスを持つもの（列挙子や型名は含まない）
 struct Object {
@@ -20,6 +21,7 @@ struct Object {
   } kind;
 
   Token* id; // オブジェクト名（マングルされた名前ではない）
+  Type* type;
 
   enum Linkage {
     kLocal,
@@ -32,12 +34,12 @@ struct Object {
   std::vector<Object*> locals; // 関数のローカル変数リスト
 };
 
-inline Object* NewLVar(Token* id) {
-  return new Object{Object::kVar, id, Object::kLocal, -1, {}};
+inline Object* NewLVar(Token* id, Type* type) {
+  return new Object{Object::kVar, id, type, Object::kLocal, -1, {}};
 }
 
-inline Object* NewFunc(Token* id, Object::Linkage linkage) {
-  return new Object{Object::kFunc, id, linkage, -1, {}};
+inline Object* NewFunc(Token* id, Type* type, Object::Linkage linkage) {
+  return new Object{Object::kFunc, id, type, linkage, -1, {}};
 }
 
 class Scope {
