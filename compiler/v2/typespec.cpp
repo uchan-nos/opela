@@ -18,8 +18,8 @@ Type* NewTypeFunc(Type* ret, Type* param_list) {
   return new Type{Type::kFunc, ret, param_list, 0};
 }
 
-Type* NewTypeParam(Type* t) {
-  return new Type{Type::kParam, t, nullptr, 0};
+Type* NewTypeParam(Type* t, Token* name) {
+  return new Type{Type::kParam, t, nullptr, name};
 }
 
 Type* NewTypeUnresolved() {
@@ -61,9 +61,9 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
   switch (t->kind) {
   case Type::kUndefined: os << "Undefined-type"; break;
   case Type::kUnresolved: os << "Unresolved-type"; break;
-  case Type::kInt: os << "int" << t->num; break;
-  case Type::kUInt: os << "uint" << t->num; break;
-  case Type::kPointer: os << '*' << t->base; break;
+  case Type::kInt: os << "int" << get<long>(t->value); break;
+  case Type::kUInt: os << "uint" << get<long>(t->value); break;
+  case Type::kPointer: os << '*' << get<long>(t->value); break;
   case Type::kFunc:
     os << "func(";
     if (auto pt = t->next) {
@@ -74,7 +74,12 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     }
     os << ')' << t->base;
     break;
-  case Type::kParam: os << t->base; break;
+  case Type::kParam:
+    if (auto name = get<Token*>(t->value)) {
+      os << name->raw << ' ';
+    }
+    os << t->base;
+    break;
   case Type::kVoid: os << "void"; break;
   }
   return os;

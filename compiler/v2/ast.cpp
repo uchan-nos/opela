@@ -483,10 +483,10 @@ Node* TypeSpecifier(ASTContext& ctx) {
 
     Type* param_type = nullptr;
     if (plist) {
-      auto cur = param_type = NewTypeParam(plist->lhs->type);
+      auto cur = param_type = NewTypeParam(plist->lhs->type, plist->token);
       plist = plist->next;
       while (plist) {
-        cur->next = NewTypeParam(plist->lhs->type);
+        cur->next = NewTypeParam(plist->lhs->type, plist->token);
         cur = cur->next;
         plist = plist->next;
       }
@@ -532,7 +532,7 @@ Node* ParameterDeclList(ASTContext& ctx) {
     } else {
       for (auto tname_token : params_untyped) {
         auto tspec = NewNodeType(ctx, tname_token);
-        cur->next = NewNodeOneChild(Node::kParam, tname_token, tspec);
+        cur->next = NewNodeOneChild(Node::kParam, nullptr, tspec);
         cur = cur->next;
       }
       params_untyped.clear();

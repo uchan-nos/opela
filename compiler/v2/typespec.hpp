@@ -34,18 +34,19 @@ struct Type {
    *   next: 次の引数
    */
 
-  /* num の用途
+  /* value の用途
    *
-   * kInt, kUInt: ビット数
-   * kArray: 要素数
+   * kInt, kUInt: [long] ビット数
+   * kArray:      [long] 要素数
+   * kParam:      [Token*] 引数名、フィールド名（無名なら nullptr）
    */
-  long num;
+  std::variant<long, Token*> value;
 };
 
 Type* NewTypeIntegral(Type::Kind kind, long bits);
 Type* NewTypePointer(Type* base);
 Type* NewTypeFunc(Type* ret, Type* param_list);
-Type* NewTypeParam(Type* t);
+Type* NewTypeParam(Type* t, Token* name);
 Type* NewTypeUnresolved();
 
 Type* FindType(Source& src, Token& name);
