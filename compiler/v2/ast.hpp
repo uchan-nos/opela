@@ -13,6 +13,8 @@ struct StringIndex {
   std::size_t i;
 };
 
+struct VariantDummyType {};
+
 struct Node {
   enum Kind {
     kInt,     // 整数リテラル
@@ -42,6 +44,14 @@ struct Node {
 
   Token* token; // このノードを代表するトークン
 
+  Type* type;
+  /* kType: 型指定子が表す型
+   * 式: その式の型
+   * その他： nullptr
+   *   kDefFunc: 関数の型は value (Object*) が保持
+   *   kParam: 仮引数の型は lhs が保持
+   */
+
   // 子ノード
   Node* lhs = nullptr;
   Node* rhs = nullptr;
@@ -68,6 +78,8 @@ struct Node {
    * kExtern
    *   lhs: 型情報
    *   cond: 属性（kStr ノード。無い場合は nullptr）
+   * kParam:
+   *   lhs: 型情報
    */
 
   /* next の用途
@@ -78,7 +90,7 @@ struct Node {
    * kParam: 次の仮引数
    */
 
-  std::variant<void*, opela_type::Int, StringIndex, Object*, Type*> value = {};
+  std::variant<VariantDummyType, opela_type::Int, StringIndex, Object*> value = {};
   int ershov = 0;
 };
 

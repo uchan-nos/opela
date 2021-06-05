@@ -44,8 +44,18 @@ Node* NewNodeCond(Node::Kind kind, Token* token,
 
 Node* NewNodeType(Token* token, Type* type) {
   auto node = NewNode(Node::kType, token);
-  node->value = type;
+  node->type = type;
   return node;
+}
+
+Node* NewNodeType(ASTContext& ctx, Token* token) {
+  auto t = FindType(ctx.src, *token);
+  if (t == nullptr) {
+    t = NewTypeUnresolved();
+    cerr << "not implemented: unresolved type handling" << endl;
+    ErrorAt(ctx.src, *token);
+  }
+  return NewNodeType(token, t);
 }
 
 Node* NewNodeStr(ASTContext& ctx, Token* str) {
@@ -77,7 +87,7 @@ std::string NodeName(Node* node) {
 struct NodeValuePrinter {
   std::ostream& os;
 
-  void operator()(void*) {
+  void operator()(VariantDummyType) {
     os << "none";
   }
   void operator()(opela_type::Int v) {
@@ -106,9 +116,6 @@ struct NodeValuePrinter {
       break;
     }
   }
-  void operator()(Type* v) {
-    os << v;
-  }
 };
 
 void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
@@ -124,28 +131,42 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
     os << "null-token";
   }
 
-  if (ast->kind == Node::kInt) {
-    os << " value=" << get<opela_type::Int>(ast->value);
-  }
-
   const bool multiline = recursive && (
-      ast->lhs || ast->rhs || ast->cond || ast->next);
+      ast->type || ast->lhs || ast->rhs || ast->cond || ast->next);
   if (multiline) {
-    os << '\n' << string(indent + 2, ' ') << "lhs=";
-    PrintAST(os, ast->lhs, indent + 2, recursive);
-    os << '\n' << string(indent + 2, ' ') << "rhs=";
-    PrintAST(os, ast->rhs, indent + 2, recursive);
-    os << '\n' << string(indent + 2, ' ') << "cond=";
-    PrintAST(os, ast->cond, indent + 2, recursive);
-    os << '\n' << string(indent + 2, ' ') << "next=";
-    PrintAST(os, ast->next, indent + 2, recursive);
-    os << '\n' << string(indent + 2, ' ') << "value=";
-    visit(NodeValuePrinter{os}, ast->value);
+    if (ast->type) {
+      os << '\n' << string(indent + 2, ' ') << "type=" << ast->type;
+    }
+    if (ast->lhs) {
+      os << '\n' << string(indent + 2, ' ') << "lhs=";
+      PrintAST(os, ast->lhs, indent + 2, recursive);
+    }
+    if (ast->rhs) {
+      os << '\n' << string(indent + 2, ' ') << "rhs=";
+      PrintAST(os, ast->rhs, indent + 2, recursive);
+    }
+    if (ast->cond) {
+      os << '\n' << string(indent + 2, ' ') << "cond=";
+      PrintAST(os, ast->cond, indent + 2, recursive);
+    }
+    if (ast->next) {
+      os << '\n' << string(indent + 2, ' ') << "next=";
+      PrintAST(os, ast->next, indent + 2, recursive);
+    }
+    if (!get_if<VariantDummyType>(&ast->value)) {
+      os << '\n' << string(indent + 2, ' ') << "value=";
+      visit(NodeValuePrinter{os}, ast->value);
+    }
   } else {
-    os << " lhs=" << NodeName(ast->lhs) << " rhs=" << NodeName(ast->rhs)
-       << " cond=" << NodeName(ast->cond) << " next=" << NodeName(ast->next)
-       << " value=";
-    visit(NodeValuePrinter{os}, ast->value);
+    ast->type && os << " type=" << ast->type;
+    ast->lhs && os << " lhs=" << NodeName(ast->lhs);
+    ast->rhs && os << " rhs=" << NodeName(ast->rhs);
+    ast->cond && os << " cond=" << NodeName(ast->cond);
+    ast->next && os << " next=" << NodeName(ast->next);
+    if (!get_if<VariantDummyType>(&ast->value)) {
+      os << " value=";
+      visit(NodeValuePrinter{os}, ast->value);
+    }
   }
 
   if (multiline) {
@@ -218,7 +239,7 @@ Node* ExternDeclaration(ASTContext& ctx) {
 
   auto node = NewNodeOneChild(Node::kExtern, id, tspec);
   node->cond = attr ? NewNodeStr(ctx, attr) : nullptr;
-  auto obj = NewFunc(id, get<Type*>(tspec->value), Object::kExternal);
+  auto obj = NewFunc(id, tspec->type, Object::kExternal);
   node->value = obj;
   ctx.decls.push_back(obj);
   return node;
@@ -447,7 +468,7 @@ Node* TypeSpecifier(ASTContext& ctx) {
       ErrorAt(ctx.src, *ptr_token);
     }
     auto node = NewNodeType(
-        ptr_token, NewTypePointer(get<Type*>(base_tspec->value)));
+        ptr_token, NewTypePointer(base_tspec->type));
     return node;
   }
 
@@ -462,16 +483,16 @@ Node* TypeSpecifier(ASTContext& ctx) {
 
     Type* param_type = nullptr;
     if (plist) {
-      param_type = NewTypeParam(get<Type*>(plist->value));
+      param_type = NewTypeParam(plist->lhs->type);
       plist = plist->next;
       while (plist) {
-        param_type->next = NewTypeParam(get<Type*>(plist->value));
+        param_type->next = NewTypeParam(plist->lhs->type);
         param_type = param_type->next;
         plist = plist->next;
       }
     }
     auto node = NewNodeType(
-        func_token, NewTypeFunc(get<Type*>(ret_tspec->value), param_type));
+        func_token, NewTypeFunc(ret_tspec->type, param_type));
     return node;
   }
 
@@ -504,16 +525,14 @@ Node* ParameterDeclList(ASTContext& ctx) {
       continue;
     } else if (auto tspec = TypeSpecifier(ctx)) {
       for (auto param_token : params_untyped) {
-        cur->next = NewNode(Node::kParam, param_token);
-        cur->next->value = get<Type*>(tspec->value);
-        // TODO Node に Node* tspec というフィールドを足すか？
+        cur->next = NewNodeOneChild(Node::kParam, param_token, tspec);
         cur = cur->next;
       }
       params_untyped.clear();
     } else {
       for (auto tname_token : params_untyped) {
-        cur->next = NewNode(Node::kParam, nullptr);
-        cur->value = FindType(ctx.src, *tname_token);
+        auto tspec = NewNodeType(ctx, tname_token);
+        cur->next = NewNodeOneChild(Node::kParam, tname_token, tspec);
         cur = cur->next;
       }
       params_untyped.clear();
