@@ -483,11 +483,11 @@ Node* TypeSpecifier(ASTContext& ctx) {
 
     Type* param_type = nullptr;
     if (plist) {
-      param_type = NewTypeParam(plist->lhs->type);
+      auto cur = param_type = NewTypeParam(plist->lhs->type);
       plist = plist->next;
       while (plist) {
-        param_type->next = NewTypeParam(plist->lhs->type);
-        param_type = param_type->next;
+        cur->next = NewTypeParam(plist->lhs->type);
+        cur = cur->next;
         plist = plist->next;
       }
     }
