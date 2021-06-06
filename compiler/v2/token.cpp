@@ -20,6 +20,8 @@ const map<Token::Kind, string> kKeywords{
   {Token::kFor,    "for"},
   {Token::kFunc,   "func"},
   {Token::kExtern, "extern"},
+  {Token::kSizeof, "sizeof"},
+  {Token::kType,   "type"},
 };
 
 const char* FindStr(const char* p) {

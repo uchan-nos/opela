@@ -17,6 +17,7 @@ struct Type {
     kFunc,
     kParam,
     kVoid,
+    kUser, // ユーザー定義型
   } kind;
 
   Type* base;
@@ -39,6 +40,8 @@ struct Type {
    * kInt, kUInt: [long] ビット数
    * kArray:      [long] 要素数
    * kParam:      [Token*] 引数名、フィールド名（無名なら nullptr）
+   * kUnresolved: [Token*] 解決されていない型の名前
+   * kUser:       [Token*] 型名
    */
   std::variant<long, Token*> value;
 };
@@ -47,10 +50,12 @@ Type* NewTypeIntegral(Type::Kind kind, long bits);
 Type* NewTypePointer(Type* base);
 Type* NewTypeFunc(Type* ret, Type* param_list);
 Type* NewTypeParam(Type* t, Token* name);
-Type* NewTypeUnresolved();
+Type* NewTypeUnresolved(Token* name);
+Type* NewTypeUser(Type* base, Token* name);
 
 Type* FindType(Source& src, Token& name);
 std::ostream& operator<<(std::ostream& os, Type* t);
+size_t SizeofType(Source& src, Type* t);
 
 inline std::map<std::string, Type*> builtin_types{
   {"void", new Type{Type::kVoid, nullptr, nullptr, 0}},

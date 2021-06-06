@@ -1,5 +1,6 @@
 #include "ast.hpp"
 
+#include <algorithm>
 #include <map>
 #include <iostream>
 #include <sstream>
@@ -51,7 +52,7 @@ Node* NewNodeType(Token* token, Type* type) {
 Node* NewNodeType(ASTContext& ctx, Token* token) {
   auto t = FindType(ctx.src, *token);
   if (t == nullptr) {
-    t = NewTypeUnresolved();
+    t = NewTypeUnresolved(token);
     cerr << "not implemented: unresolved type handling" << endl;
     ErrorAt(ctx.src, *token);
   }
@@ -192,6 +193,8 @@ Node* DeclarationSequence(ASTContext& ctx) {
       cur->next = FunctionDefinition(ctx);
     } else if (ctx.t.Peek(Token::kExtern)) {
       cur->next = ExternDeclaration(ctx);
+    } else if (ctx.t.Peek(Token::kType)) {
+      cur->next = TypeDeclaration(ctx);
     } else {
       return head->next;
     }
@@ -213,7 +216,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
   Scope sc;
   sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.strings, ctx.decls,
-                      &sc, &func->locals};
+                      ctx.unresolved_types, &sc, &func->locals};
 
   auto node = NewNode(Node::kDefFunc, name);
   node->lhs = CompoundStatement(func_ctx);
@@ -243,6 +246,24 @@ Node* ExternDeclaration(ASTContext& ctx) {
   node->value = obj;
   ctx.decls.push_back(obj);
   return node;
+}
+
+Node* TypeDeclaration(ASTContext& ctx) {
+  ctx.t.Expect(Token::kType);
+  auto name_token = ctx.t.Expect(Token::kId);
+  auto tspec = TypeSpecifier(ctx);
+  ctx.t.Expect(";");
+
+  /*
+  auto type = NewTypeUser(name_token, tspec->type);
+  if (auto t{types[name_token->Raw()]}; t == nullptr) {
+    types[name_token->Raw()] = type;
+  } else if (t->kind == Type::kUnknown) {
+    *t = *type;
+  }
+  */
+
+  return NewNodeOneChild(Node::kTypedef, name_token, tspec);
 }
 
 Node* Statement(ASTContext& ctx) {
@@ -418,6 +439,14 @@ Node* Unary(ASTContext& ctx) {
     auto zero = NewNodeInt(nullptr, 0);
     auto node = Unary(ctx);
     return NewNodeBinOp(Node::kSub, op, zero, node);
+  } else if (auto op = ctx.t.Consume(Token::kSizeof)) {
+    ctx.t.Expect("(");
+    auto arg = TypeSpecifier(ctx);
+    if (arg == nullptr) {
+      arg = Expression(ctx);
+    }
+    ctx.t.Expect(")");
+    return NewNodeOneChild(Node::kSizeof, op, arg);
   }
 
   return Postfix(ctx);
@@ -499,9 +528,8 @@ Node* TypeSpecifier(ASTContext& ctx) {
   if (auto name_token = ctx.t.Consume(Token::kId)) {
     auto t = FindType(ctx.src, *name_token);
     if (t == nullptr) {
-      t = NewTypeUnresolved();
-      cerr << "not implemented: unresolved type handling" << endl;
-      ErrorAt(ctx.src, *name_token);
+      t = NewTypeUnresolved(name_token);
+      ctx.unresolved_types.push_back(t);
     }
     auto node = NewNodeType(name_token, t);
     return node;
@@ -578,5 +606,29 @@ opela_type::String DecodeEscapeSequence(Source& src, Token& token) {
     }
     decoded.push_back(GetEscapeValue(token.raw[i + 1]));
     i += 2;
+  }
+}
+
+void ResolveType(Source& src, std::vector<Type*>& unresolved_types, Node* ast) {
+  map<string, Type*> user_types;
+  for (auto decl = ast; decl; decl = decl->next) {
+    if (decl->kind != Node::kTypedef) {
+      continue;
+    }
+    auto user_type = NewTypeUser(decl->lhs->type, decl->token);
+    user_types[string(decl->token->raw)] = user_type;
+  }
+
+  while (!unresolved_types.empty()) {
+    auto target = unresolved_types.front();
+    auto target_name = get<Token*>(target->value);
+    auto it = user_types.find(string(target_name->raw));
+    if (it == user_types.end()) {
+      cerr << "cannot resolve type" << endl;
+      ErrorAt(src, *target_name);
+    }
+    *target = *it->second;
+    unresolved_types.erase(
+        find(unresolved_types.begin(), unresolved_types.end(), target));
   }
 }

@@ -40,6 +40,8 @@ struct Node {
     kExtern,  // extern 宣言
     kType,    // 型指定子
     kParam,   // 関数の仮引数
+    kSizeof,  // 1項演算子 sizeof
+    kTypedef, // 型宣言
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -79,7 +81,9 @@ struct Node {
    *   lhs: 型情報
    *   cond: 属性（kStr ノード。無い場合は nullptr）
    * kParam:
-   *   lhs: 型情報
+   *   lhs: 型情報（kType ノード）
+   * kTypedef:
+   *   lhs: 型情報（kType ノード）
    */
 
   /* next の用途
@@ -99,6 +103,7 @@ struct ASTContext {
   Tokenizer& t;
   std::vector<opela_type::String>& strings;
   std::vector<Object*>& decls;
+  std::vector<Type*>& unresolved_types;
   Scope* sc;
   std::vector<Object*>* locals;
 };
@@ -107,6 +112,7 @@ Node* Program(ASTContext& ctx);
 Node* DeclarationSequence(ASTContext& ctx);
 Node* FunctionDefinition(ASTContext& ctx);
 Node* ExternDeclaration(ASTContext& ctx);
+Node* TypeDeclaration(ASTContext& ctx);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);
 Node* SelectionStatement(ASTContext& ctx);
@@ -134,3 +140,5 @@ void PrintASTRec(std::ostream& os, Node* ast);
 int CountListItems(Node* head);
 
 opela_type::String DecodeEscapeSequence(Source& src, Token& token);
+
+void ResolveType(Source& src, std::vector<Type*>& unresolved_types, Node* ast);

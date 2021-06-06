@@ -17,6 +17,35 @@
 
 using namespace std;
 
+namespace {
+
+int verbosity = 0;
+string target_arch = "x86_64";
+
+int ParseArgs(int argc, char** argv) {
+  int i = 1;
+  while (i < argc) {
+    string_view opt = argv[i];
+    if (opt == "-target-arch") {
+      if (i == argc - 1) {
+        cerr << "-target-arch needs one argument" << endl;
+        return 1;
+      }
+      target_arch = argv[i + 1];
+      i += 2;
+    } else if (opt == "-v") {
+      ++verbosity;
+      ++i;
+    } else {
+      cerr << "unknown argument: " << opt << endl;
+      return 1;
+    }
+  }
+  return 0;
+}
+
+} // namespace
+
 Asm::Register UseAnyCalcReg(Asm::RegSet& free_calc_regs) {
   auto reg_index = countr_zero(free_calc_regs.to_ulong());
   if (reg_index >= Asm::kRegNum) {
@@ -262,6 +291,11 @@ void GenerateAsm(GenContext& ctx, Node* node,
         dest, StringLabel(get<StringIndex>(node->value).i));
     return;
   case Node::kExtern:
+  case Node::kTypedef:
+    return;
+  case Node::kSizeof:
+    comment_node();
+    ctx.asmgen.Mov64(dest, SizeofType(ctx.src, node->lhs->type));
     return;
   default:
     ; // pass
@@ -340,16 +374,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   }
 }
 
-int main(int argc, char** argv) {
-  Source src;
-  src.ReadAll(cin);
-  Tokenizer tokenizer(src);
-  std::vector<opela_type::String> strings;
-  vector<Object*> decls;
-  ASTContext ast_ctx{src, tokenizer, strings, decls, nullptr, nullptr};
-  auto ast = Program(ast_ctx);
-
-  cout << "/* AST\n";
+void PrintDebugInfo(Node* ast, vector<opela_type::String>& strings) {
   PrintASTRec(cout, ast);
   cout << '\n';
   for (size_t i = 0; i < strings.size(); ++i) {
@@ -359,9 +384,40 @@ int main(int argc, char** argv) {
     }
     cout << "\"\n";
   }
-  cout << "*/\n\n";
+}
 
-  auto asmgen = NewAsm(AsmArch::kX86_64, cout);
+int main(int argc, char** argv) {
+  if (int err = ParseArgs(argc, argv)) {
+    return err;
+  }
+
+  Asm* asmgen;
+  if (target_arch == "x86_64") {
+    asmgen = NewAsm(AsmArch::kX86_64, cout);
+  } else {
+    cerr << "current version doesn't support " << target_arch << endl;
+    return 1;
+  }
+
+  Source src;
+  src.ReadAll(cin);
+  Tokenizer tokenizer(src);
+  std::vector<opela_type::String> strings;
+  vector<Object*> decls;
+  vector<Type*> unresolved_types;
+  ASTContext ast_ctx{src, tokenizer, strings, decls,
+                     unresolved_types, nullptr, nullptr};
+  auto ast = Program(ast_ctx);
+
+  if (verbosity >= 1) {
+    cout << "/* AST before resolving types\n";
+    PrintDebugInfo(ast, strings);
+    cout << "*/\n\n";
+  }
+  ResolveType(src, unresolved_types, ast);
+  cout << "/* AST\n";
+  PrintDebugInfo(ast, strings);
+  cout << "*/\n\n";
 
   Asm::RegSet free_calc_regs;
   if (!asmgen->SameReg(Asm::kRegA, Asm::kRegV0)) {

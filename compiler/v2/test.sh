@@ -109,6 +109,7 @@ test_exit 42 'extern "C" funcfunc42 func() *func(); func main() { funcfunc42()()
 test_exit 43 'func main() { add((1+2)*(3+4), add(func42(), 1)) - 21; }
   extern "C" add func(a, b int); extern "C" func42 func();'
 test_stdout 'foo' 'func main() { write(1, "foo", 3); } extern "C" write func();'
+test_exit 4  'func main() { sizeof(myInt); } type myInt int32;'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

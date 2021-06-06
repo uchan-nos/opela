@@ -1,10 +1,26 @@
 #include "typespec.hpp"
 
+#include <execinfo.h>
 #include <iostream>
+#include <unistd.h>
 
 #include "magic_enum.hpp"
 
 using namespace std;
+
+namespace {
+
+[[noreturn]] void Error(const char* msg, Type* t) {
+  cerr << msg << ": type=" << t << endl;
+
+  array<void*, 128> trace;
+  int n = backtrace(trace.begin(), trace.size());
+  backtrace_symbols_fd(trace.begin(), n, STDERR_FILENO);
+
+  exit(1);
+}
+
+}
 
 Type* NewTypeIntegral(Type::Kind kind, long bits) {
   return new Type{kind, nullptr, nullptr, bits};
@@ -22,8 +38,12 @@ Type* NewTypeParam(Type* t, Token* name) {
   return new Type{Type::kParam, t, nullptr, name};
 }
 
-Type* NewTypeUnresolved() {
-  return new Type{Type::kUnresolved, nullptr, nullptr, 0};
+Type* NewTypeUnresolved(Token* name) {
+  return new Type{Type::kUnresolved, nullptr, nullptr, name};
+}
+
+Type* NewTypeUser(Type* base, Token* name) {
+  return new Type{Type::kUser, base, nullptr, name};
 }
 
 Type* FindType(Source& src, Token& name) {
@@ -60,7 +80,9 @@ Type* FindType(Source& src, Token& name) {
 std::ostream& operator<<(std::ostream& os, Type* t) {
   switch (t->kind) {
   case Type::kUndefined: os << "Undefined-type"; break;
-  case Type::kUnresolved: os << "Unresolved-type"; break;
+  case Type::kUnresolved:
+    os << "Unresolved-type(" << get<Token*>(t->value)->raw << ')';
+    break;
   case Type::kInt: os << "int" << get<long>(t->value); break;
   case Type::kUInt: os << "uint" << get<long>(t->value); break;
   case Type::kPointer: os << '*' << get<long>(t->value); break;
@@ -81,6 +103,30 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     os << t->base;
     break;
   case Type::kVoid: os << "void"; break;
+  case Type::kUser:
+    os << get<Token*>(t->value)->raw;
+    break;
   }
   return os;
+}
+
+size_t SizeofType(Source& src, Type* t) {
+  switch (t->kind) {
+  case Type::kUndefined:
+  case Type::kUnresolved:
+  case Type::kFunc:
+    Error("cannot determine size", t);
+  case Type::kInt:
+  case Type::kUInt:
+    return (get<long>(t->value) + 7) / 8;
+  case Type::kPointer:
+    return 8;
+  case Type::kParam:
+    return SizeofType(src, t->base);
+  case Type::kVoid:
+    return 0;
+  case Type::kUser:
+    return SizeofType(src, t->base);
+  }
+  Error("should not come here", t);
 }
