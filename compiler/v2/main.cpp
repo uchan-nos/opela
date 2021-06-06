@@ -163,6 +163,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
 
+      ctx.asmgen.Output() << ".global " << func->id->raw << '\n'
+                          << func->id->raw << ":\n";
       ctx.asmgen.Push64(Asm::kRegBP);
       ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
       ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
@@ -456,9 +458,7 @@ int main(int argc, char** argv) {
 
   GenContext ctx{src, *asmgen, decls, get<Object*>(ast->value)};
 
-  cout << ".intel_syntax noprefix\n"
-          ".global main\n"
-          "main:\n";
+  cout << ".intel_syntax noprefix\n";
   for (auto decl = ast; decl; decl = decl->next) {
     GenerateAsm(ctx, decl, Asm::kRegA, free_calc_regs);
   }

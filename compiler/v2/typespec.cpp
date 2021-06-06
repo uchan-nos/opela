@@ -56,7 +56,7 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     break;
   case Type::kInt: os << "int" << get<long>(t->value); break;
   case Type::kUInt: os << "uint" << get<long>(t->value); break;
-  case Type::kPointer: os << '*' << get<long>(t->value); break;
+  case Type::kPointer: os << '*' << t->base; break;
   case Type::kFunc:
     os << "func(";
     if (auto pt = t->next) {

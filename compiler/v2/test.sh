@@ -111,6 +111,8 @@ test_exit 43 'func main() { add((1+2)*(3+4), add(func42(), 1)) - 21; }
 test_stdout 'foo' 'func main() { write(1, "foo", 3); } extern "C" write func();'
 test_exit 4  'func main() { sizeof(myInt); } type myInt int32;'
 test_exit 6  'func main() int { (3@myInt + 2@int2) + 5; } type myInt int2;'
+test_exit 57 'extern "C" add func(); func main(){add(f(), 2);}
+  func f(){s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} return s;}'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

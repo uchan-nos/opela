@@ -210,6 +210,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
   auto node = NewNode(Node::kDefFunc, name);
   node->lhs = CompoundStatement(func_ctx);
   node->value = func;
+  ctx.decls.push_back(func);
   return node;
 }
 
@@ -664,6 +665,10 @@ Type* MergeTypeBinOp(Type* l, Type* r) {
 }
 
 void SetType(ASTContext& ctx, Node* node) {
+  if (node == nullptr) {
+    return;
+  }
+
   switch (node->kind) {
   case Node::kInt:
     node->type = ctx.tm.Find("int");
@@ -698,6 +703,7 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kDefFunc:
     SetType(ctx, node->lhs);
+    SetType(ctx, node->next);
     break;
   case Node::kRet:
     SetType(ctx, node->lhs);
@@ -730,11 +736,12 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kCall:
     SetType(ctx, node->lhs);
     SetType(ctx, node->rhs);
-    if (node->lhs->type->kind == Type::kFunc) {
-      node->type = node->lhs->type->base;
+    if (auto t = node->lhs->type; t->kind == Type::kFunc) {
+      node->type = t->base;
+    } else if (t->kind == Type::kPointer && t->base->kind == Type::kFunc) {
+      node->type = t->base->base;
     } else {
-      cerr << "not implemented call for "
-           << magic_enum::enum_name(node->lhs->kind) << endl;
+      cerr << "not implemented call for " << t << endl;
       ErrorAt(ctx.src, *node->token);
     }
     break;
@@ -746,6 +753,8 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kExtern:
   case Node::kType:
+    SetType(ctx, node->next);
+    break;
   case Node::kParam:
     break;
   case Node::kSizeof:
