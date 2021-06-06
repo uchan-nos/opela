@@ -42,6 +42,8 @@ inline Object* NewFunc(Token* id, Type* type, Object::Linkage linkage) {
   return new Object{Object::kFunc, id, type, linkage, -1, {}};
 }
 
+std::ostream& operator<<(std::ostream& os, Object* o);
+
 class Scope {
  public:
   void Enter();

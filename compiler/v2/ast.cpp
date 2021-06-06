@@ -50,7 +50,7 @@ Node* NewNodeType(Token* token, Type* type) {
 }
 
 Node* NewNodeType(ASTContext& ctx, Token* token) {
-  auto t = FindType(ctx.src, *token);
+  auto t = ctx.tm.Find(*token);
   if (t == nullptr) {
     t = NewTypeUnresolved(token);
     cerr << "not implemented: unresolved type handling" << endl;
@@ -98,24 +98,7 @@ struct NodeValuePrinter {
     os << "STR" << v.i;
   }
   void operator()(Object* v) {
-    char linkage = '?';
-    switch (v->linkage) {
-    case Object::kLocal: linkage = 'L'; break;
-    case Object::kGlobal: linkage = 'G'; break;
-    case Object::kExternal: linkage = 'E'; break;
-    }
-
-    switch (v->kind) {
-    case Object::kUnresolved:
-      os << "Unresolved[" << v->id->raw << ']';
-      break;
-    case Object::kVar:
-      os << linkage << "Var[" << v->id->raw << ' ' << v->type << ']';
-      break;
-    case Object::kFunc:
-      os << linkage << "Func[" << v->id->raw << ' ' << v->type << ']';
-      break;
-    }
+    os << v;
   }
 };
 
@@ -211,12 +194,18 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.t.Expect("(");
   ctx.t.Expect(")");
 
-  auto func_type = NewTypeFunc(builtin_types["void"], nullptr);
+  auto ret_type = ctx.tm.Find("void");
+  if (auto tspec = TypeSpecifier(ctx)) {
+    ret_type = tspec->type;
+  }
+
+  auto func_type = NewTypeFunc(ret_type, nullptr);
   auto func = NewFunc(name, func_type, Object::kGlobal);
   Scope sc;
   sc.Enter();
-  ASTContext func_ctx{ctx.src, ctx.t, ctx.strings, ctx.decls,
-                      ctx.unresolved_types, &sc, &func->locals};
+  ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.strings, ctx.decls,
+                      ctx.unresolved_types, ctx.undeclared_ids,
+                      &sc, &func->locals};
 
   auto node = NewNode(Node::kDefFunc, name);
   node->lhs = CompoundStatement(func_ctx);
@@ -254,14 +243,12 @@ Node* TypeDeclaration(ASTContext& ctx) {
   auto tspec = TypeSpecifier(ctx);
   ctx.t.Expect(";");
 
-  /*
-  auto type = NewTypeUser(name_token, tspec->type);
-  if (auto t{types[name_token->Raw()]}; t == nullptr) {
-    types[name_token->Raw()] = type;
-  } else if (t->kind == Type::kUnknown) {
-    *t = *type;
+  auto type = NewTypeUser(tspec->type, name_token);
+  if (auto prev = ctx.tm.Register(type)) {
+    cerr << "type is re-defined: name=" << name_token->raw
+         << ", prev=" << prev << endl;
+    ErrorAt(ctx.src, *name_token);
   }
-  */
 
   return NewNodeOneChild(Node::kTypedef, name_token, tspec);
 }
@@ -361,10 +348,12 @@ Node* Assignment(ASTContext& ctx) {
       ErrorAt(ctx.src, *node->token);
     }
 
-    auto lvar = NewLVar(node->token, builtin_types["int"]);
+    auto lvar = NewLVar(node->token, ctx.tm.Find("int"));
     node->value = lvar;
     ctx.locals->push_back(lvar);
     ctx.sc->PutObject(lvar);
+
+    ctx.undeclared_ids.remove(node);
 
     node = NewNodeBinOp(Node::kDefVar, op, node, Assignment(ctx));
   }
@@ -465,6 +454,12 @@ Node* Postfix(ASTContext& ctx) {
         }
         ctx.t.Expect(")");
       }
+    } else if (auto op = ctx.t.Consume("@")) {
+      node = NewNodeBinOp(Node::kCast, op, node, TypeSpecifier(ctx));
+      if (node->rhs == nullptr) {
+        cerr << "type spec must be specified" << endl;
+        ErrorAt(ctx.src, *op);
+      }
     } else {
       return node;
     }
@@ -480,6 +475,8 @@ Node* Primary(ASTContext& ctx) {
     auto node = NewNode(Node::kId, id);
     if (auto obj = ctx.sc->FindObject(id->raw)) {
       node->value = obj;
+    } else {
+      ctx.undeclared_ids.push_back(node);
     }
     return node;
   } else if (auto token = ctx.t.Consume(Token::kStr)) {
@@ -507,7 +504,7 @@ Node* TypeSpecifier(ASTContext& ctx) {
     ctx.t.Expect(")");
     auto ret_tspec = TypeSpecifier(ctx);
     if (ret_tspec == nullptr) {
-      ret_tspec = NewNodeType(nullptr, builtin_types["void"]);
+      ret_tspec = NewNodeType(nullptr, ctx.tm.Find("void"));
     }
 
     Type* param_type = nullptr;
@@ -526,7 +523,7 @@ Node* TypeSpecifier(ASTContext& ctx) {
   }
 
   if (auto name_token = ctx.t.Consume(Token::kId)) {
-    auto t = FindType(ctx.src, *name_token);
+    auto t = ctx.tm.Find(*name_token);
     if (t == nullptr) {
       t = NewTypeUnresolved(name_token);
       ctx.unresolved_types.push_back(t);
@@ -609,26 +606,157 @@ opela_type::String DecodeEscapeSequence(Source& src, Token& token) {
   }
 }
 
-void ResolveType(Source& src, std::vector<Type*>& unresolved_types, Node* ast) {
-  map<string, Type*> user_types;
-  for (auto decl = ast; decl; decl = decl->next) {
-    if (decl->kind != Node::kTypedef) {
-      continue;
-    }
-    auto user_type = NewTypeUser(decl->lhs->type, decl->token);
-    user_types[string(decl->token->raw)] = user_type;
-  }
+void ResolveIDs(ASTContext& ctx) {
+  while (!ctx.undeclared_ids.empty()) {
+    auto target = ctx.undeclared_ids.front();
+    ctx.undeclared_ids.pop_front();
 
-  while (!unresolved_types.empty()) {
-    auto target = unresolved_types.front();
-    auto target_name = get<Token*>(target->value);
-    auto it = user_types.find(string(target_name->raw));
-    if (it == user_types.end()) {
-      cerr << "cannot resolve type" << endl;
-      ErrorAt(src, *target_name);
+    auto it = find_if(ctx.decls.begin(), ctx.decls.end(),
+                      [target](auto o){
+                        return o->id->raw == target->token->raw;
+                      });
+    if (it != ctx.decls.end()) {
+      target->value = *it;
+    } else {
+      cerr << "undeclared id" << endl;
+      ErrorAt(ctx.src, *target->token);
     }
-    *target = *it->second;
-    unresolved_types.erase(
-        find(unresolved_types.begin(), unresolved_types.end(), target));
+  }
+}
+
+void ResolveType(ASTContext& ctx) {
+  while (!ctx.unresolved_types.empty()) {
+    auto target = ctx.unresolved_types.front();
+    ctx.unresolved_types.pop_front();
+
+    auto target_name = get<Token*>(target->value);
+    auto t = ctx.tm.Find(*target_name);
+    if (t == nullptr) {
+      cerr << "undeclared type" << endl;
+      ErrorAt(ctx.src, *target_name);
+    }
+    *target = *t;
+  }
+}
+
+Type* MergeTypeBinOp(Type* l, Type* r) {
+  l = GetUserBaseType(l);
+  r = GetUserBaseType(r);
+  if (IsIntegral(l) && IsIntegral(r)) {
+    long l_bits = get<long>(l->value);
+    long r_bits = get<long>(r->value);
+    if (l_bits > r_bits) {
+      return l;
+    } else if (l_bits < r_bits) {
+      return r;
+    } else { // l_bits == r_bits
+      if (l->kind == r->kind) {
+        return l;
+      } else if (l->kind == Type::kUInt) {
+        return l;
+      } else { // r->kind == Type::kUInt
+        return r;
+      }
+    }
+  } else {
+    return l;
+  }
+}
+
+void SetType(ASTContext& ctx, Node* node) {
+  switch (node->kind) {
+  case Node::kInt:
+    node->type = ctx.tm.Find("int");
+    break;
+  case Node::kAdd:
+  case Node::kSub:
+  case Node::kMul:
+  case Node::kDiv:
+    SetType(ctx, node->lhs);
+    SetType(ctx, node->rhs);
+    node->type = MergeTypeBinOp(node->lhs->type, node->rhs->type);
+    break;
+  case Node::kEqu:
+  case Node::kNEqu:
+  case Node::kGT:
+  case Node::kLE:
+    SetType(ctx, node->lhs);
+    SetType(ctx, node->rhs);
+    node->type = ctx.tm.Find("bool");
+    break;
+  case Node::kBlock:
+    for (auto stmt = node->next; stmt; stmt = stmt->next) {
+      SetType(ctx, stmt);
+    }
+    break;
+  case Node::kId:
+    node->type = get<Object*>(node->value)->type;
+    break;
+  case Node::kDefVar:
+    SetType(ctx, node->rhs);
+    node->lhs->type = node->rhs->type;
+    break;
+  case Node::kDefFunc:
+    SetType(ctx, node->lhs);
+    break;
+  case Node::kRet:
+    SetType(ctx, node->lhs);
+    node->type = node->lhs->type;
+    break;
+  case Node::kIf:
+    SetType(ctx, node->lhs);
+    if (node->rhs) {
+      SetType(ctx, node->rhs);
+    }
+    break;
+  case Node::kAssign:
+    SetType(ctx, node->lhs);
+    SetType(ctx, node->rhs);
+    node->type = node->lhs->type;
+    break;
+  case Node::kLoop:
+    SetType(ctx, node->lhs);
+    break;
+  case Node::kFor:
+    if (node->rhs) {
+      SetType(ctx, node->rhs);
+    }
+    SetType(ctx, node->cond);
+    if (node->rhs) {
+      SetType(ctx, node->rhs->next);
+    }
+    SetType(ctx, node->lhs);
+    break;
+  case Node::kCall:
+    SetType(ctx, node->lhs);
+    SetType(ctx, node->rhs);
+    if (node->lhs->type->kind == Type::kFunc) {
+      node->type = node->lhs->type->base;
+    } else {
+      cerr << "not implemented call for "
+           << magic_enum::enum_name(node->lhs->kind) << endl;
+      ErrorAt(ctx.src, *node->token);
+    }
+    break;
+  case Node::kStr:
+    {
+      auto len = ctx.strings[get<StringIndex>(node->value).i].length();
+      node->type = NewTypeArray(ctx.tm.Find("uint8"), len);
+    }
+    break;
+  case Node::kExtern:
+  case Node::kType:
+  case Node::kParam:
+    break;
+  case Node::kSizeof:
+    SetType(ctx, node->lhs);
+    node->type = node->lhs->type;
+    break;
+  case Node::kTypedef:
+    break;
+  case Node::kCast:
+    SetType(ctx, node->lhs);
+    node->type = node->rhs->type;
+    break;
   }
 }

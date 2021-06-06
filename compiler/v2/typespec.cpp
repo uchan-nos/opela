@@ -10,9 +10,7 @@ using namespace std;
 
 namespace {
 
-[[noreturn]] void Error(const char* msg, Type* t) {
-  cerr << msg << ": type=" << t << endl;
-
+[[noreturn]] void Error() {
   array<void*, 128> trace;
   int n = backtrace(trace.begin(), trace.size());
   backtrace_symbols_fd(trace.begin(), n, STDERR_FILENO);
@@ -46,35 +44,8 @@ Type* NewTypeUser(Type* base, Token* name) {
   return new Type{Type::kUser, base, nullptr, name};
 }
 
-Type* FindType(Source& src, Token& name) {
-  string tname(name.raw);
-  if (auto it = builtin_types.find(tname); it != builtin_types.end()) {
-    return it->second;
-  }
-
-  int integral = 0;
-  bool unsig = false;
-  if (name.raw.starts_with("int")) {
-    integral = 3;
-  } else if (name.raw.starts_with("uint")) {
-    integral = 4;
-    unsig = true;
-  }
-  if (0 < integral && integral < name.raw.length()) {
-    int bits = 0;
-    for (int i = integral; i < name.raw.length(); ++i) {
-      if (!isdigit(name.raw[i])) {
-        cerr << "bit width must be a 10-base number" << endl;
-        ErrorAt(src, &name.raw[i]);
-      }
-      bits = 10*bits + name.raw[i] - '0';
-    }
-    auto t = NewTypeIntegral(unsig ? Type::kUInt : Type::kInt, bits);
-    builtin_types[tname] = t;
-    return t;
-  }
-
-  return nullptr;
+Type* NewTypeArray(Type* base, long size) {
+  return new Type{Type::kArray, base, nullptr, size};
 }
 
 std::ostream& operator<<(std::ostream& os, Type* t) {
@@ -106,6 +77,10 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
   case Type::kUser:
     os << get<Token*>(t->value)->raw;
     break;
+  case Type::kBool: os << "bool"; break;
+  case Type::kArray:
+    os << '[' << get<long>(t->value) << ']' << t->base;
+    break;
   }
   return os;
 }
@@ -115,7 +90,8 @@ size_t SizeofType(Source& src, Type* t) {
   case Type::kUndefined:
   case Type::kUnresolved:
   case Type::kFunc:
-    Error("cannot determine size", t);
+    cerr << "cannot determine size: type=" << t << endl;
+    Error();
   case Type::kInt:
   case Type::kUInt:
     return (get<long>(t->value) + 7) / 8;
@@ -127,6 +103,75 @@ size_t SizeofType(Source& src, Type* t) {
     return 0;
   case Type::kUser:
     return SizeofType(src, t->base);
+  case Type::kBool:
+    return 1;
+  case Type::kArray:
+    return get<long>(t->value) * SizeofType(src, t->base);
   }
-  Error("should not come here", t);
+  cerr << "should not come here: type=" << t << endl;
+  Error();
+}
+
+Type* GetUserBaseType(Type* user_type) {
+  while (user_type->kind == Type::kUser) {
+    user_type = user_type->base;
+  }
+  return user_type;
+}
+
+Type* TypeManager::Find(Token& name) {
+  bool err;
+  if (auto t = Find(string(name.raw), err); err) {
+    ErrorAt(src_, name);
+  } else {
+    return t;
+  }
+}
+
+Type* TypeManager::Find(const std::string& name) {
+  bool err;
+  if (auto t = Find(name, err); err) {
+    Error();
+  } else {
+    return t;
+  }
+}
+
+Type* TypeManager::Find(const std::string& name, bool& err) {
+  err = false;
+  if (auto it = types_.find(name); it != types_.end()) {
+    return it->second;
+  }
+
+  int integral = 0;
+  bool unsig = false;
+  if (name.starts_with("int")) {
+    integral = 3;
+  } else if (name.starts_with("uint")) {
+    integral = 4;
+    unsig = true;
+  }
+  if (0 < integral && integral < name.length()) {
+    int bits = 0;
+    for (int i = integral; i < name.length(); ++i) {
+      if (!isdigit(name[i])) {
+        cerr << "bit width must be a 10-base number" << endl;
+        err = true;
+        return nullptr;
+      }
+      bits = 10*bits + name[i] - '0';
+    }
+    auto t = NewTypeIntegral(unsig ? Type::kUInt : Type::kInt, bits);
+    types_[name] = t;
+    return t;
+  }
+
+  return nullptr;
+}
+
+Type* TypeManager::Register(Type* t) {
+  string name(get<Token*>(t->value)->raw);
+  auto old_t = types_[name];
+  types_[name] = t;
+  return old_t;
 }

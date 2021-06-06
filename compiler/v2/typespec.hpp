@@ -18,6 +18,8 @@ struct Type {
     kParam,
     kVoid,
     kUser, // ユーザー定義型
+    kBool,
+    kArray,
   } kind;
 
   Type* base;
@@ -33,6 +35,8 @@ struct Type {
    * kParam
    *   base: 引数型
    *   next: 次の引数
+   * kArray:
+   *   base: 要素の型
    */
 
   /* value の用途
@@ -52,13 +56,32 @@ Type* NewTypeFunc(Type* ret, Type* param_list);
 Type* NewTypeParam(Type* t, Token* name);
 Type* NewTypeUnresolved(Token* name);
 Type* NewTypeUser(Type* base, Token* name);
+Type* NewTypeArray(Type* base, long size);
 
-Type* FindType(Source& src, Token& name);
 std::ostream& operator<<(std::ostream& os, Type* t);
 size_t SizeofType(Source& src, Type* t);
+Type* GetUserBaseType(Type* user_type);
 
-inline std::map<std::string, Type*> builtin_types{
-  {"void", new Type{Type::kVoid, nullptr, nullptr, 0}},
-  {"int", NewTypeIntegral(Type::kInt, 64)},
-  {"uint", NewTypeIntegral(Type::kUInt, 64)},
+inline bool IsIntegral(Type* t) {
+  return t->kind == Type::kInt || t->kind == Type::kUInt;
+}
+
+class TypeManager {
+ public:
+  TypeManager(Source& src) : src_{src} {}
+
+  Type* Find(Token& name);
+  Type* Find(const std::string& name);
+  Type* Register(Type* t); // 同じ名前でこれまで登録されていた型を返す
+
+ private:
+  Type* Find(const std::string& name, bool& err);
+
+  Source& src_;
+  std::map<std::string, Type*> types_{
+    {"void", new Type{Type::kVoid, nullptr, nullptr, 0}},
+    {"int", NewTypeIntegral(Type::kInt, 64)},
+    {"uint", NewTypeIntegral(Type::kUInt, 64)},
+    {"bool", new Type{Type::kBool, nullptr, nullptr, 0}},
+  };
 };

@@ -130,19 +130,19 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     if (auto p = get_if<Object*>(&node->value)) {
       Object* obj = *p;
-      if (lval) {
-        ctx.asmgen.LEA(dest, Asm::kRegBP, obj->bp_offset);
-      } else {
-        ctx.asmgen.Load64(dest, Asm::kRegBP, obj->bp_offset);
+      switch (obj->linkage) {
+      case Object::kLocal:
+        if (lval) {
+          ctx.asmgen.LEA(dest, Asm::kRegBP, obj->bp_offset);
+        } else {
+          ctx.asmgen.Load64(dest, Asm::kRegBP, obj->bp_offset);
+        }
+        break;
+      case Object::kGlobal:
+      case Object::kExternal:
+        ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
+        break;
       }
-    } else if (auto decl = find_if(ctx.decls.begin(), ctx.decls.end(),
-          [node](Object* o) {
-            return o->id->raw == node->token->raw;
-          }); decl != ctx.decls.end()) {
-      ctx.asmgen.LoadLabelAddr(dest, node->token->raw);
-    } else {
-      cerr << "undeclared symbol: " << node->token->raw << endl;
-      ErrorAt(ctx.src, *node->token);
     }
     return;
   case Node::kDefVar:
@@ -297,6 +297,17 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     ctx.asmgen.Mov64(dest, SizeofType(ctx.src, node->lhs->type));
     return;
+  case Node::kCast:
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, lval);
+    if (auto t = GetUserBaseType(node->rhs->type); IsIntegral(t)) {
+      if (auto bits = get<long>(t->value); bits < 64) {
+        ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
+      }
+    } else {
+      cerr << "not implemented cast for " << t << endl;
+      ErrorAt(ctx.src, *node->token);
+    }
+    return;
   default:
     ; // pass
   }
@@ -328,6 +339,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
   switch (node->kind) {
   case Node::kAdd:
     ctx.asmgen.Add64(dest, reg);
+    if (auto t = GetUserBaseType(node->type); IsIntegral(t)) {
+      if (auto bits = get<long>(t->value); bits < 64) {
+        ctx.asmgen.And64(dest, (1 << bits) - 1);
+      }
+    } else {
+      cerr << "not implemented + for " << t << endl;
+      ErrorAt(ctx.src, *node->token);
+    }
     break;
   case Node::kSub:
     if (lhs_in_dest) {
@@ -402,11 +421,13 @@ int main(int argc, char** argv) {
   Source src;
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
+  TypeManager type_manager(src);
   std::vector<opela_type::String> strings;
   vector<Object*> decls;
-  vector<Type*> unresolved_types;
-  ASTContext ast_ctx{src, tokenizer, strings, decls,
-                     unresolved_types, nullptr, nullptr};
+  list<Type*> unresolved_types;
+  list<Node*> undeclared_ids;
+  ASTContext ast_ctx{src, tokenizer, type_manager, strings, decls,
+                     unresolved_types, undeclared_ids, nullptr, nullptr};
   auto ast = Program(ast_ctx);
 
   if (verbosity >= 1) {
@@ -414,7 +435,9 @@ int main(int argc, char** argv) {
     PrintDebugInfo(ast, strings);
     cout << "*/\n\n";
   }
-  ResolveType(src, unresolved_types, ast);
+  ResolveIDs(ast_ctx);
+  ResolveType(ast_ctx);
+  SetType(ast_ctx, ast);
   cout << "/* AST\n";
   PrintDebugInfo(ast, strings);
   cout << "*/\n\n";

@@ -4,6 +4,29 @@
 
 using namespace std;
 
+std::ostream& operator<<(std::ostream& os, Object* o) {
+  char linkage = '?';
+  switch (o->linkage) {
+  case Object::kLocal: linkage = 'L'; break;
+  case Object::kGlobal: linkage = 'G'; break;
+  case Object::kExternal: linkage = 'E'; break;
+  }
+
+  switch (o->kind) {
+  case Object::kUnresolved:
+    os << "Unresolved[" << o->id->raw << ']';
+    break;
+  case Object::kVar:
+    os << linkage << "Var[" << o->id->raw << ' ' << o->type << ']';
+    break;
+  case Object::kFunc:
+    os << linkage << "Func[" << o->id->raw << ' ' << o->type << ']';
+    break;
+  }
+
+  return os;
+}
+
 void Scope::Enter() {
   layers_.push_back({});
 }

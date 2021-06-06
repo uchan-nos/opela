@@ -103,6 +103,10 @@ class AsmX86_64 : public Asm {
     }
   }
 
+  void And64(Register dest, std::uint64_t v) override {
+    out_ << "    and " << RegName(dest) << ',' << v << '\n';
+  }
+
   void Push64(Register reg) override {
     out_ << "    push " << RegName(reg) << '\n';
   }

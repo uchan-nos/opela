@@ -1,5 +1,6 @@
 #pragma once
 
+#include <list>
 #include <ostream>
 #include <variant>
 #include <vector>
@@ -42,6 +43,7 @@ struct Node {
     kParam,   // 関数の仮引数
     kSizeof,  // 1項演算子 sizeof
     kTypedef, // 型宣言
+    kCast,    // 2項演算子 @
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -84,6 +86,9 @@ struct Node {
    *   lhs: 型情報（kType ノード）
    * kTypedef:
    *   lhs: 型情報（kType ノード）
+   * kCast:
+   *   lhs: 型変換対象の式
+   *   rhs: 型情報（kType ノード）
    */
 
   /* next の用途
@@ -101,9 +106,11 @@ struct Node {
 struct ASTContext {
   Source& src;
   Tokenizer& t;
+  TypeManager& tm;
   std::vector<opela_type::String>& strings;
   std::vector<Object*>& decls;
-  std::vector<Type*>& unresolved_types;
+  std::list<Type*>& unresolved_types;
+  std::list<Node*>& undeclared_ids;
   Scope* sc;
   std::vector<Object*>* locals;
 };
@@ -141,4 +148,6 @@ int CountListItems(Node* head);
 
 opela_type::String DecodeEscapeSequence(Source& src, Token& token);
 
-void ResolveType(Source& src, std::vector<Type*>& unresolved_types, Node* ast);
+void ResolveIDs(ASTContext& ctx);
+void ResolveType(ASTContext& ctx);
+void SetType(ASTContext& ctx, Node* node);
