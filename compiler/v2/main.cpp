@@ -107,6 +107,18 @@ string StringLabel(size_t index) {
   return oss.str();
 }
 
+const std::array<const char*, 9> kSizeMap{
+  nullptr,
+  ".byte",
+  ".2byte",
+  nullptr,
+  ".4byte",
+  nullptr,
+  nullptr,
+  nullptr,
+  ".8byte",
+};
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  bool lval = false) {
@@ -140,7 +152,11 @@ void GenerateAsm(GenContext& ctx, Node* node,
         break;
       case Object::kGlobal:
       case Object::kExternal:
-        ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
+        if (lval || obj->kind == Object::kFunc) {
+          ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
+        } else {
+          ctx.asmgen.Load64(dest, obj->id->raw);
+        }
         break;
       }
     }
@@ -439,7 +455,7 @@ int main(int argc, char** argv) {
   }
   ResolveIDs(ast_ctx);
   ResolveType(ast_ctx);
-  SetType(ast_ctx, ast);
+  SetTypeProgram(ast_ctx, ast);
   cout << "/* AST\n";
   PrintDebugInfo(ast, strings);
   cout << "*/\n\n";
@@ -458,16 +474,51 @@ int main(int argc, char** argv) {
 
   GenContext ctx{src, *asmgen, decls, get<Object*>(ast->value)};
 
+  vector<Node*> var_defs;
+
   cout << ".intel_syntax noprefix\n";
   for (auto decl = ast; decl; decl = decl->next) {
-    GenerateAsm(ctx, decl, Asm::kRegA, free_calc_regs);
+    if (decl->kind == Node::kDefFunc) {
+      GenerateAsm(ctx, decl, Asm::kRegA, free_calc_regs);
+    } else if (decl->kind == Node::kDefVar) {
+      var_defs.push_back(decl);
+    }
   }
 
+  ctx.asmgen.Output() << ".global _init_opela\n_init_opela:\n";
+  ctx.asmgen.Push64(Asm::kRegBP);
+  ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
+  for (auto var_def : var_defs) {
+    if (var_def->rhs && var_def->rhs->kind != Node::kInt) {
+      GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs);
+      ctx.asmgen.Store64(var_def->lhs->token->raw, Asm::kRegA);
+    }
+  }
+  ctx.asmgen.Output() << "_init_opela.exit:\n";
+  ctx.asmgen.Leave();
+  ctx.asmgen.Ret();
+
+  ctx.asmgen.Output() << ".section .init_array\n";
+  ctx.asmgen.Output() << "    .dc.a _init_opela\n";
+
+  ctx.asmgen.Output() << ".section .data\n";
   for (size_t i = 0; i < strings.size(); ++i) {
     cout << StringLabel(i) << ":\n    .byte ";
     for (auto ch : strings[i]) {
       cout << static_cast<int>(ch) << ',';
     }
     cout << "0\n";
+  }
+
+  for (auto var_def : var_defs) {
+    auto obj = get<Object*>(var_def->lhs->value);
+    auto obj_size = SizeofType(ctx.src, obj->type);
+    asmgen->Output() << obj->id->raw << ": ";
+    if (var_def->rhs && var_def->rhs->kind == Node::kInt) {
+      asmgen->Output() << kSizeMap[obj_size] << ' '
+                       << get<opela_type::Int>(var_def->rhs->value) << '\n';
+    } else {
+      asmgen->Output() << ".zero " << obj_size << '\n';
+    }
   }
 }

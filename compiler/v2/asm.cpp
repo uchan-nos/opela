@@ -124,9 +124,17 @@ class AsmX86_64 : public Asm {
          << ",[" << RegName(addr) << (disp >= 0 ? "+" : "") << disp << "]\n";
   }
 
+  void Load64(Register dest, std::string_view label) override {
+    out_ << "    mov " << RegName(dest) << ",[rip+" << label << "]\n";
+  }
+
   void Store64(Register addr, int disp, Register v) override {
     out_ << "    mov [" << RegName(addr) << (disp >= 0 ? "+" : "") << disp
          << "]," << RegName(v) << '\n';
+  }
+
+  void Store64(std::string_view label, Register v) override {
+    out_ << "    mov [rip+" << label << "]," << RegName(v) << '\n';
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {

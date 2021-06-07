@@ -9,6 +9,8 @@
 #include "token.hpp"
 #include "typespec.hpp"
 
+struct Node;
+
 // アドレスを持つもの（列挙子や型名は含まない）
 struct Object {
   enum Kind {
@@ -21,6 +23,7 @@ struct Object {
   } kind;
 
   Token* id; // オブジェクト名（マングルされた名前ではない）
+  Node* def; // オブジェクトを定義するノード（kDefVar, kDefFunc, kExtern）
   Type* type;
 
   enum Linkage {
@@ -34,12 +37,12 @@ struct Object {
   std::vector<Object*> locals; // 関数のローカル変数リスト
 };
 
-inline Object* NewLVar(Token* id, Type* type) {
-  return new Object{Object::kVar, id, type, Object::kLocal, -1, {}};
+inline Object* NewVar(Token* id, Node* def, Object::Linkage linkage) {
+  return new Object{Object::kVar, id, def, nullptr, linkage, -1, {}};
 }
 
-inline Object* NewFunc(Token* id, Type* type, Object::Linkage linkage) {
-  return new Object{Object::kFunc, id, type, linkage, -1, {}};
+inline Object* NewFunc(Token* id, Node* def, Object::Linkage linkage) {
+  return new Object{Object::kFunc, id, def, nullptr, linkage, -1, {}};
 }
 
 std::ostream& operator<<(std::ostream& os, Object* o);

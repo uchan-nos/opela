@@ -108,7 +108,8 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
     return;
   }
 
-  os << NodeName(ast) << "{" << magic_enum::enum_name(ast->kind) << ' ';
+  os << NodeName(ast) << ' ' << reinterpret_cast<void*>(ast)
+     << '{' << magic_enum::enum_name(ast->kind) << ' ';
   if (ast->token) {
     os << "'" << ast->token->raw << "'";
   } else {
@@ -160,6 +161,17 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
   }
 }
 
+Object* AllocateLVar(ASTContext& ctx, Token* name, Node* def) {
+  if (ctx.sc->FindObjectCurrentBlock(name->raw)) {
+    cerr << "local variable is redefined" << endl;
+    ErrorAt(ctx.src, *name);
+  }
+  auto lvar = NewVar(name, def, Object::kLocal);
+  ctx.locals->push_back(lvar);
+  ctx.sc->PutObject(lvar);
+  return lvar;
+}
+
 } // namespace
 
 Node* Program(ASTContext& ctx) {
@@ -178,6 +190,8 @@ Node* DeclarationSequence(ASTContext& ctx) {
       cur->next = ExternDeclaration(ctx);
     } else if (ctx.t.Peek(Token::kType)) {
       cur->next = TypeDeclaration(ctx);
+    } else if (ctx.t.Peek(Token::kVar)) {
+      cur->next = VariableDefinition(ctx);
     } else {
       return head->next;
     }
@@ -190,27 +204,27 @@ Node* DeclarationSequence(ASTContext& ctx) {
 Node* FunctionDefinition(ASTContext& ctx) {
   ctx.t.Expect(Token::kFunc);
   auto name = ctx.t.Expect(Token::kId);
+  auto node = NewNode(Node::kDefFunc, name);
+  auto func_obj = NewFunc(name, node, Object::kGlobal);
+  node->value = func_obj;
 
   ctx.t.Expect("(");
   ctx.t.Expect(")");
 
-  auto ret_type = ctx.tm.Find("void");
-  if (auto tspec = TypeSpecifier(ctx)) {
-    ret_type = tspec->type;
+  node->cond = TypeSpecifier(ctx); // 戻り値の型情報
+  if (node->cond == nullptr) {
+    node->cond = NewNode(Node::kType, nullptr);
+    node->cond->type = ctx.tm.Find("void");
   }
 
-  auto func_type = NewTypeFunc(ret_type, nullptr);
-  auto func = NewFunc(name, func_type, Object::kGlobal);
   Scope sc;
   sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.strings, ctx.decls,
                       ctx.unresolved_types, ctx.undeclared_ids,
-                      &sc, &func->locals};
+                      &sc, &func_obj->locals};
 
-  auto node = NewNode(Node::kDefFunc, name);
   node->lhs = CompoundStatement(func_ctx);
-  node->value = func;
-  ctx.decls.push_back(func);
+  ctx.decls.push_back(func_obj);
   return node;
 }
 
@@ -232,7 +246,7 @@ Node* ExternDeclaration(ASTContext& ctx) {
 
   auto node = NewNodeOneChild(Node::kExtern, id, tspec);
   node->cond = attr ? NewNodeStr(ctx, attr) : nullptr;
-  auto obj = NewFunc(id, tspec->type, Object::kExternal);
+  auto obj = NewFunc(id, node, Object::kExternal);
   node->value = obj;
   ctx.decls.push_back(obj);
   return node;
@@ -254,6 +268,56 @@ Node* TypeDeclaration(ASTContext& ctx) {
   return NewNodeOneChild(Node::kTypedef, name_token, tspec);
 }
 
+Node* VariableDefinition(ASTContext& ctx) {
+  ctx.t.Expect(Token::kVar);
+
+  auto one_def = [&ctx]{
+    auto id = ctx.t.Expect(Token::kId);
+    auto tspec = TypeSpecifier(ctx);
+    Node* init = nullptr;
+    if (ctx.t.Consume("=")) {
+      init = Expression(ctx);
+    }
+
+    auto id_node = NewNode(Node::kId, id);
+    auto def_node = NewNodeBinOp(Node::kDefVar, id, id_node, init);
+    def_node->cond = tspec;
+
+    Object* var;
+    if (ctx.sc) { // ローカル
+      var = AllocateLVar(ctx, id, def_node);
+    } else { // グローバル
+      var = NewVar(id, def_node, Object::kGlobal);
+      ctx.decls.push_back(var);
+    }
+    id_node->value = var;
+
+    return def_node;
+  };
+
+  auto head = NewNode(Node::kInt, nullptr); // dummy
+  auto cur = head;
+  if (ctx.t.Consume("(")) {
+    for (;;) {
+      cur->next = one_def();
+      cur = cur->next;
+      if (ctx.t.Consume(",")) {
+        if (ctx.t.Consume(")")) {
+          break;
+        }
+      } else {
+        ctx.t.Expect(")");
+        break;
+      }
+    }
+    return head->next;
+  }
+
+  auto node = one_def();
+  ctx.t.Expect(";");
+  return node;
+}
+
 Node* Statement(ASTContext& ctx) {
   if (ctx.t.Peek("{")) {
     return CompoundStatement(ctx);
@@ -267,6 +331,9 @@ Node* Statement(ASTContext& ctx) {
   }
   if (ctx.t.Peek(Token::kFor)) {
     return IterationStatement(ctx);
+  }
+  if (ctx.t.Peek(Token::kVar)) {
+    return VariableDefinition(ctx);
   }
 
   return ExpressionStatement(ctx);
@@ -343,20 +410,13 @@ Node* Assignment(ASTContext& ctx) {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ctx.t.Unexpected(*node->token);
     }
-
-    if (ctx.sc->FindObjectCurrentBlock(node->token->raw)) {
-      cerr << "local variable is redefined" << endl;
-      ErrorAt(ctx.src, *node->token);
-    }
-
-    auto lvar = NewLVar(node->token, ctx.tm.Find("int"));
-    node->value = lvar;
-    ctx.locals->push_back(lvar);
-    ctx.sc->PutObject(lvar);
-
     ctx.undeclared_ids.remove(node);
+    auto def_node = NewNodeBinOp(Node::kDefVar, op, node, Assignment(ctx));
 
-    node = NewNodeBinOp(Node::kDefVar, op, node, Assignment(ctx));
+    auto lvar = AllocateLVar(ctx, node->token, def_node);
+    node->value = lvar;
+
+    node = def_node;
   }
 
   return node;
@@ -665,7 +725,7 @@ Type* MergeTypeBinOp(Type* l, Type* r) {
 }
 
 void SetType(ASTContext& ctx, Node* node) {
-  if (node == nullptr) {
+  if (node == nullptr || node->type != nullptr) {
     return;
   }
 
@@ -695,15 +755,19 @@ void SetType(ASTContext& ctx, Node* node) {
     }
     break;
   case Node::kId:
-    node->type = get<Object*>(node->value)->type;
+    {
+      auto obj = get<Object*>(node->value);
+      SetType(ctx, obj->def);
+      node->type = obj->type;
+    }
     break;
   case Node::kDefVar:
     SetType(ctx, node->rhs);
-    node->lhs->type = node->rhs->type;
+    node->type = node->rhs->type;
+    get<Object*>(node->lhs->value)->type = node->rhs->type;
     break;
   case Node::kDefFunc:
-    SetType(ctx, node->lhs);
-    SetType(ctx, node->next);
+    get<Object*>(node->value)->type = NewTypeFunc(node->cond->type, nullptr);
     break;
   case Node::kRet:
     SetType(ctx, node->lhs);
@@ -752,20 +816,45 @@ void SetType(ASTContext& ctx, Node* node) {
     }
     break;
   case Node::kExtern:
-  case Node::kType:
-    SetType(ctx, node->next);
-    break;
-  case Node::kParam:
+    node->type = node->lhs->type;
+    get<Object*>(node->value)->type = node->lhs->type;
     break;
   case Node::kSizeof:
     SetType(ctx, node->lhs);
     node->type = node->lhs->type;
     break;
-  case Node::kTypedef:
-    break;
   case Node::kCast:
     SetType(ctx, node->lhs);
     node->type = node->rhs->type;
+    break;
+  case Node::kType:
+  case Node::kParam:
+  case Node::kTypedef:
+    break;
+  }
+}
+
+void SetTypeProgram(ASTContext& ctx, Node* ast) {
+  if (ast == nullptr) {
+    return;
+  }
+
+  switch (ast->kind) {
+  case Node::kDefVar:
+    SetType(ctx, ast);
+    SetTypeProgram(ctx, ast->next);
+    break;
+  case Node::kDefFunc:
+    for (auto stmt = ast->lhs->next; stmt; stmt = stmt->next) {
+      SetType(ctx, stmt);
+    }
+    SetTypeProgram(ctx, ast->next);
+    break;
+  case Node::kExtern:
+  case Node::kType:
+    SetTypeProgram(ctx, ast->next);
+    break;
+  default:
     break;
   }
 }

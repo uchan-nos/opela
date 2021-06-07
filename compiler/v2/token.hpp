@@ -24,6 +24,7 @@ struct Token {
     kExtern,
     kSizeof,
     kType,
+    kVar,
   } kind;
 
   std::string_view raw;

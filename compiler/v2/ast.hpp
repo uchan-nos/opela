@@ -52,7 +52,7 @@ struct Node {
   /* kType: 型指定子が表す型
    * 式: その式の型
    * その他： nullptr
-   *   kDefFunc: 関数の型は value (Object*) が保持
+   *   kDefVar, kDefFunc, kExtern: 型は value (Object*) が保持
    *   kParam: 仮引数の型は lhs が保持
    */
 
@@ -64,8 +64,14 @@ struct Node {
 
   /* 2項演算以外での lhs と rhs、cond の用途
    *
+   * kDefVar
+   *   lhs: 変数名（kId ノード）
+   *   rhs: 初期値を表す式
+   *   cond: 型情報（kType ノード。無い場合は nullptr）
    * kDefFunc
    *   lhs: 関数本体の複文
+   *   rhs: 引数リスト
+   *   cond: 戻り値の型情報（kType ノード）
    * kRet
    *   lhs: 戻り値を表す式（式が無い場合は nullptr）
    * kIf
@@ -120,6 +126,7 @@ Node* DeclarationSequence(ASTContext& ctx);
 Node* FunctionDefinition(ASTContext& ctx);
 Node* ExternDeclaration(ASTContext& ctx);
 Node* TypeDeclaration(ASTContext& ctx);
+Node* VariableDefinition(ASTContext& ctx);
 Node* Statement(ASTContext& ctx);
 Node* CompoundStatement(ASTContext& ctx);
 Node* SelectionStatement(ASTContext& ctx);
@@ -151,3 +158,4 @@ opela_type::String DecodeEscapeSequence(Source& src, Token& token);
 void ResolveIDs(ASTContext& ctx);
 void ResolveType(ASTContext& ctx);
 void SetType(ASTContext& ctx, Node* node);
+void SetTypeProgram(ASTContext& ctx, Node* ast);

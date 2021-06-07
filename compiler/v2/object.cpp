@@ -17,10 +17,20 @@ std::ostream& operator<<(std::ostream& os, Object* o) {
     os << "Unresolved[" << o->id->raw << ']';
     break;
   case Object::kVar:
-    os << linkage << "Var[" << o->id->raw << ' ' << o->type << ']';
+    os << linkage << "Var[" << o->id->raw << ' ';
+    if (o->type) {
+      os << o->type << ']';
+    } else {
+      os << "type=null]";
+    }
     break;
   case Object::kFunc:
-    os << linkage << "Func[" << o->id->raw << ' ' << o->type << ']';
+    os << linkage << "Func[" << o->id->raw << ' ';
+    if (o->type) {
+      os << o->type << ']';
+    } else {
+      os << "type=null]";
+    }
     break;
   }
 

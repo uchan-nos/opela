@@ -62,7 +62,9 @@ class Asm {
   virtual void Pop64(Register reg) = 0;
   virtual void Leave() = 0;
   virtual void Load64(Register dest, Register addr, int disp) = 0;
+  virtual void Load64(Register dest, std::string_view label) = 0;
   virtual void Store64(Register addr, int disp, Register v) = 0;
+  virtual void Store64(std::string_view label, Register v) = 0;
   virtual void CmpSet(Compare c, Register dest, Register lhs, Register rhs) = 0;
   virtual void Xor64(Register dest, Register v) = 0;
   virtual void Ret() = 0;
