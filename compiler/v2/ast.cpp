@@ -407,10 +407,21 @@ Node* Expression(ASTContext& ctx) {
 }
 
 Node* Assignment(ASTContext& ctx) {
+  const map<string_view, Node::Kind> opmap{
+    {"+=", Node::kAdd},
+    {"-=", Node::kSub},
+    {"*=", Node::kMul},
+    {"/=", Node::kDiv},
+  };
+
   auto node = Equality(ctx);
 
   if (auto op = ctx.t.Consume("=")) {
     node = NewNodeBinOp(Node::kAssign, op, node, Assignment(ctx));
+  } else if (auto it = opmap.find(ctx.t.Peek()->raw); it != opmap.end()) {
+    auto op = ctx.t.Consume();
+    auto rhs = NewNodeBinOp(it->second, op, node, Assignment(ctx));
+    node = NewNodeBinOp(Node::kAssign, op, node, rhs);
   } else if (auto op = ctx.t.Consume(":=")) {
     if (node->kind != Node::kId) {
       cerr << "lhs of ':=' must be an identifier" << endl;

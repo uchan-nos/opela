@@ -71,7 +71,7 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kInt, {p, non_digit}, v};
     }
 
-    if (p[1] == '=' && strchr("=!<>:", p[0])) {
+    if (p[1] == '=' && strchr("=!<>:+-*/", p[0])) {
       return new Token{Token::kReserved, {p, 2}, {}};
     }
 
