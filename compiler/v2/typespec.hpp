@@ -83,5 +83,6 @@ class TypeManager {
     {"int", NewTypeIntegral(Type::kInt, 64)},
     {"uint", NewTypeIntegral(Type::kUInt, 64)},
     {"bool", new Type{Type::kBool, nullptr, nullptr, 0}},
+    {"byte", NewTypeIntegral(Type::kUInt, 8)},
   };
 };

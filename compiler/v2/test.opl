@@ -1,0 +1,105 @@
+#define TEST_INT(want, got) testInt(want, got, #got)
+var (passed int, failed int)
+
+func main() {
+  TEST_INT(42, testIntConstant());
+  TEST_INT(30, testFourArith());
+  TEST_INT(5,  testUnaryPM());
+  TEST_INT(2,  testMulUnary());
+  TEST_INT(0,  testRelOp());
+  TEST_INT(1,  testRelOp2());
+  TEST_INT(1,  testRelOp3());
+  TEST_INT(1,  testRelOp4());
+  TEST_INT(15, testLVar());
+  TEST_INT(6,  testScope());
+  TEST_INT(42, testReturn());
+  TEST_INT(2,  testIf());
+  TEST_INT(2,  testIfVar());
+  TEST_INT(4,  testIfElse());
+  TEST_INT(5,  testNestedIf());
+  TEST_INT(8,  testAssign());
+  TEST_INT(38, testAssign2());
+  TEST_INT(42, testAssign3());
+  TEST_INT(9,  testAssign4());
+  TEST_INT(55, testFor());
+  TEST_INT(55, testFor2());
+  TEST_INT(9,  testNestedFor());
+  TEST_INT(39, testExternalFunc());
+  TEST_INT(42, testCallPointer());
+  TEST_INT(43, testFuncArg());
+  TEST_INT(4,  testSizeofUserType());
+  TEST_INT(6,  testTypeCast());
+  TEST_INT(57, testDefFunc());
+  TEST_INT(5,  testDefFuncWithArg());
+  TEST_INT(42, testGVar());
+  TEST_INT(2,  testReturnType());
+  TEST_INT(12, testCompoundAssign());
+  TEST_INT(3,  testGVar2());
+
+  printf("%ld passed, %ld failed\n", passed, failed);
+  return failed > 0;
+}
+
+func testInt(want, got int, gots *byte) {
+  if want == got {
+    printf("[  OK  ]: ");
+    passed += 1;
+  } else {
+    printf("[FAILED]: ");
+    failed += 1;
+  }
+
+  printf("%s -> %ld", gots, got);
+
+  if want != got {
+    printf(", want %ld", want);
+  }
+  printf("\n");
+}
+
+func testIntConstant() { 42; }
+func testFourArith() { (1+2) / 2+ (( 3 -4) +5 *  6 ); }
+func testUnaryPM() { -3 + (+8); }
+func testMulUnary() { -2 * -1; }
+func testRelOp() { 3 < (1 + 1); }
+func testRelOp2() { 3 > (1 + 1); }
+func testRelOp3() { 2*3 >= 13/2; }
+func testRelOp4() { 2>2 == 4<=3; }
+func testLVar() { foo:=5; bar:=3; foo*bar; }
+func testScope() { foo:=2; { foo:=3; } foo+4; }
+func testReturn() { return 41+1; 3; }
+func testIf() { 1; if 42 > 10 { 2; } }
+func testIfVar() { cond := 10 < 200; if cond { return 2; } }
+func testIfElse() { if 0 { 3; } else { 4; } }
+func testNestedIf() { if 0 { 3; } else if 1 { 5; } else { 4; } }
+func testAssign() { foo := 3; foo = 4; foo * 2; }
+func testAssign2() { foo:=5; bar:=7; foo=(bar=1)=42; foo-4; }
+func testAssign3() { foo:=5; bar:=7; foo=bar=42; }
+func testAssign4() { a:=5; a=b:=3; a*b; }
+func testFor() { i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } s; }
+func testFor2() { s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }
+func testNestedFor() { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } s; }
+func testExternalFunc() { func42() - 3; }
+func testCallPointer() { funcfunc42()(); }
+func testFuncArg() { add((1+2)*(3+4), add(func42(), 1)) - 21; }
+func testSizeofUserType() { sizeof(myInt); }
+func testTypeCast() int { (3@myInt2 + 2@int2) + 5; }
+func testDefFunc(){add(sum10(), 2);}
+func testDefFuncWithArg(){myAdd(-3,8);}
+func testGVar() { var (v int = val*3) return v; }
+func testReturnType(){addInt2(-3,8,1);}
+func testCompoundAssign() { i := 1; i += 2; j := 3; i *= 1 + j; }
+func testGVar2() { return ga+gb; }
+
+extern "C" func42 func()int;
+extern "C" funcfunc42 func() *func();
+extern "C" add func(a, b int) int;
+func sum10()int{s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} s;}
+func myAdd(a,b int)int{a+b;}
+var val int = 14;
+var (ga int, gb = gc+1, gc = 2)
+func addInt2(a, b int, c int2) {return c=a+b+c;}
+type myInt int32;
+type myInt2 int2;
+
+extern "C" printf func() int;

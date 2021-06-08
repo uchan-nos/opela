@@ -17,7 +17,7 @@ opelac: $(OBJS) $(DEPENDS)
 
 .PHONY: clean
 clean:
-	rm -rf opelac *.o .*.d
+	rm -f opelac *.o .*.d test.opl.tmp test.s
 
 .%.d: %.cpp
 	$(CXX) $(CXXFLAGS) -MM $< > $@
@@ -28,6 +28,11 @@ clean:
 .PHONY: test
 test: opelac cfunc.o
 	./test.sh $(ARCH)
+
+test.exe: test.opl opelac cfunc.o
+	$(CC) -E -x c $< | grep -v '^#' > test.opl.tmp
+	cat test.opl.tmp | ./opelac -target-arch $(ARCH) > test.s
+	$(CC) -o $@ test.s cfunc.o
 
 .PHONY: asm
 asm: $(ASMS)

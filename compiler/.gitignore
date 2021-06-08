@@ -2,3 +2,4 @@ opelac
 *.o
 *.s
 .*.d
+v2/test.exe
