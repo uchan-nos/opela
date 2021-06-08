@@ -117,6 +117,7 @@ test_exit 42 'func main() { var (v int = val*3) return v; } var val int = 14;'
 test_exit 5  'func main(){f(-3,8);} func f(a,b int){a+b;}'
 test_exit 2  'func main(){f(-3,8,1);} func f(a,b int,c int2){c=a+b+c;}'
 test_exit 12 'func main() { i := 1; i += 2; j := 3; i *= 1 + j; }'
+test_exit 5  'func main() { return ga+gb; } var (ga=1, gb=gc+1, gc=3)'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

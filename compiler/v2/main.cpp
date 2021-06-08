@@ -68,18 +68,16 @@ int SetErshovNumber(Source& src, Node* expr) {
   if (expr->ershov > 0) {
     return expr->ershov;
   } else if (expr->kind == Node::kCall) {
-    const int num_arg = CountListItems(expr->rhs);
-    int ershov = 0;
     for (auto arg = expr->rhs; arg; arg = arg->next) {
-      ershov = max(ershov, SetErshovNumber(src, arg));
+      SetErshovNumber(src, arg);
     }
-    ershov = max({ershov, SetErshovNumber(src, expr->lhs), num_arg + 1});
-    return expr->ershov = ershov;
+    return expr->ershov = 9;
   } else if (expr->lhs == nullptr && expr->rhs == nullptr) {
     return expr->ershov = 1;
   } else if (expr->lhs != nullptr && expr->rhs != nullptr) {
-    return expr->ershov =
-      SetErshovNumber(src, expr->lhs) + SetErshovNumber(src, expr->rhs);
+    int l = SetErshovNumber(src, expr->lhs);
+    int r = SetErshovNumber(src, expr->rhs);
+    return expr->ershov = l == r ? l + 1 : max(l, r);
   } else if (expr->lhs != nullptr && expr->rhs == nullptr) {
     return expr->ershov = SetErshovNumber(src, expr->lhs);
   }
@@ -90,7 +88,6 @@ int SetErshovNumber(Source& src, Node* expr) {
 struct GenContext {
   Source& src;
   Asm& asmgen;
-  vector<Object*>& decls; // グローバル/外部の変数、関数
   Object* func;
 };
 
@@ -170,7 +167,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
-      GenContext func_ctx{ctx.src, ctx.asmgen, ctx.decls, func};
+      GenContext func_ctx{ctx.src, ctx.asmgen, func};
 
       int stack_size = 0;
       for (Object* obj : func->locals) {
@@ -444,12 +441,12 @@ int main(int argc, char** argv) {
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
   TypeManager type_manager(src);
+  Scope scope;
   std::vector<opela_type::String> strings;
-  vector<Object*> decls;
   list<Type*> unresolved_types;
   list<Node*> undeclared_ids;
-  ASTContext ast_ctx{src, tokenizer, type_manager, strings, decls,
-                     unresolved_types, undeclared_ids, nullptr, nullptr};
+  ASTContext ast_ctx{src, tokenizer, type_manager, scope, strings,
+                     unresolved_types, undeclared_ids, nullptr};
   auto ast = Program(ast_ctx);
 
   if (verbosity >= 1) {
@@ -476,36 +473,36 @@ int main(int argc, char** argv) {
   free_calc_regs.set(Asm::kRegX);
   free_calc_regs.set(Asm::kRegY);
 
-  GenContext ctx{src, *asmgen, decls, get<Object*>(ast->value)};
-
-  vector<Node*> var_defs;
-
+  auto globals = scope.GetGlobals();
   cout << ".intel_syntax noprefix\n";
-  for (auto decl = ast; decl; decl = decl->next) {
-    if (decl->kind == Node::kDefFunc) {
-      GenerateAsm(ctx, decl, Asm::kRegA, free_calc_regs);
-    } else if (decl->kind == Node::kDefVar) {
-      var_defs.push_back(decl);
+  for (auto obj : globals) {
+    if (obj->linkage == Object::kGlobal && obj->kind == Object::kFunc) {
+      GenContext ctx{src, *asmgen, obj};
+      GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs);
     }
   }
 
-  ctx.asmgen.Output() << ".global _init_opela\n_init_opela:\n";
-  ctx.asmgen.Push64(Asm::kRegBP);
-  ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
-  for (auto var_def : var_defs) {
-    if (var_def->rhs && var_def->rhs->kind != Node::kInt) {
-      GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs);
-      ctx.asmgen.Store64(var_def->lhs->token->raw, Asm::kRegA);
+  asmgen->Output() << ".global _init_opela\n_init_opela:\n";
+  asmgen->Push64(Asm::kRegBP);
+  asmgen->Mov64(Asm::kRegBP, Asm::kRegSP);
+  for (auto obj : globals) {
+    if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
+      auto var_def = obj->def;
+      if (var_def->rhs && var_def->rhs->kind != Node::kInt) {
+        GenContext ctx{src, *asmgen, obj};
+        GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs);
+        ctx.asmgen.Store64(var_def->lhs->token->raw, Asm::kRegA);
+      }
     }
   }
-  ctx.asmgen.Output() << "_init_opela.exit:\n";
-  ctx.asmgen.Leave();
-  ctx.asmgen.Ret();
+  asmgen->Output() << "_init_opela.exit:\n";
+  asmgen->Leave();
+  asmgen->Ret();
 
-  ctx.asmgen.Output() << ".section .init_array\n";
-  ctx.asmgen.Output() << "    .dc.a _init_opela\n";
+  asmgen->Output() << ".section .init_array\n";
+  asmgen->Output() << "    .dc.a _init_opela\n";
 
-  ctx.asmgen.Output() << ".section .data\n";
+  asmgen->Output() << ".section .data\n";
   for (size_t i = 0; i < strings.size(); ++i) {
     cout << StringLabel(i) << ":\n    .byte ";
     for (auto ch : strings[i]) {
@@ -514,15 +511,17 @@ int main(int argc, char** argv) {
     cout << "0\n";
   }
 
-  for (auto var_def : var_defs) {
-    auto obj = get<Object*>(var_def->lhs->value);
-    auto obj_size = SizeofType(ctx.src, obj->type);
-    asmgen->Output() << obj->id->raw << ": ";
-    if (var_def->rhs && var_def->rhs->kind == Node::kInt) {
-      asmgen->Output() << kSizeMap[obj_size] << ' '
-                       << get<opela_type::Int>(var_def->rhs->value) << '\n';
-    } else {
-      asmgen->Output() << ".zero " << obj_size << '\n';
+  for (auto obj : globals) {
+    if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
+      auto var_def = obj->def;
+      auto obj_size = SizeofType(src, obj->type);
+      asmgen->Output() << obj->id->raw << ": ";
+      if (var_def->rhs && var_def->rhs->kind == Node::kInt) {
+        asmgen->Output() << kSizeMap[obj_size] << ' '
+                         << get<opela_type::Int>(var_def->rhs->value) << '\n';
+      } else {
+        asmgen->Output() << ".zero " << obj_size << '\n';
+      }
     }
   }
 }

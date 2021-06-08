@@ -113,11 +113,10 @@ struct ASTContext {
   Source& src;
   Tokenizer& t;
   TypeManager& tm;
+  Scope& sc;
   std::vector<opela_type::String>& strings;
-  std::vector<Object*>& decls;
   std::list<Type*>& unresolved_types;
   std::list<Node*>& undeclared_ids;
-  Scope* sc;
   std::vector<Object*>* locals;
 };
 

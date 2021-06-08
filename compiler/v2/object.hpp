@@ -55,8 +55,9 @@ class Scope {
   Object* FindObject(std::string_view name);
   Object* FindObjectCurrentBlock(std::string_view name);
   void PutObject(Object* obj);
+  std::vector<Object*> GetGlobals() const;
 
  private:
   // 名前表（先頭がグローバル、末尾が現在のブロック）
-  std::vector<std::map<std::string, Object*>> layers_;
+  std::vector<std::map<std::string, Object*>> layers_{{}};
 };

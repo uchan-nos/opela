@@ -64,3 +64,11 @@ void Scope::PutObject(Object* object) {
   auto& l = layers_.back();
   l.insert({string{object->id->raw}, object});
 }
+
+std::vector<Object*> Scope::GetGlobals() const {
+  vector<Object*> globals;
+  for (auto& [name, obj] : layers_.front()) {
+    globals.push_back(obj);
+  }
+  return globals;
+}
