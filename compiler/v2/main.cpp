@@ -243,14 +243,21 @@ void GenerateAsm(GenContext& ctx, Node* node,
       SetErshovNumber(ctx.src, node);
       const int num_arg = CountListItems(node->rhs);
 
-      // 引数レジスタを退避
       vector<Asm::Register> saved_regs;
+      auto save_reg = [&](Asm::Register reg) {
+        ctx.asmgen.Push64(reg);
+        saved_regs.push_back(reg);
+      };
+
+      // 戻り値、引数レジスタを退避
+      if (dest != Asm::kRegA) {
+        save_reg(Asm::kRegA);
+      }
       for (int i = 0; i < num_arg; ++i) {
         auto reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
-        if (!free_calc_regs.test(reg)) {
-          ctx.asmgen.Push64(reg);
+        if (reg != dest && !free_calc_regs.test(reg)) {
+          save_reg(reg);
           free_calc_regs.set(reg);
-          saved_regs.push_back(reg);
         }
       }
 
@@ -264,8 +271,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       if (lhs_reg > Asm::kRegY) {
         lhs_reg = Asm::kRegY;
-        ctx.asmgen.Push64(lhs_reg);
-        saved_regs.push_back(lhs_reg);
+        save_reg(lhs_reg);
         free_calc_regs.set(lhs_reg);
       }
 
