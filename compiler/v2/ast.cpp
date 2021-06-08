@@ -209,6 +209,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
   node->value = func_obj;
 
   ctx.t.Expect("(");
+  node->rhs = ParameterDeclList(ctx);
   ctx.t.Expect(")");
 
   node->cond = TypeSpecifier(ctx); // 戻り値の型情報
@@ -222,6 +223,11 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.strings, ctx.decls,
                       ctx.unresolved_types, ctx.undeclared_ids,
                       &sc, &func_obj->locals};
+
+  for (auto param = node->rhs; param; param = param->next) {
+    auto var = AllocateLVar(func_ctx, param->token, param);
+    param->value = var;
+  }
 
   node->lhs = CompoundStatement(func_ctx);
   ctx.decls.push_back(func_obj);
@@ -607,6 +613,7 @@ Node* ParameterDeclList(ASTContext& ctx) {
       return head->next;
     }
     params_untyped.push_back(name_or_type);
+
     if (ctx.t.Consume(",")) {
       continue;
     } else if (auto tspec = TypeSpecifier(ctx)) {
@@ -614,7 +621,11 @@ Node* ParameterDeclList(ASTContext& ctx) {
         cur->next = NewNodeOneChild(Node::kParam, param_token, tspec);
         cur = cur->next;
       }
-      params_untyped.clear();
+      if (ctx.t.Consume(",")) {
+        params_untyped.clear();
+      } else {
+        return head->next;
+      }
     } else {
       for (auto tname_token : params_untyped) {
         auto tspec = NewNodeType(ctx, tname_token);
@@ -774,6 +785,7 @@ void SetType(ASTContext& ctx, Node* node) {
     node->type = node->lhs->type;
     break;
   case Node::kIf:
+    SetType(ctx, node->cond);
     SetType(ctx, node->lhs);
     if (node->rhs) {
       SetType(ctx, node->rhs);
@@ -827,8 +839,11 @@ void SetType(ASTContext& ctx, Node* node) {
     SetType(ctx, node->lhs);
     node->type = node->rhs->type;
     break;
-  case Node::kType:
   case Node::kParam:
+    node->type = node->lhs->type;
+    get<Object*>(node->value)->type = node->type;
+    break;
+  case Node::kType:
   case Node::kTypedef:
     break;
   }
@@ -845,6 +860,9 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     SetTypeProgram(ctx, ast->next);
     break;
   case Node::kDefFunc:
+    for (auto param = ast->rhs; param; param = param->next) {
+      SetType(ctx, param);
+    }
     for (auto stmt = ast->lhs->next; stmt; stmt = stmt->next) {
       SetType(ctx, stmt);
     }

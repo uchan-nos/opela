@@ -184,6 +184,12 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Push64(Asm::kRegBP);
       ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
       ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
+      int arg_index = 0;
+      for (auto param = node->rhs; param; param = param->next) {
+        auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + arg_index);
+        ctx.asmgen.Store64(Asm::kRegBP, -8 * (1 + arg_index), arg_reg);
+        ++arg_index;
+      }
       ctx.asmgen.Xor64(dest, dest);
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs);
       ctx.asmgen.Output() << func->id->raw << ".exit:\n";
@@ -357,14 +363,6 @@ void GenerateAsm(GenContext& ctx, Node* node,
   switch (node->kind) {
   case Node::kAdd:
     ctx.asmgen.Add64(dest, reg);
-    if (auto t = GetUserBaseType(node->type); IsIntegral(t)) {
-      if (auto bits = get<long>(t->value); bits < 64) {
-        ctx.asmgen.And64(dest, (1 << bits) - 1);
-      }
-    } else {
-      cerr << "not implemented + for " << t << endl;
-      ErrorAt(ctx.src, *node->token);
-    }
     break;
   case Node::kSub:
     if (lhs_in_dest) {
@@ -408,6 +406,12 @@ void GenerateAsm(GenContext& ctx, Node* node,
   default:
     cerr << "should not come here" << endl;
     ErrorAt(ctx.src, *node->token);
+  }
+
+  if (auto t = GetUserBaseType(node->type); IsIntegral(t)) {
+    if (auto bits = get<long>(t->value); bits < 64) {
+      ctx.asmgen.And64(dest, (1 << bits) - 1);
+    }
   }
 }
 

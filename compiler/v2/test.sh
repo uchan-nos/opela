@@ -114,6 +114,8 @@ test_exit 6  'func main() int { (3@myInt + 2@int2) + 5; } type myInt int2;'
 test_exit 57 'extern "C" add func(); func main(){add(f(), 2);}
   func f(){s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} return s;}'
 test_exit 42 'func main() { var (v int = val*3) return v; } var val int = 14;'
+test_exit 5  'func main(){f(-3,8);} func f(a,b int){a+b;}'
+test_exit 2  'func main(){f(-3,8,1);} func f(a,b int,c int2){c=a+b+c;}'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]
