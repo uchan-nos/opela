@@ -187,8 +187,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
         ctx.asmgen.Store64(Asm::kRegBP, -8 * (1 + arg_index), arg_reg);
         ++arg_index;
       }
-      ctx.asmgen.Xor64(dest, dest);
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs);
+      ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
       ctx.asmgen.Output() << func->id->raw << ".exit:\n";
       ctx.asmgen.Leave();
       ctx.asmgen.Ret();
