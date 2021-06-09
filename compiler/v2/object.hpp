@@ -52,12 +52,15 @@ class Scope {
   void Enter();
   void Leave();
 
-  Object* FindObject(std::string_view name);
-  Object* FindObjectCurrentBlock(std::string_view name);
+  Object* FindObject(std::string_view name) const;
+  Object* FindObjectCurrentBlock(std::string_view name) const;
   void PutObject(Object* obj);
   std::vector<Object*> GetGlobals() const;
 
  private:
   // 名前表（先頭がグローバル、末尾が現在のブロック）
   std::vector<std::map<std::string, Object*>> layers_{{}};
+
+  // 登録順を記憶する配列
+  std::vector<std::vector<Object*>> put_order_{{}};
 };

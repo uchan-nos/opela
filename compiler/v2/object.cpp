@@ -39,13 +39,15 @@ std::ostream& operator<<(std::ostream& os, Object* o) {
 
 void Scope::Enter() {
   layers_.push_back({});
+  put_order_.push_back({});
 }
 
 void Scope::Leave() {
   layers_.pop_back();
+  put_order_.pop_back();
 }
 
-Object* Scope::FindObject(std::string_view name) {
+Object* Scope::FindObject(std::string_view name) const {
   for (auto it = layers_.rbegin(); it != layers_.rend(); ++it) {
     if (auto obj_it = it->find(string{name}); obj_it != it->end()) {
       return obj_it->second;
@@ -54,7 +56,7 @@ Object* Scope::FindObject(std::string_view name) {
   return nullptr;
 }
 
-Object* Scope::FindObjectCurrentBlock(std::string_view name) {
+Object* Scope::FindObjectCurrentBlock(std::string_view name) const {
   auto& bl = layers_.back();
   auto it = bl.find(string{name});
   return it == bl.end() ? nullptr : it->second;
@@ -63,12 +65,9 @@ Object* Scope::FindObjectCurrentBlock(std::string_view name) {
 void Scope::PutObject(Object* object) {
   auto& l = layers_.back();
   l.insert({string{object->id->raw}, object});
+  put_order_.back().push_back(object);
 }
 
 std::vector<Object*> Scope::GetGlobals() const {
-  vector<Object*> globals;
-  for (auto& [name, obj] : layers_.front()) {
-    globals.push_back(obj);
-  }
-  return globals;
+  return put_order_.front();
 }
