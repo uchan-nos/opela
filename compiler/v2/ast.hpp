@@ -44,6 +44,8 @@ struct Node {
     kSizeof,  // 1項演算子 sizeof
     kTypedef, // 型宣言
     kCast,    // 2項演算子 @
+    kAddr,    // 1項演算子 &
+    kDeref,   // 1項演算子 *
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -95,6 +97,8 @@ struct Node {
    * kCast:
    *   lhs: 型変換対象の式
    *   rhs: 型情報（kType ノード）
+   * kAddr, kDeref:
+   *   lhs: 演算対象の式
    */
 
   /* next の用途

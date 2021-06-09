@@ -344,15 +344,19 @@ void GenerateAsm(GenContext& ctx, Node* node,
 
   const bool request_lval =
     node->kind == Node::kAssign ||
-    node->kind == Node::kDefVar
+    node->kind == Node::kDefVar ||
+    node->kind == Node::kAddr
     ;
 
   Asm::Register reg;
-  const bool lhs_in_dest = node->lhs->ershov >= node->rhs->ershov;
+  const bool lhs_in_dest = node->rhs == nullptr ||
+                           node->lhs->ershov >= node->rhs->ershov;
   if (lhs_in_dest) {
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, request_lval);
-    reg = UseAnyCalcReg(free_calc_regs);
-    GenerateAsm(ctx, node->rhs, reg, free_calc_regs);
+    if (node->rhs) {
+      reg = UseAnyCalcReg(free_calc_regs);
+      GenerateAsm(ctx, node->rhs, reg, free_calc_regs);
+    }
   } else {
     GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
     reg = UseAnyCalcReg(free_calc_regs);
@@ -404,6 +408,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Mov64(dest, reg);
     } else if (!lval && lhs_in_dest) {
       ctx.asmgen.Mov64(dest, reg);
+    }
+    break;
+  case Node::kAddr:
+    break;
+  case Node::kDeref:
+    if (!lval) {
+      ctx.asmgen.Load64(dest, dest, 0);
     }
     break;
   default:

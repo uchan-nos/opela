@@ -37,6 +37,10 @@ func main() {
   TEST_INT(12, testCompoundAssign());
   TEST_INT(3,  testGVar2());
   TEST_INT(21, testRecursion());
+  TEST_INT(5 , testPtrWrite());
+  TEST_INT(4 , testPtrRead());
+  TEST_INT(14, testPtrPtr());
+  TEST_INT(3 , testPtrFunc());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -94,6 +98,10 @@ func testReturnType(){return addInt2(-3,8,1);}
 func testCompoundAssign() { i := 1; i += 2; j := 3; return i *= 1 + j; }
 func testGVar2() { return ga+gb; }
 func testRecursion() int{return fib(8);}
+func testPtrWrite() int{ i := 42; p := &i; *p = 3; return i + 2; }
+func testPtrRead() int{ i := 42; p := &i; i = 3; j := *p; return j + 1; }
+func testPtrPtr() int{ i := 7; p := &i; q := &p; return **q + *&i; }
+func testPtrFunc() int{ i:=42; ptrWrite(&i); return i; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
@@ -106,5 +114,6 @@ var (ga int, gb = gc+1, gc = 2)
 func addInt2(a, b int, c int2) {return c=a+b+c;}
 type myInt int32;
 type myInt2 int2;
+func ptrWrite(p *int){ *p = 3; }
 
 extern "C" printf func() int;

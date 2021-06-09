@@ -172,6 +172,11 @@ Object* AllocateLVar(ASTContext& ctx, Token* name, Node* def) {
   return lvar;
 }
 
+const map<char, Node::Kind> kUnaryOps{
+  {'&', Node::kAddr},
+  {'*', Node::kDeref},
+};
+
 } // namespace
 
 Node* Program(ASTContext& ctx) {
@@ -519,6 +524,15 @@ Node* Unary(ASTContext& ctx) {
     }
     ctx.t.Expect(")");
     return NewNodeOneChild(Node::kSizeof, op, arg);
+  }
+
+  auto cur_token = ctx.t.Peek();
+  if (cur_token->raw.size() == 1) {
+    if (auto it = kUnaryOps.find(cur_token->raw[0]);
+        it != kUnaryOps.end() && cur_token->kind == Token::kReserved) {
+      auto op = ctx.t.Consume();
+      return NewNodeOneChild(it->second, op, Unary(ctx));
+    }
   }
 
   return Postfix(ctx);
@@ -869,6 +883,18 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kType:
   case Node::kTypedef:
     break;
+  case Node::kAddr:
+    SetType(ctx, node->lhs);
+    node->type = NewTypePointer(node->lhs->type);
+    break;
+  case Node::kDeref:
+    SetType(ctx, node->lhs);
+    if (auto t = GetUserBaseType(node->lhs->type); t->kind != Type::kPointer) {
+      cerr << "cannot deref of non-pointer type: " << t << endl;
+      ErrorAt(ctx.src, *node->token);
+    }
+    node->type = NewTypePointer(node->lhs->type);
+    break;
   }
 }
 
@@ -892,7 +918,7 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     SetTypeProgram(ctx, ast->next);
     break;
   case Node::kExtern:
-  case Node::kType:
+  case Node::kTypedef:
     SetTypeProgram(ctx, ast->next);
     break;
   default:
