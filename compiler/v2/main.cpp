@@ -159,10 +159,12 @@ void GenerateAsm(GenContext& ctx, Node* node,
     }
     return;
   case Node::kDefVar:
-    comment_node();
-    GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
-    ctx.asmgen.Store64(
-        Asm::kRegBP, get<Object*>(node->lhs->value)->bp_offset, dest);
+    if (node->rhs) {
+      comment_node();
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      ctx.asmgen.Store64(
+          Asm::kRegBP, get<Object*>(node->lhs->value)->bp_offset, dest);
+    }
     return;
   case Node::kDefFunc:
     {

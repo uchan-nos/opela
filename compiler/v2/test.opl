@@ -41,6 +41,8 @@ func main() {
   TEST_INT(4 , testPtrRead());
   TEST_INT(14, testPtrPtr());
   TEST_INT(3 , testPtrFunc());
+  TEST_INT(4 , testVarPtr());
+  TEST_INT(42, testVarFuncPtr());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -102,6 +104,8 @@ func testPtrWrite() int{ i := 42; p := &i; *p = 3; return i + 2; }
 func testPtrRead() int{ i := 42; p := &i; i = 3; j := *p; return j + 1; }
 func testPtrPtr() int{ i := 7; p := &i; q := &p; return **q + *&i; }
 func testPtrFunc() int{ i:=42; ptrWrite(&i); return i; }
+func testVarPtr() int { var i int; var p *int = &i; i = 42; i = 3; return *p + 1; }
+func testVarFuncPtr() int { var f *func() func() int; f = &funcfunc42; return f()(); }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func();
