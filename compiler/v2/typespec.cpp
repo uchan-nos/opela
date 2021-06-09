@@ -119,6 +119,17 @@ Type* GetUserBaseType(Type* user_type) {
   return user_type;
 }
 
+bool IsEqual(Type* a, Type* b) {
+  if (a == nullptr && b == nullptr) {
+    return true;
+  } else if (a == nullptr || b == nullptr) {
+    return false;
+  }
+
+  return a->kind == b->kind && a->value == b->value &&
+         IsEqual(a->base, b->base);
+}
+
 Type* TypeManager::Find(Token& name) {
   bool err;
   if (auto t = Find(string(name.raw), err); err) {

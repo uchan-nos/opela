@@ -367,17 +367,45 @@ void GenerateAsm(GenContext& ctx, Node* node,
   auto lhs_reg = lhs_in_dest ? dest : reg;
   auto rhs_reg = lhs_in_dest ? reg : dest;
 
+  auto lhs_t = GetUserBaseType(node->lhs->type);
+  auto rhs_t = node->rhs ? GetUserBaseType(node->rhs->type) : nullptr;
+
   comment_node();
 
   switch (node->kind) {
   case Node::kAdd:
-    ctx.asmgen.Add64(dest, reg);
+    if (IsIntegral(lhs_t) && IsIntegral(rhs_t)) {
+      ctx.asmgen.Add64(dest, reg);
+    } else if (lhs_t->kind == Type::kPointer && IsIntegral(rhs_t)) {
+      ctx.asmgen.Mul64(rhs_reg, rhs_reg, SizeofType(ctx.src, lhs_t->base));
+      ctx.asmgen.Add64(dest, reg);
+    } else if (IsIntegral(lhs_t) && rhs_t->kind == Type::kPointer) {
+      ctx.asmgen.Mul64(lhs_reg, lhs_reg, SizeofType(ctx.src, rhs_t->base));
+      ctx.asmgen.Add64(dest, reg);
+    } else {
+      cerr << "not supported " << lhs_t << " + " << rhs_t << endl;
+      ErrorAt(ctx.src, *node->token);
+    }
     break;
   case Node::kSub:
-    if (lhs_in_dest) {
-      ctx.asmgen.Sub64(dest, reg);
+    if (IsIntegral(lhs_t) && IsIntegral(rhs_t)) {
+      ctx.asmgen.Sub64(lhs_reg, rhs_reg);
+    } else if (lhs_t->kind == Type::kPointer && IsIntegral(rhs_t)) {
+      ctx.asmgen.Mul64(rhs_reg, rhs_reg, SizeofType(ctx.src, lhs_t->base));
+      ctx.asmgen.Sub64(lhs_reg, rhs_reg);
+    } else if (IsIntegral(lhs_t) && rhs_t->kind == Type::kPointer) {
+      ctx.asmgen.Mul64(lhs_reg, lhs_reg, SizeofType(ctx.src, rhs_t->base));
+      ctx.asmgen.Sub64(lhs_reg, rhs_reg);
+    } else if (IsEqual(lhs_t, rhs_t)) {
+      ctx.asmgen.Sub64(lhs_reg, rhs_reg);
+      auto tmp_reg = UseAnyCalcReg(free_calc_regs);
+      ctx.asmgen.Mov64(tmp_reg, SizeofType(ctx.src, lhs_t->base));
+      ctx.asmgen.Div64(lhs_reg, tmp_reg);
     } else {
-      ctx.asmgen.Sub64(reg, dest);
+      cerr << "not supported " << lhs_t << " - " << rhs_t << endl;
+      ErrorAt(ctx.src, *node->token);
+    }
+    if (!lhs_in_dest) {
       ctx.asmgen.Mov64(dest, reg);
     }
     break;

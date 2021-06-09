@@ -892,8 +892,9 @@ void SetType(ASTContext& ctx, Node* node) {
     if (auto t = GetUserBaseType(node->lhs->type); t->kind != Type::kPointer) {
       cerr << "cannot deref of non-pointer type: " << t << endl;
       ErrorAt(ctx.src, *node->token);
+    } else {
+      node->type = t->base;
     }
-    node->type = NewTypePointer(node->lhs->type);
     break;
   }
 }

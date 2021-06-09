@@ -85,6 +85,11 @@ class AsmX86_64 : public Asm {
     out_ << "    imul " << RegName(dest) << ',' << RegName(v) << '\n';
   }
 
+  void Mul64(Register dest, Register a, std::uint64_t b) override {
+    out_ << "    imul " << RegName(dest) << ','
+         << RegName(a) << ',' << b << '\n';
+  }
+
   void Div64(Register dest, Register v) override {
     if (dest == kRegA) {
       out_ << "    push rdx\n"

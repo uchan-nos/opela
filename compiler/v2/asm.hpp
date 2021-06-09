@@ -56,6 +56,7 @@ class Asm {
   virtual void Sub64(Register dest, std::uint64_t v) = 0;
   virtual void Sub64(Register dest, Register v) = 0;
   virtual void Mul64(Register dest, Register v) = 0;
+  virtual void Mul64(Register dest, Register a, std::uint64_t b) = 0;
   virtual void Div64(Register dest, Register v) = 0;
   virtual void And64(Register dest, std::uint64_t v) = 0;
   virtual void Push64(Register reg) = 0;

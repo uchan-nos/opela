@@ -65,6 +65,7 @@ Type* GetUserBaseType(Type* user_type);
 inline bool IsIntegral(Type* t) {
   return t->kind == Type::kInt || t->kind == Type::kUInt;
 }
+bool IsEqual(Type* a, Type* b);
 
 class TypeManager {
  public:
