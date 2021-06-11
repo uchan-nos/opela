@@ -234,7 +234,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
 
       int stack_size = 0;
       for (Object* obj : func->locals) {
-        stack_size += 8;
+        stack_size += (SizeofType(ctx.src, obj->type) + 7) & ~7;
         obj->bp_offset = -stack_size;
       }
       stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
@@ -410,7 +410,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   const bool request_lval =
     node->kind == Node::kAssign ||
     node->kind == Node::kDefVar ||
-    node->kind == Node::kAddr
+    node->kind == Node::kAddr ||
+    node->kind == Node::kSubscr
     ;
 
   Asm::Register reg;
@@ -510,8 +511,19 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Load64(dest, dest, 0);
     }
     break;
+  case Node::kSubscr:
+    if (lhs_in_dest) {
+      ctx.asmgen.Mul64(rhs_reg, rhs_reg, SizeofType(ctx.src, lhs_t->base));
+    } else {
+      ctx.asmgen.Mul64(lhs_reg, lhs_reg, SizeofType(ctx.src, rhs_t->base));
+    }
+    ctx.asmgen.Add64(dest, reg);
+    if (!lval) {
+      ctx.asmgen.Load64(dest, dest, 0);
+    }
+    break;
   default:
-    cerr << "should not come here" << endl;
+    cerr << "GenerateAsm: should not come here" << endl;
     ErrorAt(ctx.src, *node->token);
   }
 

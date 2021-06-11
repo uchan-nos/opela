@@ -573,6 +573,10 @@ Node* Postfix(ASTContext& ctx) {
         cerr << "type spec must be specified" << endl;
         ErrorAt(ctx.src, *op);
       }
+    } else if (auto op = ctx.t.Consume("[")) {
+      auto subscr = Expression(ctx);
+      ctx.t.Expect("]");
+      node = NewNodeBinOp(Node::kSubscr, op, node, subscr);
     } else {
       return node;
     }
@@ -624,6 +628,24 @@ Node* TypeSpecifier(ASTContext& ctx) {
     auto node = NewNodeType(
         func_token, NewTypeFunc(ret_tspec->type, param_type));
     return node;
+  }
+
+  if (auto arr_token = ctx.t.Consume("[")) {
+    auto arr_size = Expression(ctx);
+    ctx.t.Expect("]");
+    if (arr_size->kind != Node::kInt) {
+      cerr << "array size must be an integer literal" << endl;
+      ErrorAt(ctx.src, *arr_size->token);
+    }
+
+    auto elem_type = TypeSpecifier(ctx);
+    if (elem_type == nullptr) {
+      cerr << "element type must be specified" << endl;
+      ErrorAt(ctx.src, *ctx.t.Peek());
+    }
+
+    auto arr_type = NewTypeArray(elem_type->type, get<long>(arr_size->value));
+    return NewNodeType(arr_token, arr_type);
   }
 
   if (auto name_token = ctx.t.Consume(Token::kId)) {
@@ -922,8 +944,20 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kDeref:
     SetType(ctx, node->lhs);
-    if (auto t = GetUserBaseType(node->lhs->type); t->kind != Type::kPointer) {
-      cerr << "cannot deref of non-pointer type: " << t << endl;
+    if (auto t = GetUserBaseType(node->lhs->type);
+        t->kind != Type::kArray && t->kind != Type::kPointer) {
+      cerr << "cannot deref non-pointer type: " << t << endl;
+      ErrorAt(ctx.src, *node->token);
+    } else {
+      node->type = t->base;
+    }
+    break;
+  case Node::kSubscr:
+    SetType(ctx, node->lhs);
+    SetType(ctx, node->rhs);
+    if (auto t = GetUserBaseType(node->lhs->type);
+        t->kind != Type::kArray && t->kind != Type::kPointer) {
+      cerr << "cannot deref non-pointer type: " << t << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
       node->type = t->base;

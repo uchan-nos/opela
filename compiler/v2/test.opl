@@ -51,6 +51,7 @@ func main() int {
   TEST_INT(1,  testBoolCast());
   TEST_INT(1,  testBoolCast2());
   TEST_INT(4,  testArrayPtr());
+  TEST_INT(4 , testIntArray());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -122,6 +123,7 @@ func testZeroExtended() int { return 3@uint2; }
 func testBoolCast() int { return 4@bool; }
 func testBoolCast2() bool { return 2; }
 func testArrayPtr() int { p:=alloc4(3,4,5,6); return *(p+1); }
+func testIntArray() int { var arr [3]int; for i:=0;i<3;i+=1{arr[i]=i*2;} return arr[2]; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;

@@ -46,6 +46,7 @@ struct Node {
     kCast,    // 2項演算子 @
     kAddr,    // 1項演算子 &
     kDeref,   // 1項演算子 *
+    kSubscr,  // 添え字演算子 []
   } kind;
 
   Token* token; // このノードを代表するトークン
