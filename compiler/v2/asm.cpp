@@ -207,12 +207,16 @@ class AsmX86_64 : public Asm {
          << "    movzx " << RegName(dest) << ',' << RegName(dest, 1) << '\n';
   }
 
-  void JmpIfCarry(std::string_view label) override {
-    out_ << "    jc " << label << '\n';
+  virtual void ShiftL64(Register dest, int bits) override {
+    out_ << "    shl " << RegName(dest) << ',' << bits << '\n';
   }
 
-  void BT(Register v, int bit_index) override {
-    out_ << "    bt " << RegName(v) << ',' << bit_index << '\n';
+  virtual void ShiftR64(Register dest, int bits) override {
+    out_ << "    shr " << RegName(dest) << ',' << bits << '\n';
+  }
+
+  virtual void ShiftAR64(Register dest, int bits) override {
+    out_ << "    sar " << RegName(dest) << ',' << bits << '\n';
   }
 };
 

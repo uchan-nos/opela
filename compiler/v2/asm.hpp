@@ -78,8 +78,9 @@ class Asm {
   virtual void Call(Register addr) = 0;
   virtual void LoadLabelAddr(Register dest, std::string_view label) = 0;
   virtual void Set1IfNonZero64(Register dest, Register v) = 0;
-  virtual void JmpIfCarry(std::string_view label) = 0;
-  virtual void BT(Register v, int bit_index) = 0;
+  virtual void ShiftL64(Register dest, int bits) = 0;
+  virtual void ShiftR64(Register dest, int bits) = 0;
+  virtual void ShiftAR64(Register dest, int bits) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

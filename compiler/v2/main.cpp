@@ -128,8 +128,7 @@ int CeilBitsToRegSize(int bits) {
 }
 
 bool GenCast(GenContext& ctx, Asm::Register dest,
-             Type* from_type, Type* to_type, Asm::RegSet free_calc_regs,
-             bool explicit_cast = false) {
+             Type* from_type, Type* to_type, bool explicit_cast = false) {
   auto f = GetUserBaseType(from_type);
   auto t = GetUserBaseType(to_type);
   if (IsEqual(f, t)) {
@@ -141,27 +140,14 @@ bool GenCast(GenContext& ctx, Asm::Register dest,
       auto f_bits = get<long>(f->value);
       auto t_bits = get<long>(t->value);
       if (t_bits < f_bits) {
-        auto reg = UseAnyCalcReg(free_calc_regs);
-        ctx.asmgen.Mov64(reg, GenMaskBits(f_bits));
-        ctx.asmgen.And64(dest, reg);
+        ctx.asmgen.ShiftL64(dest, 64 - t_bits);
+        ctx.asmgen.ShiftR64(dest, 64 - t_bits);
       } else if (f_bits < t_bits) {
+        ctx.asmgen.ShiftL64(dest, 64 - f_bits);
         if (f->kind == Type::kInt) { // sign extend
-          auto minus_label = GenerateLabel();
-          auto cast_end_label = GenerateLabel();
-          auto reg = UseAnyCalcReg(free_calc_regs);
-          ctx.asmgen.BT(dest, f_bits - 1); // 符号ビットを Carry にコピー
-          ctx.asmgen.JmpIfCarry(minus_label);
-          ctx.asmgen.Mov64(reg, GenMaskBits(f_bits));
-          ctx.asmgen.And64(dest, reg);
-          ctx.asmgen.Jmp(cast_end_label);
-          ctx.asmgen.Output() << minus_label << ":\n";
-          ctx.asmgen.Mov64(reg, GenMaskBits(t_bits) - GenMaskBits(f_bits));
-          ctx.asmgen.Or64(dest, reg);
-          ctx.asmgen.Output() << cast_end_label << ":\n";
+          ctx.asmgen.ShiftAR64(dest, 64 - f_bits);
         } else { // zero extend
-          auto reg = UseAnyCalcReg(free_calc_regs);
-          ctx.asmgen.Mov64(reg, GenMaskBits(f_bits));
-          ctx.asmgen.And64(dest, reg);
+          ctx.asmgen.ShiftR64(dest, 64 - f_bits);
         }
       }
     } else if (t->kind == Type::kBool) {
@@ -275,8 +261,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     if (node->lhs) {
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
-      if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base,
-                  free_calc_regs)) {
+      if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base)) {
         cerr << "not implemented cast from " << node->lhs->type
              << " to " << ctx.func->type->base << endl;
         ErrorAt(ctx.src, *node->token);
@@ -409,8 +394,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kCast:
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, lval);
-    if (GenCast(ctx, dest, node->lhs->type, node->rhs->type,
-                free_calc_regs, true)) {
+    if (GenCast(ctx, dest, node->lhs->type, node->rhs->type, true)) {
       cerr << "not implemented cast from " << node->lhs->type
            << " to " << node->rhs->type << endl;
       ErrorAt(ctx.src, *node->token);
