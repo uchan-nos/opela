@@ -59,6 +59,8 @@ class Asm {
   virtual void Mul64(Register dest, Register a, std::uint64_t b) = 0;
   virtual void Div64(Register dest, Register v) = 0;
   virtual void And64(Register dest, std::uint64_t v) = 0;
+  virtual void And64(Register dest, Register v) = 0;
+  virtual void Or64(Register dest, Register v) = 0;
   virtual void Push64(Register reg) = 0;
   virtual void Pop64(Register reg) = 0;
   virtual void Leave() = 0;
@@ -75,6 +77,9 @@ class Asm {
   virtual void LEA(Register dest, Register base, int disp) = 0;
   virtual void Call(Register addr) = 0;
   virtual void LoadLabelAddr(Register dest, std::string_view label) = 0;
+  virtual void Set1IfNonZero64(Register dest, Register v) = 0;
+  virtual void JmpIfCarry(std::string_view label) = 0;
+  virtual void BT(Register v, int bit_index) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

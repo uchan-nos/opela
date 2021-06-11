@@ -116,6 +116,81 @@ const std::array<const char*, 9> kSizeMap{
   ".8byte",
 };
 
+uint64_t GenMaskBits(int bit_width) {
+  if (bit_width == 64) {
+    return 0xffffffffffffffff;
+  }
+  return (uint64_t(1) << bit_width) - 1;
+}
+
+int CeilBitsToRegSize(int bits) {
+  return ((bits + 7) >> 3) << 3;
+}
+
+bool GenCast(GenContext& ctx, Asm::Register dest,
+             Type* from_type, Type* to_type, Asm::RegSet free_calc_regs,
+             bool explicit_cast = false) {
+  auto f = GetUserBaseType(from_type);
+  auto t = GetUserBaseType(to_type);
+  if (IsEqual(f, t)) {
+    return false;
+  }
+
+  if (IsIntegral(f)) {
+    if (IsIntegral(t)) {
+      auto f_bits = get<long>(f->value);
+      auto t_bits = get<long>(t->value);
+      if (t_bits < f_bits) {
+        auto reg = UseAnyCalcReg(free_calc_regs);
+        ctx.asmgen.Mov64(reg, GenMaskBits(f_bits));
+        ctx.asmgen.And64(dest, reg);
+      } else if (f_bits < t_bits) {
+        if (f->kind == Type::kInt) { // sign extend
+          auto minus_label = GenerateLabel();
+          auto cast_end_label = GenerateLabel();
+          auto reg = UseAnyCalcReg(free_calc_regs);
+          ctx.asmgen.BT(dest, f_bits - 1); // 符号ビットを Carry にコピー
+          ctx.asmgen.JmpIfCarry(minus_label);
+          ctx.asmgen.Mov64(reg, GenMaskBits(f_bits));
+          ctx.asmgen.And64(dest, reg);
+          ctx.asmgen.Jmp(cast_end_label);
+          ctx.asmgen.Output() << minus_label << ":\n";
+          ctx.asmgen.Mov64(reg, GenMaskBits(t_bits) - GenMaskBits(f_bits));
+          ctx.asmgen.Or64(dest, reg);
+          ctx.asmgen.Output() << cast_end_label << ":\n";
+        } else { // zero extend
+          auto reg = UseAnyCalcReg(free_calc_regs);
+          ctx.asmgen.Mov64(reg, GenMaskBits(f_bits));
+          ctx.asmgen.And64(dest, reg);
+        }
+      }
+    } else if (t->kind == Type::kBool) {
+      ctx.asmgen.Set1IfNonZero64(dest, dest);
+    } else if (explicit_cast && t->kind == Type::kPointer) {
+      // pass
+    } else {
+      return true;
+    }
+  } else if (f->kind == Type::kBool) {
+    if (!IsIntegral(t) && t->kind != Type::kBool) {
+      return true;
+    }
+  } else if (explicit_cast && f->kind == Type::kPointer) {
+    if (t->kind == Type::kPointer) {
+      // pass
+    } else if (IsIntegral(t)) {
+      if (auto bits = get<long>(t->value); bits < 64) {
+        ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
+      }
+    } else {
+      return true;
+    }
+  } else {
+    return true;
+  }
+  return false;
+}
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  bool lval = false) {
@@ -200,6 +275,12 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     if (node->lhs) {
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base,
+                  free_calc_regs)) {
+        cerr << "not implemented cast from " << node->lhs->type
+             << " to " << ctx.func->type->base << endl;
+        ErrorAt(ctx.src, *node->token);
+      }
     }
     ctx.asmgen.Jmp(string{ctx.func->id->raw} + ".exit");
     return;
@@ -328,12 +409,10 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kCast:
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, lval);
-    if (auto t = GetUserBaseType(node->rhs->type); IsIntegral(t)) {
-      if (auto bits = get<long>(t->value); bits < 64) {
-        ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
-      }
-    } else {
-      cerr << "not implemented cast for " << t << endl;
+    if (GenCast(ctx, dest, node->lhs->type, node->rhs->type,
+                free_calc_regs, true)) {
+      cerr << "not implemented cast from " << node->lhs->type
+           << " to " << node->rhs->type << endl;
       ErrorAt(ctx.src, *node->token);
     }
     return;
@@ -454,9 +533,15 @@ void GenerateAsm(GenContext& ctx, Node* node,
 
   if (auto t = GetUserBaseType(node->type); IsIntegral(t)) {
     if (auto bits = get<long>(t->value); bits < 64) {
-      ctx.asmgen.And64(dest, (1 << bits) - 1);
+      ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
     }
   }
+  /* node->type が bool の場合はあえて無視する。
+   * なぜなら、bool になるのは各種比較演算子のときのみで、
+   * 各種比較演算子は必ず 0/1 の値を返すから。
+   * int -> bool のキャスト（0 なら 0、非 0 なら 1）をせずとも、
+   * 希望する結果は既に得られている。
+   */
 }
 
 void PrintDebugInfo(Node* ast, vector<opela_type::String>& strings) {

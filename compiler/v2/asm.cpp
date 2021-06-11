@@ -112,6 +112,14 @@ class AsmX86_64 : public Asm {
     out_ << "    and " << RegName(dest) << ',' << v << '\n';
   }
 
+  void And64(Register dest, Register v) override {
+    out_ << "    and " << RegName(dest) << ',' << RegName(v) << '\n';
+  }
+
+  void Or64(Register dest, Register v) override {
+    out_ << "    or " << RegName(dest) << ',' << RegName(v) << '\n';
+  }
+
   void Push64(Register reg) override {
     out_ << "    push " << RegName(reg) << '\n';
   }
@@ -191,6 +199,20 @@ class AsmX86_64 : public Asm {
 
   void LoadLabelAddr(Register dest, std::string_view label) override {
     out_ << "    movabs " << RegName(dest) << ",offset " << label << '\n';
+  }
+
+  void Set1IfNonZero64(Register dest, Register v) override {
+    out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n'
+         << "    setnz " << RegName(dest, 1) << '\n'
+         << "    movzx " << RegName(dest) << ',' << RegName(dest, 1) << '\n';
+  }
+
+  void JmpIfCarry(std::string_view label) override {
+    out_ << "    jc " << label << '\n';
+  }
+
+  void BT(Register v, int bit_index) override {
+    out_ << "    bt " << RegName(v) << ',' << bit_index << '\n';
   }
 };
 

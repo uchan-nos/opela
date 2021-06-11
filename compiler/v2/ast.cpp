@@ -177,6 +177,22 @@ const map<char, Node::Kind> kUnaryOps{
   {'*', Node::kDeref},
 };
 
+Type* ParamTypeFromDeclList(Node* plist) {
+  if (plist == nullptr) {
+    return nullptr;
+  }
+
+  auto param_type = NewTypeParam(plist->lhs->type, plist->token);
+  auto cur = param_type;
+  plist = plist->next;
+  while (plist) {
+    cur->next = NewTypeParam(plist->lhs->type, plist->token);
+    cur = cur->next;
+    plist = plist->next;
+  }
+  return param_type;
+}
+
 } // namespace
 
 Node* Program(ASTContext& ctx) {
@@ -604,16 +620,7 @@ Node* TypeSpecifier(ASTContext& ctx) {
       ret_tspec = NewNodeType(nullptr, ctx.tm.Find("void"));
     }
 
-    Type* param_type = nullptr;
-    if (plist) {
-      auto cur = param_type = NewTypeParam(plist->lhs->type, plist->token);
-      plist = plist->next;
-      while (plist) {
-        cur->next = NewTypeParam(plist->lhs->type, plist->token);
-        cur = cur->next;
-        plist = plist->next;
-      }
-    }
+    Type* param_type = ParamTypeFromDeclList(plist);
     auto node = NewNodeType(
         func_token, NewTypeFunc(ret_tspec->type, param_type));
     return node;
@@ -776,7 +783,33 @@ void SetType(ASTContext& ctx, Node* node) {
     node->type = ctx.tm.Find("int");
     break;
   case Node::kAdd:
+    {
+      SetType(ctx, node->lhs);
+      SetType(ctx, node->rhs);
+      auto l = GetUserBaseType(node->lhs->type);
+      auto r = GetUserBaseType(node->rhs->type);
+      if (l->kind == Type::kPointer && IsIntegral(r)) {
+        node->type = node->lhs->type;
+      } else {
+        node->type = MergeTypeBinOp(node->lhs->type, node->rhs->type);
+      }
+    }
+    break;
   case Node::kSub:
+    {
+      SetType(ctx, node->lhs);
+      SetType(ctx, node->rhs);
+      auto l = GetUserBaseType(node->lhs->type);
+      auto r = GetUserBaseType(node->rhs->type);
+      if (l->kind == Type::kPointer && r->kind == Type::kPointer) {
+        node->type = ctx.tm.Find("int");
+      } else if (l->kind == Type::kPointer && IsIntegral(r)) {
+        node->type = node->lhs->type;
+      } else {
+        node->type = MergeTypeBinOp(node->lhs->type, node->rhs->type);
+      }
+    }
+    break;
   case Node::kMul:
   case Node::kDiv:
     SetType(ctx, node->lhs);
@@ -916,6 +949,8 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     for (auto stmt = ast->lhs->next; stmt; stmt = stmt->next) {
       SetType(ctx, stmt);
     }
+    get<Object*>(ast->value)->type =
+      NewTypeFunc(ast->cond->type, ParamTypeFromDeclList(ast->rhs));
     SetTypeProgram(ctx, ast->next);
     break;
   case Node::kExtern:
