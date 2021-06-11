@@ -47,6 +47,7 @@ func main() int {
   TEST_INT(24, testPtrSubInt());
   TEST_INT(2 , testPtrSubPtr());
   TEST_INT(-1, testSignExtended());
+  TEST_INT(3,  testZeroExtended());
   TEST_INT(1,  testBoolCast());
   TEST_INT(1,  testBoolCast2());
 
@@ -116,6 +117,7 @@ func testPtrAddInt() int { var p *int = 8; return (p+1)@int; }
 func testPtrSubInt() int { var p *int = 32; return (p-1)@int; }
 func testPtrSubPtr() int { var p *int = 8; var q *int = 24; return q-p; }
 func testSignExtended() int { return 3@int2; }
+func testZeroExtended() int { return 3@uint2; }
 func testBoolCast() int { return 4@bool; }
 func testBoolCast2() bool { return 2; }
 
