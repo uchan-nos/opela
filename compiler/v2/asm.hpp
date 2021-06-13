@@ -45,6 +45,10 @@ class Asm {
     kCmpBE, // a <= b (unsigned)
   };
 
+  enum DataType {
+    kNonStandardDataType, kByte, kWord, kDWord, kQWord
+  };
+
   Asm(std::ostream& out) : out_{out} {}
   virtual ~Asm() = default;
 
@@ -68,6 +72,7 @@ class Asm {
   virtual void Load64(Register dest, std::string_view label) = 0;
   virtual void Store64(Register addr, int disp, Register v) = 0;
   virtual void Store64(std::string_view label, Register v) = 0;
+  virtual void StoreN(Register addr, int disp, Register v, DataType dt) = 0;
   virtual void CmpSet(Compare c, Register dest, Register lhs, Register rhs) = 0;
   virtual void Xor64(Register dest, Register v) = 0;
   virtual void Ret() = 0;

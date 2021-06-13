@@ -177,6 +177,28 @@ bool GenCast(GenContext& ctx, Asm::Register dest,
   return false;
 }
 
+Asm::DataType BytesToDataType(int bytes) {
+  if (bytes == 1) {
+    return Asm::kByte;
+  } else if (bytes == 2) {
+    return Asm::kWord;
+  } else if (bytes <= 4) {
+    return Asm::kDWord;
+  } else if (bytes <= 8) {
+    return Asm::kQWord;
+  }
+  return Asm::kNonStandardDataType;
+}
+
+Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
+  auto dt = BytesToDataType(SizeofType(ctx.src, node->type));
+  if (dt == Asm::kNonStandardDataType) {
+    cerr << "non-standard data type: " << node->type << endl;
+    ErrorAt(ctx.src, *node->token);
+  }
+  return dt;
+}
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  bool lval = false) {
@@ -497,7 +519,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ctx.asmgen.CmpSet(Asm::kCmpLE, dest, lhs_reg, rhs_reg);
     break;
   case Node::kAssign:
-    ctx.asmgen.Store64(lhs_reg, 0, rhs_reg);
+    ctx.asmgen.StoreN(lhs_reg, 0, rhs_reg, DataTypeOf(ctx, node->lhs));
     if (lval && !lhs_in_dest) {
       ctx.asmgen.Mov64(dest, reg);
     } else if (!lval && lhs_in_dest) {
@@ -527,7 +549,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ErrorAt(ctx.src, *node->token);
   }
 
-  if (auto t = GetUserBaseType(node->type); IsIntegral(t)) {
+  if (auto t = GetUserBaseType(node->type); !lval && IsIntegral(t)) {
     if (auto bits = get<long>(t->value); bits < 64) {
       ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
     }

@@ -14,41 +14,41 @@ class AsmX86_64 : public Asm {
     "rbx", "r12", "r13", "r14", "r15",                   // 計算用（不揮発）
     "bp", "sp", "zero",
   };
-  static std::string RegName(std::string stem, unsigned bytes) {
+  static std::string RegName(std::string stem, DataType dt) {
     if (stem == "zero") {
       return "0";
     }
     if (stem.length() == 1) { // a, b, c, d
-      switch (bytes) {
-      case 1: return stem + "l";
-      case 2: return stem + "x";
-      case 4: return "e" + stem + "x";
-      case 8: return "r" + stem + "x";
+      switch (dt) {
+      case kByte:  return stem + "l";
+      case kWord:  return stem + "x";
+      case kDWord: return "e" + stem + "x";
+      case kQWord: return "r" + stem + "x";
       default: return "non-standard size";
       }
     }
     if (stem[0] == 'r') { // r8 - r15
-      switch (bytes) {
-      case 1: return stem + "b";
-      case 2: return stem + "w";
-      case 4: return stem + "d";
-      case 8: return stem;
+      switch (dt) {
+      case kByte:  return stem + "b";
+      case kWord:  return stem + "w";
+      case kDWord: return stem + "d";
+      case kQWord: return stem;
       default: return "non-standard size";
       }
     }
     if (stem.length() == 2) { // di, si, bp, sp
-      switch (bytes) {
-      case 1: return stem + "l";
-      case 2: return stem;
-      case 4: return "e" + stem;
-      case 8: return "r" + stem;
+      switch (dt) {
+      case kByte:  return stem + "l";
+      case kWord:  return stem;
+      case kDWord: return "e" + stem;
+      case kQWord: return "r" + stem;
       default: return "non-standard size";
       }
     }
     return "failed to get register name for " + stem;
   }
-  static std::string RegName(Register reg, unsigned bytes = 8) {
-    return RegName(kRegNames[reg], bytes);
+  static std::string RegName(Register reg, DataType dt = kQWord) {
+    return RegName(kRegNames[reg], dt);
   }
 
   using Asm::Asm;
@@ -59,7 +59,7 @@ class AsmX86_64 : public Asm {
 
   void Mov64(Register dest, std::uint64_t v) override {
     if (v <= numeric_limits<uint32_t>::max()) {
-      out_ << "    mov " << RegName(dest, 4) << ',' << v << '\n';
+      out_ << "    mov " << RegName(dest, kDWord) << ',' << v << '\n';
     } else {
       out_ << "    mov " << RegName(dest) << ',' << v << '\n';
     }
@@ -142,12 +142,16 @@ class AsmX86_64 : public Asm {
   }
 
   void Store64(Register addr, int disp, Register v) override {
-    out_ << "    mov [" << RegName(addr) << (disp >= 0 ? "+" : "") << disp
-         << "]," << RegName(v) << '\n';
+    StoreN(addr, disp, v, kQWord);
   }
 
   void Store64(std::string_view label, Register v) override {
     out_ << "    mov [rip+" << label << "]," << RegName(v) << '\n';
+  }
+
+  void StoreN(Register addr, int disp, Register v, DataType dt) override {
+    out_ << "    mov [" << RegName(addr) << (disp >= 0 ? "+" : "") << disp
+         << "]," << RegName(v, dt) << '\n';
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
@@ -161,8 +165,9 @@ class AsmX86_64 : public Asm {
       case kCmpA:  out_ << "a"; break;
       case kCmpBE: out_ << "be"; break;
     }
-    out_ << ' ' << RegName(dest, 1) << '\n';
-    out_ << "    movzx " << RegName(dest, 4) << ',' << RegName(dest, 1) << '\n';
+    out_ << ' ' << RegName(dest, kByte) << '\n';
+    out_ << "    movzx " << RegName(dest, kDWord) << ','
+         << RegName(dest, kByte) << '\n';
   }
 
   void Xor64(Register dest, Register v) override {
@@ -203,8 +208,8 @@ class AsmX86_64 : public Asm {
 
   void Set1IfNonZero64(Register dest, Register v) override {
     out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n'
-         << "    setnz " << RegName(dest, 1) << '\n'
-         << "    movzx " << RegName(dest) << ',' << RegName(dest, 1) << '\n';
+         << "    setnz " << RegName(dest, kByte) << '\n'
+         << "    movzx " << RegName(dest) << ',' << RegName(dest, kByte) << '\n';
   }
 
   virtual void ShiftL64(Register dest, int bits) override {
