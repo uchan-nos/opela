@@ -60,6 +60,10 @@ func main() int {
   TEST_INT(5 , testStrlen());
   TEST_INT(6 , testSizeofStr());
   TEST_INT(10, testStrEscape());
+  TEST_INT(4 , testPtrInt8());
+  TEST_INT(33, testPtrChar());
+  TEST_INT(1 , testPtrChar2());
+  TEST_INT(1 , testVarInt8());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -140,6 +144,10 @@ func testStr() int { return "abc!def"[3]; }
 func testStrlen() int { return strlen("world"); }
 func testSizeofStr() int { return sizeof("abcdef"); }
 func testStrEscape() int { return "\n"[0]; }
+func testPtrInt8() int { var x [2]int8; x[0]=1; x[1]=2; p:=&x[0]; p[1]=3; return x[1]+1; }
+func testPtrChar() int { p := &" !"[0]; return p[1]; }
+func testPtrChar2() int { p := &" !"[0]; if p[0]==32 { return 1; } else { return 2; } }
+func testVarInt8() int { var a [1]int8; var b int8 = a[0]; a[0]=1; b=2; return a[0]; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;

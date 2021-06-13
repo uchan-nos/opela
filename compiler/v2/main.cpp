@@ -433,7 +433,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     node->kind == Node::kAssign ||
     node->kind == Node::kDefVar ||
     node->kind == Node::kAddr ||
-    node->kind == Node::kSubscr
+    (node->kind == Node::kSubscr && node->lhs->type->kind != Type::kPointer)
     ;
 
   Asm::Register reg;
