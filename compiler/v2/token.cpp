@@ -107,6 +107,17 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kStr, {p, str_end}, {}};
     }
 
+    if (*p == '\'') {
+      if (p[1] != '\\' && p[2] == '\'') {
+        return new Token{Token::kChar, {p, 3}, opela_type::Byte(p[1])};
+      } else if (p[1] == '\\' && p[3] == '\'') {
+        char v = GetEscapeValue(p[2]);
+        return new Token{Token::kChar, {p, 4}, opela_type::Byte(v)};
+      }
+      cerr << "invalid char literal" << endl;
+      ErrorAt(src, p);
+    }
+
     cerr << "failed to tokenize" << endl;
     ErrorAt(src, p);
   }

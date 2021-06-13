@@ -66,6 +66,12 @@ Node* NewNodeStr(ASTContext& ctx, Token* str) {
   return node;
 }
 
+Node* NewNodeChar(Token* ch) {
+  auto node = NewNode(Node::kChar, ch);
+  node->value = get<opela_type::Byte>(ch->value);
+  return node;
+}
+
 map<Node*, size_t> node_number;
 size_t NodeNo(Node* node) {
   if (auto it = node_number.find(node); it != node_number.end()) {
@@ -598,6 +604,8 @@ Node* Primary(ASTContext& ctx) {
     return node;
   } else if (auto token = ctx.t.Consume(Token::kStr)) {
     return NewNodeStr(ctx, token);
+  } else if (auto token = ctx.t.Consume(Token::kChar)) {
+    return NewNodeChar(token);
   }
   auto token = ctx.t.Expect(Token::kInt);
   return NewNodeInt(token, get<opela_type::Int>(token->value));
@@ -962,6 +970,9 @@ void SetType(ASTContext& ctx, Node* node) {
     } else {
       node->type = t->base;
     }
+    break;
+  case Node::kChar:
+    node->type = ctx.tm.Find("byte");
     break;
   }
 }

@@ -8,5 +8,6 @@
 namespace opela_type {
   using Int = std::int64_t;
   using UInt = std::uint64_t;
-  using String = std::basic_string<std::uint8_t>;
+  using Byte = std::uint8_t;
+  using String = std::basic_string<Byte>;
 }

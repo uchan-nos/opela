@@ -47,6 +47,7 @@ struct Node {
     kAddr,    // 1項演算子 &
     kDeref,   // 1項演算子 *
     kSubscr,  // 添え字演算子 []
+    kChar,    // 文字リテラル
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -110,7 +111,8 @@ struct Node {
    * kParam: 次の仮引数
    */
 
-  std::variant<VariantDummyType, opela_type::Int, StringIndex, Object*> value = {};
+  std::variant<VariantDummyType, opela_type::Int, StringIndex, Object*,
+               opela_type::Byte> value = {};
   int ershov = 0;
 };
 

@@ -422,6 +422,10 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ErrorAt(ctx.src, *node->token);
     }
     return;
+  case Node::kChar:
+    comment_node();
+    ctx.asmgen.Mov64(dest, get<opela_type::Byte>(node->value));
+    return;
   default:
     ; // pass
   }

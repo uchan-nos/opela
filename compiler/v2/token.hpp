@@ -11,9 +11,10 @@ struct Token {
   enum Kind {
     kEOF,
     kReserved,
-    kInt, // 整数リテラル
-    kId,  // 識別子
-    kStr, // 文字列リテラル
+    kInt,  // 整数リテラル
+    kId,   // 識別子
+    kStr,  // 文字列リテラル
+    kChar, // 文字リテラル
 
     // キーワード
     kRet,
@@ -29,7 +30,7 @@ struct Token {
 
   std::string_view raw;
 
-  std::variant<opela_type::Int> value;
+  std::variant<opela_type::Int, opela_type::Byte> value;
 };
 
 class Tokenizer {
