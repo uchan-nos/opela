@@ -925,7 +925,7 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kSizeof:
     SetType(ctx, node->lhs);
-    node->type = node->lhs->type;
+    node->type = ctx.tm.Find("int");
     break;
   case Node::kCast:
     SetType(ctx, node->lhs);

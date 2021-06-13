@@ -56,6 +56,10 @@ func main() int {
   TEST_INT(4 , testInt8Array());
   TEST_INT(10, testInt16Ptr());
   TEST_INT(28, testInt32Ptr());
+  TEST_INT(33, testStr());
+  TEST_INT(5 , testStrlen());
+  TEST_INT(6 , testSizeofStr());
+  TEST_INT(10, testStrEscape());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -132,6 +136,10 @@ func testFuncArray() int { var arr [3]*func(a,b int)int; arr[1]=&add; return arr
 func testInt8Array() int { var arr [3]int8; arr[0]=-1;arr[1]=5;arr[2]=arr[0]+arr[1]; return arr[2]; }
 func testInt16Ptr() int { var p *int16 = 8; return (p+1)@int64; }
 func testInt32Ptr() int { var p *int32 = 32; return (p-1)@int64; }
+func testStr() int { return "abc!def"[3]; }
+func testStrlen() int { return strlen("world"); }
+func testSizeofStr() int { return sizeof("abcdef"); }
+func testStrEscape() int { return "\n"[0]; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -146,5 +154,6 @@ type myInt int32;
 type myInt2 int2;
 func ptrWrite(p *int){ *p = 3; }
 extern "C" alloc4 func(a, b, c, d int) *int;
+extern "C" strlen func(s *byte)int64;
 
 extern "C" printf func() int;
