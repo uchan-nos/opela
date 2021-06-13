@@ -446,7 +446,7 @@ Node* Assignment(ASTContext& ctx) {
     {"/=", Node::kDiv},
   };
 
-  auto node = Equality(ctx);
+  auto node = LogicalOr(ctx);
 
   if (auto op = ctx.t.Consume("=")) {
     node = NewNodeBinOp(Node::kAssign, op, node, Assignment(ctx));
@@ -469,6 +469,30 @@ Node* Assignment(ASTContext& ctx) {
   }
 
   return node;
+}
+
+Node* LogicalOr(ASTContext& ctx) {
+  auto node = LogicalAnd(ctx);
+
+  for (;;) {
+    if (auto op = ctx.t.Consume("||")) {
+      node = NewNodeBinOp(Node::kLOr, op, node, LogicalAnd(ctx));
+    } else {
+      return node;
+    }
+  }
+}
+
+Node* LogicalAnd(ASTContext& ctx) {
+  auto node = Equality(ctx);
+
+  for (;;) {
+    if (auto op = ctx.t.Consume("&&")) {
+      node = NewNodeBinOp(Node::kLAnd, op, node, Equality(ctx));
+    } else {
+      return node;
+    }
+  }
 }
 
 Node* Equality(ASTContext& ctx) {
@@ -973,6 +997,12 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kChar:
     node->type = ctx.tm.Find("byte");
+    break;
+  case Node::kLAnd:
+  case Node::kLOr:
+    SetType(ctx, node->lhs);
+    SetType(ctx, node->rhs);
+    node->type = ctx.tm.Find("bool");
     break;
   }
 }

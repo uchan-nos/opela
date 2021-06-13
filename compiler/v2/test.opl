@@ -65,6 +65,9 @@ func main() int {
   TEST_INT(1 , testPtrChar2());
   TEST_INT(1 , testVarInt8());
   TEST_INT(33, testAsciiExpr());
+  TEST_INT(4 , testLogicalOp());
+  TEST_INT(1 , testLogicalOp2());
+  TEST_INT(2 , testLogicalOp3());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -150,6 +153,9 @@ func testPtrChar() int { p := &" !"[0]; return p[1]; }
 func testPtrChar2() int { p := &" !"[0]; if p[0]==32 { return 1; } else { return 2; } }
 func testVarInt8() int { var a [1]int8; var b int8 = a[0]; a[0]=1; b=2; return a[0]; }
 func testAsciiExpr() int { return '!' + '\t' - 9; }
+func testLogicalOp() int { i := 3; if i==1 && 2==1 || i==3 { return 4; } else { return 5; } }
+func testLogicalOp2() int { v := 5 && 6 || 7; return v; }
+func testLogicalOp3() int { v := 2; 42 || (v = 3); return v; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;

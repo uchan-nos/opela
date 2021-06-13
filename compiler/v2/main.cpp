@@ -426,6 +426,28 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     ctx.asmgen.Mov64(dest, get<opela_type::Byte>(node->value));
     return;
+  case Node::kLAnd:
+    comment_node();
+    {
+      auto label_end = GenerateLabel();
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      ctx.asmgen.JmpIfZero(dest, label_end);
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      ctx.asmgen.Set1IfNonZero64(dest, dest);
+      ctx.asmgen.Output() << label_end << ": # end of '&&'\n";
+    }
+    return;
+  case Node::kLOr:
+    comment_node();
+    {
+      auto label_end = GenerateLabel();
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      ctx.asmgen.JmpIfNotZero(dest, label_end);
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      ctx.asmgen.Output() << label_end << ": # end of '||'\n";
+      ctx.asmgen.Set1IfNonZero64(dest, dest);
+    }
+    return;
   default:
     ; // pass
   }

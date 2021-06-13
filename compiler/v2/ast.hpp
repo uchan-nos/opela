@@ -48,6 +48,8 @@ struct Node {
     kDeref,   // 1項演算子 *
     kSubscr,  // 添え字演算子 []
     kChar,    // 文字リテラル
+    kLAnd,    // 2項演算子 &&
+    kLOr,     // 2項演算子 ||
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -140,6 +142,8 @@ Node* IterationStatement(ASTContext& ctx);
 Node* ExpressionStatement(ASTContext& ctx);
 Node* Expression(ASTContext& ctx);
 Node* Assignment(ASTContext& ctx);
+Node* LogicalOr(ASTContext& ctx);
+Node* LogicalAnd(ASTContext& ctx);
 Node* Equality(ASTContext& ctx);
 Node* Relational(ASTContext& ctx);
 Node* Additive(ASTContext& ctx);
