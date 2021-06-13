@@ -35,7 +35,7 @@ void ErrorAt(Source& src, const char* loc) {
   cerr << line << endl;
   cerr << string(&*loc - line.begin(), ' ') << '^' << endl;
 
-  array<void*, 128> trace;
+  array<void*, 128> trace{};
   int n = backtrace(trace.begin(), trace.size());
   backtrace_symbols_fd(trace.begin(), n, STDERR_FILENO);
 

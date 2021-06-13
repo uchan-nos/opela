@@ -11,7 +11,7 @@ using namespace std;
 namespace {
 
 [[noreturn]] void Error() {
-  array<void*, 128> trace;
+  array<void*, 128> trace{};
   int n = backtrace(trace.begin(), trace.size());
   backtrace_symbols_fd(trace.begin(), n, STDERR_FILENO);
 
@@ -154,7 +154,7 @@ Type* TypeManager::Find(const std::string& name, bool& err) {
     return it->second;
   }
 
-  int integral = 0;
+  size_t integral = 0;
   bool unsig = false;
   if (name.starts_with("int")) {
     integral = 3;
@@ -164,7 +164,7 @@ Type* TypeManager::Find(const std::string& name, bool& err) {
   }
   if (0 < integral && integral < name.length()) {
     int bits = 0;
-    for (int i = integral; i < name.length(); ++i) {
+    for (size_t i = integral; i < name.length(); ++i) {
       if (!isdigit(name[i])) {
         cerr << "bit width must be a 10-base number" << endl;
         err = true;
