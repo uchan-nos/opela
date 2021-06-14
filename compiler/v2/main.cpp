@@ -560,10 +560,20 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ctx.asmgen.CmpSet(Asm::kCmpNE, dest, dest, reg);
     break;
   case Node::kGT:
-    ctx.asmgen.CmpSet(Asm::kCmpG, dest, lhs_reg, rhs_reg);
+    if (auto t = MergeTypeBinOp(node->lhs->type, node->rhs->type);
+        t->kind == Type::kInt) {
+      ctx.asmgen.CmpSet(Asm::kCmpG, dest, lhs_reg, rhs_reg);
+    } else {
+      ctx.asmgen.CmpSet(Asm::kCmpA, dest, lhs_reg, rhs_reg);
+    }
     break;
   case Node::kLE:
-    ctx.asmgen.CmpSet(Asm::kCmpLE, dest, lhs_reg, rhs_reg);
+    if (auto t = MergeTypeBinOp(node->lhs->type, node->rhs->type);
+        t->kind == Type::kInt) {
+      ctx.asmgen.CmpSet(Asm::kCmpLE, dest, lhs_reg, rhs_reg);
+    } else {
+      ctx.asmgen.CmpSet(Asm::kCmpBE, dest, lhs_reg, rhs_reg);
+    }
     break;
   case Node::kAssign:
     ctx.asmgen.StoreN(lhs_reg, 0, rhs_reg, DataTypeOf(ctx, node->lhs));

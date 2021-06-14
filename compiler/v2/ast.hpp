@@ -169,5 +169,6 @@ opela_type::String DecodeEscapeSequence(Source& src, Token& token);
 
 void ResolveIDs(ASTContext& ctx);
 void ResolveType(ASTContext& ctx);
+Type* MergeTypeBinOp(Type* l, Type* r);
 void SetType(ASTContext& ctx, Node* node);
 void SetTypeProgram(ASTContext& ctx, Node* ast);

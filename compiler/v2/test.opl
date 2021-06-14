@@ -73,6 +73,8 @@ func main() int {
   TEST_INT(12, testContinue2());
   TEST_INT(10, testBreak2());
   TEST_INT(42, testBreak3());
+  TEST_INT(5,  testUInt());
+  TEST_INT(1,  testUInt2());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -166,6 +168,8 @@ func testContinue() int { i := 1; for i < 10 { i = 10; continue; i = 42; } retur
 func testContinue2() int { i := 1; for i = 1; i < 12; i += 1 { continue; } return i; }
 func testBreak2() int {i:=1; for{if i>=10{break;} i=10;continue; return i = 42;} return i;}
 func testBreak3() int {i:=1; for{if i>=42{break;} i+=1;continue;} return i;}
+func testUInt() int { var i uint = 7; return i - 2@uint; }
+func testUInt2() int { var i uint = -1; return i > 3@uint; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
