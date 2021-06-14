@@ -438,6 +438,11 @@ Node* IterationStatement(ASTContext& ctx) {
 
 Node* ExpressionStatement(ASTContext& ctx) {
   auto node = Expression(ctx);
+  if (auto op = ctx.t.Consume("++")) {
+    node = NewNodeOneChild(Node::kInc, op, node);
+  } else if (auto op = ctx.t.Consume("--")) {
+    node = NewNodeOneChild(Node::kDec, op, node);
+  }
   ctx.t.Expect(";");
   return node;
 }
@@ -1015,6 +1020,11 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kBreak:
   case Node::kCont:
     node->type = nullptr;
+    break;
+  case Node::kInc:
+  case Node::kDec:
+    SetType(ctx, node->lhs);
+    node->type = node->lhs->type;
     break;
   }
 }

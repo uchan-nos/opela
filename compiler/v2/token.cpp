@@ -77,7 +77,8 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kReserved, {p, 2}, {}};
     }
 
-    if (string_view op{p, 2}; op == "||" || op == "&&") {
+    if (string_view op{p, 2};
+        op == "||" || op == "&&" || op == "++" || op == "--") {
       return new Token{Token::kReserved, {p, 2}, {}};
     }
 

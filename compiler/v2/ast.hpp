@@ -52,6 +52,8 @@ struct Node {
     kLOr,     // 2項演算子 ||
     kBreak,   // break キーワード
     kCont,    // continue キーワード
+    kInc,     // 後置演算子 ++
+    kDec,     // 後置演算子 --
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -104,6 +106,8 @@ struct Node {
    *   lhs: 型変換対象の式
    *   rhs: 型情報（kType ノード）
    * kAddr, kDeref:
+   *   lhs: 演算対象の式
+   * kInc, kDec:
    *   lhs: 演算対象の式
    */
 

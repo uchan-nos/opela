@@ -469,6 +469,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kCont:
     ctx.asmgen.Jmp(labels.cont);
     return;
+  case Node::kInc:
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
+    ctx.asmgen.IncN(dest, DataTypeOf(ctx, node));
+    return;
+  case Node::kDec:
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
+    ctx.asmgen.DecN(dest, DataTypeOf(ctx, node));
+    return;
   default:
     ; // pass
   }

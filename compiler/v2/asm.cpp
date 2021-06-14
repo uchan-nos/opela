@@ -51,6 +51,10 @@ class AsmX86_64 : public Asm {
     return RegName(kRegNames[reg], dt);
   }
 
+  static constexpr std::array<const char*, 5> kDataTypeName{
+    "", "byte", "word", "dword", "qword"
+  };
+
   using Asm::Asm;
 
   bool SameReg(Register a, Register b) override {
@@ -212,16 +216,24 @@ class AsmX86_64 : public Asm {
          << "    movzx " << RegName(dest) << ',' << RegName(dest, kByte) << '\n';
   }
 
-  virtual void ShiftL64(Register dest, int bits) override {
+  void ShiftL64(Register dest, int bits) override {
     out_ << "    shl " << RegName(dest) << ',' << bits << '\n';
   }
 
-  virtual void ShiftR64(Register dest, int bits) override {
+  void ShiftR64(Register dest, int bits) override {
     out_ << "    shr " << RegName(dest) << ',' << bits << '\n';
   }
 
-  virtual void ShiftAR64(Register dest, int bits) override {
+  void ShiftAR64(Register dest, int bits) override {
     out_ << "    sar " << RegName(dest) << ',' << bits << '\n';
+  }
+
+  void IncN(Register addr, DataType dt) override {
+    out_ << "    inc " << kDataTypeName[dt] << " ptr [" << RegName(addr) << "]\n";
+  }
+
+  void DecN(Register addr, DataType dt) override {
+    out_ << "    dec " << kDataTypeName[dt] << " ptr [" << RegName(addr) << "]\n";
   }
 };
 

@@ -86,6 +86,8 @@ class Asm {
   virtual void ShiftL64(Register dest, int bits) = 0;
   virtual void ShiftR64(Register dest, int bits) = 0;
   virtual void ShiftAR64(Register dest, int bits) = 0;
+  virtual void IncN(Register addr, DataType dt) = 0;
+  virtual void DecN(Register addr, DataType dt) = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }
