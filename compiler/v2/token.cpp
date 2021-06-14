@@ -62,6 +62,9 @@ Token* NextToken(Source& src, const char* p) {
         if (p[1] == 'b') {
           base = 2;
           literal = p + 2;
+        } else if (p[1] == 'x') {
+          base = 16;
+          literal = p + 2;
         } else {
           base = 8;
           literal = p + 1;

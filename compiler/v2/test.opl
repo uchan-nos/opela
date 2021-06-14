@@ -77,6 +77,8 @@ func main() int {
   TEST_INT(1,  testUInt2());
   TEST_INT(4,  testIncDec());
   TEST_INT(7,  testVariadicArg());
+  TEST_INT(31, testHexLiteral());
+  TEST_INT(6,  testBinaryLiteral());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -174,6 +176,8 @@ func testUInt() int { var i uint = 7; return i - 2@uint; }
 func testUInt2() int { var i uint = -1; return i > 3@uint; }
 func testIncDec() int { i := 3; i++; i++; i--; return i; }
 func testVariadicArg() int { return variadic_sum(3, 4, 5, -2); }
+func testHexLiteral() int { return 0x001f; }
+func testBinaryLiteral() int { return 0b0110; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
