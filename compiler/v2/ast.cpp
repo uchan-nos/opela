@@ -373,6 +373,14 @@ Node* Statement(ASTContext& ctx) {
   if (ctx.t.Peek(Token::kVar)) {
     return VariableDefinition(ctx);
   }
+  if (auto token = ctx.t.Consume(Token::kBreak)) {
+    ctx.t.Expect(";");
+    return NewNode(Node::kBreak, token);
+  }
+  if (auto token = ctx.t.Consume(Token::kCont)) {
+    ctx.t.Expect(";");
+    return NewNode(Node::kCont, token);
+  }
 
   return ExpressionStatement(ctx);
 }
@@ -1003,6 +1011,10 @@ void SetType(ASTContext& ctx, Node* node) {
     SetType(ctx, node->lhs);
     SetType(ctx, node->rhs);
     node->type = ctx.tm.Find("bool");
+    break;
+  case Node::kBreak:
+  case Node::kCont:
+    node->type = nullptr;
     break;
   }
 }

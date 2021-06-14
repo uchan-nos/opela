@@ -50,6 +50,8 @@ struct Node {
     kChar,    // 文字リテラル
     kLAnd,    // 2項演算子 &&
     kLOr,     // 2項演算子 ||
+    kBreak,   // break キーワード
+    kCont,    // continue キーワード
   } kind;
 
   Token* token; // このノードを代表するトークン

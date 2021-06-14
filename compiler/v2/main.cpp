@@ -91,6 +91,10 @@ struct GenContext {
   Object* func;
 };
 
+struct LabelSet {
+  string cont, brk;
+};
+
 size_t label_counter = 0;
 string GenerateLabel() {
   ostringstream oss;
@@ -201,7 +205,7 @@ Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
 
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
-                 bool lval = false) {
+                 const LabelSet& labels, bool lval = false) {
   auto comment_node = [ctx, node]{
     ctx.asmgen.Output() << "    # ";
     PrintAST(ctx.asmgen.Output(), node);
@@ -215,7 +219,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kBlock:
     for (auto stmt = node->next; stmt; stmt = stmt->next) {
-      GenerateAsm(ctx, stmt, dest, free_calc_regs);
+      GenerateAsm(ctx, stmt, dest, free_calc_regs, labels);
     }
     return;
   case Node::kId:
@@ -244,7 +248,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDefVar:
     if (node->rhs) {
       comment_node();
-      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
       ctx.asmgen.Store64(
           Asm::kRegBP, get<Object*>(node->lhs->value)->bp_offset, dest);
     }
@@ -272,7 +276,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
         ctx.asmgen.Store64(Asm::kRegBP, -8 * (1 + arg_index), arg_reg);
         ++arg_index;
       }
-      GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs);
+      GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
       ctx.asmgen.Output() << func->id->raw << ".exit:\n";
       ctx.asmgen.Leave();
@@ -282,7 +286,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kRet:
     comment_node();
     if (node->lhs) {
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
       if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base)) {
         cerr << "not implemented cast from " << node->lhs->type
              << " to " << ctx.func->type->base << endl;
@@ -296,15 +300,25 @@ void GenerateAsm(GenContext& ctx, Node* node,
     {
       auto label_exit = GenerateLabel();
       auto label_else = node->rhs ? GenerateLabel() : label_exit;
-      GenerateAsm(ctx, node->cond, dest, free_calc_regs);
+      GenerateAsm(ctx, node->cond, dest, free_calc_regs, labels);
       ctx.asmgen.JmpIfZero(dest, label_else);
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
       if (node->rhs) {
         ctx.asmgen.Jmp(label_exit);
         ctx.asmgen.Output() << label_else << ": # else clause\n";
-        GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+        GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
       }
       ctx.asmgen.Output() << label_exit << ": # if stmt exit\n";
+    }
+    return;
+  case Node::kLoop:
+    comment_node();
+    {
+      LabelSet ls{GenerateLabel(), GenerateLabel()};
+      ctx.asmgen.Output() << ls.cont << ": # loop body\n";
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, ls);
+      ctx.asmgen.Jmp(ls.cont);
+      ctx.asmgen.Output() << ls.brk << ": # loop end\n";
     }
     return;
   case Node::kFor:
@@ -312,20 +326,21 @@ void GenerateAsm(GenContext& ctx, Node* node,
     {
       auto label_loop = GenerateLabel();
       auto label_cond = GenerateLabel();
-      auto label_next = node->rhs ? GenerateLabel() : label_cond;
+      LabelSet ls{node->rhs ? GenerateLabel() : label_cond, GenerateLabel()};
       if (node->rhs) {
-        GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+        GenerateAsm(ctx, node->rhs, dest, free_calc_regs, ls);
       }
       ctx.asmgen.Jmp(label_cond);
       ctx.asmgen.Output() << label_loop << ": # loop body\n";
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, ls);
       if (node->rhs) {
-        ctx.asmgen.Output() << label_next << ": # update\n";
-        GenerateAsm(ctx, node->rhs->next, dest, free_calc_regs);
+        ctx.asmgen.Output() << ls.cont << ": # update\n";
+        GenerateAsm(ctx, node->rhs->next, dest, free_calc_regs, ls);
       }
       ctx.asmgen.Output() << label_cond << ": # condition\n";
-      GenerateAsm(ctx, node->cond, dest, free_calc_regs);
+      GenerateAsm(ctx, node->cond, dest, free_calc_regs, ls);
       ctx.asmgen.JmpIfNotZero(dest, label_loop);
+      ctx.asmgen.Output() << ls.brk << ": # loop end\n";
     }
     return;
   case Node::kCall:
@@ -370,19 +385,19 @@ void GenerateAsm(GenContext& ctx, Node* node,
       for (auto arg = node->rhs; arg; arg = arg->next) {
         args.push_back(arg);
         if (arg->ershov >= 2) {
-          GenerateAsm(ctx, arg, dest, free_calc_regs);
+          GenerateAsm(ctx, arg, dest, free_calc_regs, labels);
           ctx.asmgen.Push64(dest);
         }
       }
 
-      GenerateAsm(ctx, node->lhs, lhs_reg, free_calc_regs);
+      GenerateAsm(ctx, node->lhs, lhs_reg, free_calc_regs, labels);
       free_calc_regs.reset(lhs_reg);
 
       // 引数レジスタに実引数を設定する
       for (int i = num_arg - 1; i >= 0; --i) {
         auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
         if (args[i]->ershov == 1) {
-          GenerateAsm(ctx, args[i], arg_reg, free_calc_regs);
+          GenerateAsm(ctx, args[i], arg_reg, free_calc_regs, labels);
         } else {
           ctx.asmgen.Pop64(arg_reg);
         }
@@ -415,7 +430,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ctx.asmgen.Mov64(dest, SizeofType(ctx.src, node->lhs->type));
     return;
   case Node::kCast:
-    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, lval);
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, lval);
     if (GenCast(ctx, dest, node->lhs->type, node->rhs->type, true)) {
       cerr << "not implemented cast from " << node->lhs->type
            << " to " << node->rhs->type << endl;
@@ -430,9 +445,9 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     {
       auto label_end = GenerateLabel();
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.JmpIfZero(dest, label_end);
-      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
       ctx.asmgen.Set1IfNonZero64(dest, dest);
       ctx.asmgen.Output() << label_end << ": # end of '&&'\n";
     }
@@ -441,12 +456,18 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     {
       auto label_end = GenerateLabel();
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.JmpIfNotZero(dest, label_end);
-      GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+      GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
       ctx.asmgen.Output() << label_end << ": # end of '||'\n";
       ctx.asmgen.Set1IfNonZero64(dest, dest);
     }
+    return;
+  case Node::kBreak:
+    ctx.asmgen.Jmp(labels.brk);
+    return;
+  case Node::kCont:
+    ctx.asmgen.Jmp(labels.cont);
     return;
   default:
     ; // pass
@@ -466,15 +487,15 @@ void GenerateAsm(GenContext& ctx, Node* node,
   const bool lhs_in_dest = node->rhs == nullptr ||
                            node->lhs->ershov >= node->rhs->ershov;
   if (lhs_in_dest) {
-    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, request_lval);
+    GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, request_lval);
     if (node->rhs) {
       reg = UseAnyCalcReg(free_calc_regs);
-      GenerateAsm(ctx, node->rhs, reg, free_calc_regs);
+      GenerateAsm(ctx, node->rhs, reg, free_calc_regs, labels);
     }
   } else {
-    GenerateAsm(ctx, node->rhs, dest, free_calc_regs);
+    GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
     reg = UseAnyCalcReg(free_calc_regs);
-    GenerateAsm(ctx, node->lhs, reg, free_calc_regs, request_lval);
+    GenerateAsm(ctx, node->lhs, reg, free_calc_regs, labels, request_lval);
   }
   auto lhs_reg = lhs_in_dest ? dest : reg;
   auto rhs_reg = lhs_in_dest ? reg : dest;
@@ -654,7 +675,7 @@ int main(int argc, char** argv) {
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kFunc) {
       GenContext ctx{src, *asmgen, obj};
-      GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs);
+      GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs, {});
     }
   }
 
@@ -666,7 +687,7 @@ int main(int argc, char** argv) {
       auto var_def = obj->def;
       if (var_def->rhs && var_def->rhs->kind != Node::kInt) {
         GenContext ctx{src, *asmgen, obj};
-        GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs);
+        GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs, {});
         ctx.asmgen.Store64(var_def->lhs->token->raw, Asm::kRegA);
       }
     }

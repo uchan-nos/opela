@@ -68,6 +68,11 @@ func main() int {
   TEST_INT(4 , testLogicalOp());
   TEST_INT(1 , testLogicalOp2());
   TEST_INT(2 , testLogicalOp3());
+  TEST_INT(3 , testBreak());
+  TEST_INT(10, testContinue());
+  TEST_INT(12, testContinue2());
+  TEST_INT(10, testBreak2());
+  TEST_INT(42, testBreak3());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -156,6 +161,11 @@ func testAsciiExpr() int { return '!' + '\t' - 9; }
 func testLogicalOp() int { i := 3; if i==1 && 2==1 || i==3 { return 4; } else { return 5; } }
 func testLogicalOp2() int { v := 5 && 6 || 7; return v; }
 func testLogicalOp3() int { v := 2; 42 || (v = 3); return v; }
+func testBreak() int { i := 1; for i < 10 { if i == 3 { break; } i += 1; } return i; }
+func testContinue() int { i := 1; for i < 10 { i = 10; continue; i = 42; } return i; }
+func testContinue2() int { i := 1; for i = 1; i < 12; i += 1 { continue; } return i; }
+func testBreak2() int {i:=1; for{if i>=10{break;} i=10;continue; return i = 42;} return i;}
+func testBreak3() int {i:=1; for{if i>=42{break;} i+=1;continue;} return i;}
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
