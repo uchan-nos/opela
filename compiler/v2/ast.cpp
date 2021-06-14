@@ -647,6 +647,22 @@ Node* Primary(ASTContext& ctx) {
     return NewNodeStr(ctx, token);
   } else if (auto token = ctx.t.Consume(Token::kChar)) {
     return NewNodeChar(token);
+  } else if (auto op = ctx.t.Consume("{")) {
+    auto node = NewNode(Node::kInitList, op);
+    if (ctx.t.Consume("}")) {
+      return node;
+    }
+    auto head = NewNode(Node::kInt, nullptr); // dummy
+    auto cur = head;
+    for (;;) {
+      cur->next = Expression(ctx);
+      cur = cur->next;
+      if (!ctx.t.Consume(",")) {
+        ctx.t.Expect("}");
+        node->lhs = head->next;
+        return node;
+      }
+    }
   }
   auto token = ctx.t.Expect(Token::kInt);
   return NewNodeInt(token, get<opela_type::Int>(token->value));
@@ -971,7 +987,6 @@ void SetType(ASTContext& ctx, Node* node) {
     {
       Type* param_t = nullptr;
       if (auto t = node->lhs->type; t->kind == Type::kFunc) {
-        cerr << "type of " << node->lhs->token->raw << " is " << t << endl;
         node->type = t->base;
         param_t = t->next;
       } else if (t->kind == Type::kPointer && t->base->kind == Type::kFunc) {
@@ -1065,6 +1080,25 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kDec:
     SetType(ctx, node->lhs);
     node->type = node->lhs->type;
+    break;
+  case Node::kInitList:
+    for (auto elem = node->lhs; elem; elem = elem->next) {
+      SetType(ctx, elem);
+    }
+    if (node->lhs) {
+      auto elem = node->lhs;
+      auto param_type = NewTypeParam(elem->type, nullptr);
+      auto cur = param_type;
+      elem = elem->next;
+      while (elem) {
+        cur->next = NewTypeParam(elem->type, nullptr);
+        cur = cur->next;
+        elem = elem->next;
+      }
+      node->type = NewTypeInitList(param_type);
+    } else {
+      node->type = NewTypeInitList(nullptr);
+    }
     break;
   }
 }

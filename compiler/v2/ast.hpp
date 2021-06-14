@@ -55,6 +55,7 @@ struct Node {
     kCont,    // continue キーワード
     kInc,     // 後置演算子 ++
     kDec,     // 後置演算子 --
+    kInitList,// 初期値リスト {e1, e2, ...}
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -110,6 +111,8 @@ struct Node {
    *   lhs: 演算対象の式
    * kInc, kDec:
    *   lhs: 演算対象の式
+   * kInitList:
+   *   lhs: 先頭の式（順に next で繋がる）
    */
 
   /* next の用途

@@ -248,9 +248,27 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDefVar:
     if (node->rhs) {
       comment_node();
-      GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
-      ctx.asmgen.Store64(
-          Asm::kRegBP, get<Object*>(node->lhs->value)->bp_offset, dest);
+      auto obj = get<Object*>(node->lhs->value);
+      if (obj->type->kind == Type::kArray &&
+          node->rhs->kind == Node::kInitList) {
+        auto init_list_base = UseAnyCalcReg(free_calc_regs);
+        GenerateAsm(ctx, node->rhs, init_list_base, free_calc_regs, labels);
+        int sp_offset = 0;
+        for (auto elem = node->rhs->lhs; elem; elem = elem->next) {
+          ctx.asmgen.Load64(dest, init_list_base, sp_offset);
+          ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
+                            dest, DataTypeOf(ctx, elem));
+          sp_offset += 8;
+        }
+        while (static_cast<size_t>(sp_offset) < SizeofType(ctx.src, obj->type)) {
+          ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
+                            Asm::kRegZero, Asm::kQWord);
+          sp_offset += 8;
+        }
+      } else {
+        GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
+        ctx.asmgen.Store64(Asm::kRegBP, obj->bp_offset, dest);
+      }
     }
     return;
   case Node::kDefFunc:
@@ -464,18 +482,41 @@ void GenerateAsm(GenContext& ctx, Node* node,
     }
     return;
   case Node::kBreak:
+    comment_node();
     ctx.asmgen.Jmp(labels.brk);
     return;
   case Node::kCont:
+    comment_node();
     ctx.asmgen.Jmp(labels.cont);
     return;
   case Node::kInc:
+    comment_node();
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
     ctx.asmgen.IncN(dest, DataTypeOf(ctx, node));
     return;
   case Node::kDec:
+    comment_node();
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
     ctx.asmgen.DecN(dest, DataTypeOf(ctx, node));
+    return;
+  case Node::kInitList:
+    comment_node();
+    {
+      int sp_offset = 0;
+      for (auto elem = node->lhs; elem; elem = elem->next) {
+        auto esize = SizeofType(ctx.src, elem->type);
+        sp_offset += (esize + 7) & ~7;
+      }
+      ctx.asmgen.Sub64(Asm::kRegSP, (sp_offset + 0xf) & ~0xf);
+      sp_offset = 0;
+      for (auto elem = node->lhs; elem; elem = elem->next) {
+        GenerateAsm(ctx, elem, dest, free_calc_regs, labels);
+        ctx.asmgen.StoreN(Asm::kRegSP, sp_offset, dest, DataTypeOf(ctx, elem));
+        auto esize = SizeofType(ctx.src, elem->type);
+        sp_offset += (esize + 7) & ~7;
+      }
+      ctx.asmgen.Mov64(dest, Asm::kRegSP);
+    }
     return;
   default:
     ; // pass
@@ -584,7 +625,19 @@ void GenerateAsm(GenContext& ctx, Node* node,
     }
     break;
   case Node::kAssign:
-    ctx.asmgen.StoreN(lhs_reg, 0, rhs_reg, DataTypeOf(ctx, node->lhs));
+    if (lhs_t->kind == Type::kArray &&
+        rhs_t->kind == Type::kInitList) {
+      auto reg = UseAnyCalcReg(free_calc_regs);
+      int sp_offset = 0;
+      for (auto elem = node->rhs->lhs; elem; elem = elem->next) {
+        GenerateAsm(ctx, elem, reg, free_calc_regs, labels);
+        ctx.asmgen.Load64(reg, rhs_reg, sp_offset);
+        ctx.asmgen.StoreN(lhs_reg, sp_offset, reg, DataTypeOf(ctx, elem));
+        sp_offset += 8;
+      }
+    } else {
+      ctx.asmgen.StoreN(lhs_reg, 0, rhs_reg, DataTypeOf(ctx, node->lhs));
+    }
     if (lval && !lhs_in_dest) {
       ctx.asmgen.Mov64(dest, reg);
     } else if (!lval && lhs_in_dest) {

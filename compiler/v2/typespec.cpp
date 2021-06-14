@@ -52,6 +52,10 @@ Type* NewTypeArray(Type* base, long size) {
   return new Type{Type::kArray, base, nullptr, size};
 }
 
+Type* NewTypeInitList(Type* param_list) {
+  return new Type{Type::kInitList, nullptr, param_list, 0};
+}
+
 std::ostream& operator<<(std::ostream& os, Type* t) {
   switch (t->kind) {
   case Type::kUndefined: os << "Undefined-type"; break;
@@ -88,6 +92,16 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
   case Type::kArray:
     os << '[' << get<long>(t->value) << ']' << t->base;
     break;
+  case Type::kInitList:
+    os << '{';
+    if (auto pt = t->next) {
+      os << pt->base;
+      for (pt = pt->next; pt; pt = pt->next) {
+        os << ',' << pt->base;
+      }
+    }
+    os << '}';
+    break;
   }
   return os;
 }
@@ -117,6 +131,9 @@ size_t SizeofType(Source& src, Type* t) {
     return 1;
   case Type::kArray:
     return get<long>(t->value) * SizeofType(src, t->base);
+  case Type::kInitList:
+    cerr << "sizeof kInitList is not defined" << endl;
+    Error();
   }
   cerr << "should not come here: type=" << t << endl;
   Error();

@@ -21,6 +21,7 @@ struct Type {
     kUser, // ユーザー定義型
     kBool,
     kArray,
+    kInitList,
   } kind;
 
   Type* base;
@@ -38,6 +39,8 @@ struct Type {
    *   next: 次の引数
    * kArray:
    *   base: 要素の型
+   * kInitList:
+   *   next: 要素リスト（kParam のリスト）
    */
 
   /* value の用途
@@ -59,6 +62,7 @@ Type* NewTypeVParam();
 Type* NewTypeUnresolved(Token* name);
 Type* NewTypeUser(Type* base, Token* name);
 Type* NewTypeArray(Type* base, long size);
+Type* NewTypeInitList(Type* param_list);
 
 std::ostream& operator<<(std::ostream& os, Type* t);
 size_t SizeofType(Source& src, Type* t);

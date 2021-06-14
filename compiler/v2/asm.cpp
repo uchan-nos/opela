@@ -150,11 +150,12 @@ class AsmX86_64 : public Asm {
   }
 
   void Store64(std::string_view label, Register v) override {
-    out_ << "    mov [rip+" << label << "]," << RegName(v) << '\n';
+    out_ << "    mov qword ptr [rip+" << label << "]," << RegName(v) << '\n';
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
-    out_ << "    mov [" << RegName(addr) << (disp >= 0 ? "+" : "") << disp
+    out_ << "    mov " << kDataTypeName[dt] << " ptr ["
+         << RegName(addr) << (disp >= 0 ? "+" : "") << disp
          << "]," << RegName(v, dt) << '\n';
   }
 
