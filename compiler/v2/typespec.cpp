@@ -36,6 +36,10 @@ Type* NewTypeParam(Type* t, Token* name) {
   return new Type{Type::kParam, t, nullptr, name};
 }
 
+Type* NewTypeVParam() {
+  return new Type{Type::kVParam, nullptr, nullptr, 0};
+}
+
 Type* NewTypeUnresolved(Token* name) {
   return new Type{Type::kUnresolved, nullptr, nullptr, name};
 }
@@ -73,6 +77,9 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     }
     os << t->base;
     break;
+  case Type::kVParam:
+    os << "...";
+    break;
   case Type::kVoid: os << "void"; break;
   case Type::kUser:
     os << get<Token*>(t->value)->raw;
@@ -99,6 +106,9 @@ size_t SizeofType(Source& src, Type* t) {
     return 8;
   case Type::kParam:
     return SizeofType(src, t->base);
+  case Type::kVParam:
+    cerr << "sizeof kVParam is not defined" << endl;
+    Error();
   case Type::kVoid:
     return 0;
   case Type::kUser:

@@ -1,4 +1,5 @@
 #include <inttypes.h>
+#include <stdarg.h>
 #include <stdlib.h>
 
 int64_t func42(void) {
@@ -21,4 +22,17 @@ int64_t* alloc4(int64_t a, int64_t b, int64_t c, int64_t d) {
   arr[2] = c;
   arr[3] = d;
   return arr;
+}
+
+int64_t variadic_sum(int64_t argc, ...) {
+  int64_t sum = 0;
+
+  va_list l;
+  va_start(l, argc);
+  for (int64_t i = 0; i < argc; ++i) {
+    sum += va_arg(l, int64_t);
+  }
+  va_end(l);
+
+  return sum;
 }

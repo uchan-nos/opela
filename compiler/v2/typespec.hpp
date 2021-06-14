@@ -16,6 +16,7 @@ struct Type {
     kPointer,
     kFunc,
     kParam,
+    kVParam, // 可変長仮引数
     kVoid,
     kUser, // ユーザー定義型
     kBool,
@@ -54,6 +55,7 @@ Type* NewTypeIntegral(Type::Kind kind, long bits);
 Type* NewTypePointer(Type* base);
 Type* NewTypeFunc(Type* ret, Type* param_list);
 Type* NewTypeParam(Type* t, Token* name);
+Type* NewTypeVParam();
 Type* NewTypeUnresolved(Token* name);
 Type* NewTypeUser(Type* base, Token* name);
 Type* NewTypeArray(Type* base, long size);

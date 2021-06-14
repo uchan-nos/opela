@@ -192,6 +192,10 @@ Type* ParamTypeFromDeclList(Node* plist) {
   auto cur = param_type;
   plist = plist->next;
   while (plist) {
+    if (plist->kind == Node::kVParam) {
+      cur->next = NewTypeVParam();
+      break;
+    }
     cur->next = NewTypeParam(plist->lhs->type, plist->token);
     cur = cur->next;
     plist = plist->next;
@@ -712,8 +716,19 @@ Node* ParameterDeclList(ASTContext& ctx) {
 
   vector<Token*> params_untyped;
   for (;;) {
+    if (auto op = ctx.t.Consume("...")) { // 可変長引数
+      cur->next = NewNode(Node::kVParam, op);
+      return head->next;
+    }
     auto name_or_type = ctx.t.Consume(Token::kId);
     if (name_or_type == nullptr) {
+      if (auto tspec = TypeSpecifier(ctx)) {
+        cur->next = NewNodeOneChild(Node::kParam, nullptr, tspec);
+        cur = cur->next;
+        if (ctx.t.Consume(",")) {
+          continue;
+        }
+      }
       return head->next;
     }
     params_untyped.push_back(name_or_type);
@@ -913,7 +928,10 @@ void SetType(ASTContext& ctx, Node* node) {
     get<Object*>(node->lhs->value)->type = node->type;
     break;
   case Node::kDefFunc:
-    get<Object*>(node->value)->type = NewTypeFunc(node->cond->type, nullptr);
+    {
+      auto f = get<Object*>(node->value);
+      f->type = NewTypeFunc(node->cond->type, ParamTypeFromDeclList(node->rhs));
+    }
     break;
   case Node::kRet:
     SetType(ctx, node->lhs);
@@ -949,13 +967,34 @@ void SetType(ASTContext& ctx, Node* node) {
     for (auto arg = node->rhs; arg; arg = arg->next) {
       SetType(ctx, arg);
     }
-    if (auto t = node->lhs->type; t->kind == Type::kFunc) {
-      node->type = t->base;
-    } else if (t->kind == Type::kPointer && t->base->kind == Type::kFunc) {
-      node->type = t->base->base;
-    } else {
-      cerr << "not implemented call for " << t << endl;
-      ErrorAt(ctx.src, *node->token);
+
+    {
+      Type* param_t = nullptr;
+      if (auto t = node->lhs->type; t->kind == Type::kFunc) {
+        cerr << "type of " << node->lhs->token->raw << " is " << t << endl;
+        node->type = t->base;
+        param_t = t->next;
+      } else if (t->kind == Type::kPointer && t->base->kind == Type::kFunc) {
+        node->type = t->base->base;
+        param_t = t->base->next;
+      } else {
+        cerr << "not implemented call for " << t << endl;
+        ErrorAt(ctx.src, *node->token);
+      }
+
+      auto arg = node->rhs;
+      while (param_t && param_t->kind != Type::kVParam) {
+        if (arg == nullptr) {
+          cerr << "too few arguments" << endl;
+          ErrorAt(ctx.src, *node->token);
+        }
+        arg = arg->next;
+        param_t = param_t->next;
+      }
+      if (arg && param_t == nullptr) {
+        cerr << "too many arguments" << endl;
+        ErrorAt(ctx.src, *arg->token);
+      }
     }
     break;
   case Node::kStr:
@@ -980,6 +1019,7 @@ void SetType(ASTContext& ctx, Node* node) {
     node->type = node->lhs->type;
     get<Object*>(node->value)->type = node->type;
     break;
+  case Node::kVParam:
   case Node::kType:
   case Node::kTypedef:
     break;

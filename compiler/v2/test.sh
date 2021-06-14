@@ -61,7 +61,8 @@ echo "Running standard testcases..."
 
 echo "============================="
 echo "Running extra testcases..."
-test_stdout 'foo' 'func main() { write(1, "foo", 3); } extern "C" write func();'
+test_stdout 'foo' 'func main() { write(1, "foo", 3); }
+  extern "C" write func(int, *byte, int);'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

@@ -41,6 +41,7 @@ struct Node {
     kExtern,  // extern 宣言
     kType,    // 型指定子
     kParam,   // 関数の仮引数
+    kVParam,  // 可変長仮引数 ...
     kSizeof,  // 1項演算子 sizeof
     kTypedef, // 型宣言
     kCast,    // 2項演算子 @
