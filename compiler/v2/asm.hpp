@@ -56,6 +56,7 @@ class Asm {
 
   virtual void Mov64(Register dest, std::uint64_t v) = 0;
   virtual void Mov64(Register dest, Register v) = 0;
+  virtual void Add64(Register dest, std::uint64_t) = 0;
   virtual void Add64(Register dest, Register v) = 0;
   virtual void Sub64(Register dest, std::uint64_t v) = 0;
   virtual void Sub64(Register dest, Register v) = 0;

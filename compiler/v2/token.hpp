@@ -28,6 +28,7 @@ struct Token {
     kVar,
     kBreak,
     kCont,
+    kStruct,
   } kind;
 
   std::string_view raw;

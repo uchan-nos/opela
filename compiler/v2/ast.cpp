@@ -193,7 +193,7 @@ Type* ParamTypeFromDeclList(Node* plist) {
   plist = plist->next;
   while (plist) {
     if (plist->kind == Node::kVParam) {
-      cur->next = NewTypeVParam();
+      cur->next = NewType(Type::kVParam);
       break;
     }
     cur->next = NewTypeParam(plist->lhs->type, plist->token);
@@ -624,6 +624,9 @@ Node* Postfix(ASTContext& ctx) {
       auto subscr = Expression(ctx);
       ctx.t.Expect("]");
       node = NewNodeBinOp(Node::kSubscr, op, node, subscr);
+    } else if (auto op = ctx.t.Consume(".")) {
+      auto id = ctx.t.Expect(Token::kId);
+      node = NewNodeBinOp(Node::kDot, op, node, NewNode(Node::kId, id));
     } else {
       return node;
     }
@@ -711,6 +714,25 @@ Node* TypeSpecifier(ASTContext& ctx) {
 
     auto arr_type = NewTypeArray(elem_type->type, get<long>(arr_size->value));
     return NewNodeType(arr_token, arr_type);
+  }
+
+  if (auto struct_token = ctx.t.Consume(Token::kStruct)) {
+    ctx.t.Expect("{");
+
+    auto struct_t = NewType(Type::kStruct);
+    auto cur = struct_t;
+    while (!ctx.t.Consume("}")) {
+      auto name = ctx.t.Expect(Token::kId);
+      auto tspec = TypeSpecifier(ctx);
+      if (tspec == nullptr) {
+        cerr << "type must be specified" << endl;
+        ErrorAt(ctx.src, *ctx.t.Peek());
+      }
+      cur->next = NewTypeParam(tspec->type, name);
+      cur = cur->next;
+      ctx.t.Expect(";");
+    }
+    return NewNodeType(struct_token, struct_t);
   }
 
   if (auto name_token = ctx.t.Consume(Token::kId)) {
@@ -1085,19 +1107,28 @@ void SetType(ASTContext& ctx, Node* node) {
     for (auto elem = node->lhs; elem; elem = elem->next) {
       SetType(ctx, elem);
     }
+    node->type = NewType(Type::kInitList);
     if (node->lhs) {
-      auto elem = node->lhs;
-      auto param_type = NewTypeParam(elem->type, nullptr);
-      auto cur = param_type;
-      elem = elem->next;
-      while (elem) {
+      auto cur = node->type;
+      for (auto elem = node->lhs; elem; elem = elem->next) {
         cur->next = NewTypeParam(elem->type, nullptr);
         cur = cur->next;
-        elem = elem->next;
       }
-      node->type = NewTypeInitList(param_type);
+    }
+    break;
+  case Node::kDot:
+    SetType(ctx, node->lhs);
+    if (auto t = GetUserBaseType(node->lhs->type);
+        t->kind != Type::kStruct) {
+      cerr << "lhs must be a struct" << endl;
+      ErrorAt(ctx.src, *node->token);
     } else {
-      node->type = NewTypeInitList(nullptr);
+      for (auto ft = t->next; ft; ft = ft->next) {
+        if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
+          node->type = ft->base;
+          break;
+        }
+      }
     }
     break;
   }

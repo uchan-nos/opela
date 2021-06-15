@@ -22,6 +22,7 @@ struct Type {
     kBool,
     kArray,
     kInitList,
+    kStruct,
   } kind;
 
   Type* base;
@@ -41,6 +42,8 @@ struct Type {
    *   base: 要素の型
    * kInitList:
    *   next: 要素リスト（kParam のリスト）
+   * kStruct:
+   *   next: フィールドリスト（kParam のリスト）
    */
 
   /* value の用途
@@ -54,15 +57,14 @@ struct Type {
   std::variant<long, Token*> value;
 };
 
+Type* NewType(Type::Kind kind);
 Type* NewTypeIntegral(Type::Kind kind, long bits);
 Type* NewTypePointer(Type* base);
 Type* NewTypeFunc(Type* ret, Type* param_list);
 Type* NewTypeParam(Type* t, Token* name);
-Type* NewTypeVParam();
 Type* NewTypeUnresolved(Token* name);
 Type* NewTypeUser(Type* base, Token* name);
 Type* NewTypeArray(Type* base, long size);
-Type* NewTypeInitList(Type* param_list);
 
 std::ostream& operator<<(std::ostream& os, Type* t);
 size_t SizeofType(Source& src, Type* t);

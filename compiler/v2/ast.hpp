@@ -56,6 +56,7 @@ struct Node {
     kInc,     // 後置演算子 ++
     kDec,     // 後置演算子 --
     kInitList,// 初期値リスト {e1, e2, ...}
+    kDot,     // 構造体アクセス演算子
   } kind;
 
   Token* token; // このノードを代表するトークン

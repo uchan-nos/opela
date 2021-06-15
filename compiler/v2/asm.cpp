@@ -73,6 +73,10 @@ class AsmX86_64 : public Asm {
     out_ << "    mov " << RegName(dest) << ',' << RegName(v) << '\n';
   }
 
+  void Add64(Register dest, std::uint64_t v) override {
+    out_ << "    add " << RegName(dest) << ',' << v << '\n';
+  }
+
   void Add64(Register dest, Register v) override {
     out_ << "    add " << RegName(dest) << ',' << RegName(v) << '\n';
   }

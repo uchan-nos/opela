@@ -20,6 +20,10 @@ namespace {
 
 }
 
+Type* NewType(Type::Kind kind) {
+  return new Type{kind, nullptr, nullptr, 0};
+}
+
 Type* NewTypeIntegral(Type::Kind kind, long bits) {
   return new Type{kind, nullptr, nullptr, bits};
 }
@@ -36,10 +40,6 @@ Type* NewTypeParam(Type* t, Token* name) {
   return new Type{Type::kParam, t, nullptr, name};
 }
 
-Type* NewTypeVParam() {
-  return new Type{Type::kVParam, nullptr, nullptr, 0};
-}
-
 Type* NewTypeUnresolved(Token* name) {
   return new Type{Type::kUnresolved, nullptr, nullptr, name};
 }
@@ -50,10 +50,6 @@ Type* NewTypeUser(Type* base, Token* name) {
 
 Type* NewTypeArray(Type* base, long size) {
   return new Type{Type::kArray, base, nullptr, size};
-}
-
-Type* NewTypeInitList(Type* param_list) {
-  return new Type{Type::kInitList, nullptr, param_list, 0};
 }
 
 std::ostream& operator<<(std::ostream& os, Type* t) {
@@ -102,6 +98,16 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     }
     os << '}';
     break;
+  case Type::kStruct:
+    os << "struct{";
+    if (auto ft = t->next) {
+      os << ft;
+      for (ft = ft->next; ft; ft = ft->next) {
+        os << ',' << ft;
+      }
+    }
+    os << '}';
+    break;
   }
   return os;
 }
@@ -134,6 +140,14 @@ size_t SizeofType(Source& src, Type* t) {
   case Type::kInitList:
     cerr << "sizeof kInitList is not defined" << endl;
     Error();
+  case Type::kStruct:
+    {
+      size_t s = 0;
+      for (auto field_t = t->next; field_t; field_t = field_t->next) {
+        s += SizeofType(src, field_t);
+      }
+      return s;
+    }
   }
   cerr << "should not come here: type=" << t << endl;
   Error();

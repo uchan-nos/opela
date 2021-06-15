@@ -25,6 +25,7 @@ const map<Token::Kind, string> kKeywords{
   {Token::kVar,    "var"},
   {Token::kBreak,  "break"},
   {Token::kCont,   "continue"},
+  {Token::kStruct, "struct"},
 };
 
 const char* FindStr(const char* p) {
@@ -89,7 +90,7 @@ Token* NextToken(Source& src, const char* p) {
       return new Token{Token::kReserved, {p, 2}, {}};
     }
 
-    if (strchr("+-*/()<>;{}=,@&[]", *p)) {
+    if (strchr("+-*/()<>;{}=,@&[].", *p)) {
       return new Token{Token::kReserved, {p, 1}, {}};
     }
 

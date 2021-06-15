@@ -518,6 +518,24 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Mov64(dest, Asm::kRegSP);
     }
     return;
+  case Node::kDot:
+    {
+      size_t field_offset = 0;
+      auto ft = node->lhs->type->next;
+      for (; ft; ft = ft->next) {
+        if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
+          break;
+        }
+        field_offset += SizeofType(ctx.src, ft);
+      }
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
+      if (lval) {
+        ctx.asmgen.Add64(dest, field_offset);
+      } else {
+        ctx.asmgen.Load64(dest, dest, field_offset);
+      }
+    }
+    return;
   default:
     ; // pass
   }
