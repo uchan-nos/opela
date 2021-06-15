@@ -963,7 +963,7 @@ void SetType(ASTContext& ctx, Node* node) {
     } else if (node->rhs) {
       node->type = node->rhs->type;
     }
-    get<Object*>(node->lhs->value)->type = node->type;
+    get<Object*>(node->lhs->value)->type = node->lhs->type = node->type;
     break;
   case Node::kDefFunc:
     {

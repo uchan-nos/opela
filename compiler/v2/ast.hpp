@@ -64,8 +64,9 @@ struct Node {
   Type* type;
   /* kType: 型指定子が表す型
    * 式: その式の型
+   * kDefVar: 変数の型
    * その他： nullptr
-   *   kDefVar, kDefFunc, kExtern: 型は value (Object*) が保持
+   *   kExtern: 型は value (Object*) が保持
    *   kParam: 仮引数の型は lhs が保持
    */
 

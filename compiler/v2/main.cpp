@@ -207,9 +207,69 @@ Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
   return dt;
 }
 
+struct EvalBinOp {
+  Node* node;
+  Asm::Register dest_reg, calc_reg;
+  Asm::Register lhs_reg, rhs_reg;
+  bool lhs_in_dest;
+};
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
-                 const LabelSet& labels, bool lval = false) {
+                 const LabelSet& labels, bool lval = false);
+
+void GenerateAssign(GenContext& ctx, const EvalBinOp& e,
+                    Asm::RegSet free_calc_regs, bool lval) {
+  const auto lhs_t = GetUserBaseType(e.node->lhs->type);
+  const auto rhs_t = GetUserBaseType(e.node->rhs->type);
+  if (rhs_t->kind == Type::kInitList) {
+    if (lhs_t->kind == Type::kArray) {
+      const auto reg = UseAnyCalcReg(free_calc_regs);
+      const auto elem_dt = DataTypeOf(ctx, lhs_t->base);
+      int sp_offset = 0;
+      auto elem = e.node->rhs->lhs;
+      for (int i = 0; i < get<long>(lhs_t->value); ++i) {
+        if (elem) {
+          ctx.asmgen.Load64(reg, e.rhs_reg, sp_offset);
+          ctx.asmgen.StoreN(e.lhs_reg, sp_offset, reg, elem_dt);
+          elem = elem->next;
+        } else {
+          ctx.asmgen.StoreN(e.lhs_reg, sp_offset, Asm::kRegZero, elem_dt);
+        }
+        sp_offset += 8;
+      }
+    } else if (lhs_t->kind == Type::kStruct) {
+      const auto reg = UseAnyCalcReg(free_calc_regs);
+      int field_offset = 0;
+      int sp_offset = 0;
+      auto elem = e.node->rhs->lhs;
+      for (auto ft = lhs_t->next; ft; ft = ft->next) {
+        const auto field_size = SizeofType(ctx.src, ft);
+        const auto field_dt = BytesToDataType(field_size);
+        if (elem) {
+          ctx.asmgen.Load64(reg, e.rhs_reg, sp_offset);
+          ctx.asmgen.StoreN(e.lhs_reg, field_offset, reg, field_dt);
+          elem = elem->next;
+        } else {
+          ctx.asmgen.StoreN(e.lhs_reg, field_offset, Asm::kRegZero, field_dt);
+        }
+        sp_offset += 8;
+        field_offset += field_size;
+      }
+    }
+  } else {
+    ctx.asmgen.StoreN(e.lhs_reg, 0, e.rhs_reg, DataTypeOf(ctx, e.node->lhs));
+  }
+  if (lval && !e.lhs_in_dest) {
+    ctx.asmgen.Mov64(e.dest_reg, e.calc_reg);
+  } else if (!lval && e.lhs_in_dest) {
+    ctx.asmgen.Mov64(e.dest_reg, e.calc_reg);
+  }
+}
+
+void GenerateAsm(GenContext& ctx, Node* node,
+                 Asm::Register dest, Asm::RegSet free_calc_regs,
+                 const LabelSet& labels, bool lval) {
   auto comment_node = [ctx, node]{
     ctx.asmgen.Output() << "    # ";
     PrintAST(ctx.asmgen.Output(), node);
@@ -251,50 +311,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kDefVar:
     if (node->rhs) {
-      comment_node();
-      auto obj = get<Object*>(node->lhs->value);
-      if (node->rhs->kind == Node::kInitList) {
-        if (obj->type->kind == Type::kArray) {
-          auto init_list_base = UseAnyCalcReg(free_calc_regs);
-          GenerateAsm(ctx, node->rhs, init_list_base, free_calc_regs, labels);
-          int sp_offset = 0;
-          for (auto elem = node->rhs->lhs; elem; elem = elem->next) {
-            ctx.asmgen.Load64(dest, init_list_base, sp_offset);
-            ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
-                              dest, DataTypeOf(ctx, elem));
-            sp_offset += 8;
-          }
-          while (static_cast<size_t>(sp_offset) < SizeofType(ctx.src, obj->type)) {
-            ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
-                              Asm::kRegZero, Asm::kQWord);
-            sp_offset += 8;
-          }
-        } else if (obj->type->kind == Type::kStruct) {
-          auto init_list_base = UseAnyCalcReg(free_calc_regs);
-          GenerateAsm(ctx, node->rhs, init_list_base, free_calc_regs, labels);
-          size_t field_offset = 0;
-          int sp_offset = 0;
-          auto elem = node->rhs->lhs;
-          for (auto ft = obj->type->next; ft; ft = ft->next) {
-            auto field_size = SizeofType(ctx.src, ft);
-            auto field_dt = BytesToDataType(field_size);
-            if (elem) {
-              ctx.asmgen.Load64(dest, init_list_base, sp_offset);
-              ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + field_offset,
-                                dest, field_dt);
-              elem = elem->next;
-            } else {
-              ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + field_offset,
-                                Asm::kRegZero, field_dt);
-            }
-            sp_offset += 8;
-            field_offset += field_size;
-          }
-        }
-      } else {
-        GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
-        ctx.asmgen.Store64(Asm::kRegBP, obj->bp_offset, dest);
-      }
+      break;
     }
     return;
   case Node::kDefFunc:
@@ -547,7 +564,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDot:
     {
       size_t field_offset = 0;
-      auto ft = node->lhs->type->next;
+      auto ft = GetUserBaseType(node->lhs->type)->next;
       for (; ft; ft = ft->next) {
         if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
           break;
@@ -668,25 +685,10 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.CmpSet(Asm::kCmpBE, dest, lhs_reg, rhs_reg);
     }
     break;
+  case Node::kDefVar:
   case Node::kAssign:
-    if (lhs_t->kind == Type::kArray &&
-        rhs_t->kind == Type::kInitList) {
-      auto reg = UseAnyCalcReg(free_calc_regs);
-      int sp_offset = 0;
-      for (auto elem = node->rhs->lhs; elem; elem = elem->next) {
-        GenerateAsm(ctx, elem, reg, free_calc_regs, labels);
-        ctx.asmgen.Load64(reg, rhs_reg, sp_offset);
-        ctx.asmgen.StoreN(lhs_reg, sp_offset, reg, DataTypeOf(ctx, elem));
-        sp_offset += 8;
-      }
-    } else {
-      ctx.asmgen.StoreN(lhs_reg, 0, rhs_reg, DataTypeOf(ctx, node->lhs));
-    }
-    if (lval && !lhs_in_dest) {
-      ctx.asmgen.Mov64(dest, reg);
-    } else if (!lval && lhs_in_dest) {
-      ctx.asmgen.Mov64(dest, reg);
-    }
+    GenerateAssign(ctx, {node, dest, reg, lhs_reg, rhs_reg, lhs_in_dest},
+                   free_calc_regs, lval);
     break;
   case Node::kAddr:
     break;
