@@ -194,8 +194,12 @@ Asm::DataType BytesToDataType(int bytes) {
   return Asm::kNonStandardDataType;
 }
 
+Asm::DataType DataTypeOf(GenContext& ctx, Type* type) {
+  return BytesToDataType(SizeofType(ctx.src, type));
+}
+
 Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
-  auto dt = BytesToDataType(SizeofType(ctx.src, node->type));
+  auto dt = DataTypeOf(ctx, node->type);
   if (dt == Asm::kNonStandardDataType) {
     cerr << "non-standard data type: " << node->type << endl;
     ErrorAt(ctx.src, *node->token);
@@ -249,21 +253,43 @@ void GenerateAsm(GenContext& ctx, Node* node,
     if (node->rhs) {
       comment_node();
       auto obj = get<Object*>(node->lhs->value);
-      if (obj->type->kind == Type::kArray &&
-          node->rhs->kind == Node::kInitList) {
-        auto init_list_base = UseAnyCalcReg(free_calc_regs);
-        GenerateAsm(ctx, node->rhs, init_list_base, free_calc_regs, labels);
-        int sp_offset = 0;
-        for (auto elem = node->rhs->lhs; elem; elem = elem->next) {
-          ctx.asmgen.Load64(dest, init_list_base, sp_offset);
-          ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
-                            dest, DataTypeOf(ctx, elem));
-          sp_offset += 8;
-        }
-        while (static_cast<size_t>(sp_offset) < SizeofType(ctx.src, obj->type)) {
-          ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
-                            Asm::kRegZero, Asm::kQWord);
-          sp_offset += 8;
+      if (node->rhs->kind == Node::kInitList) {
+        if (obj->type->kind == Type::kArray) {
+          auto init_list_base = UseAnyCalcReg(free_calc_regs);
+          GenerateAsm(ctx, node->rhs, init_list_base, free_calc_regs, labels);
+          int sp_offset = 0;
+          for (auto elem = node->rhs->lhs; elem; elem = elem->next) {
+            ctx.asmgen.Load64(dest, init_list_base, sp_offset);
+            ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
+                              dest, DataTypeOf(ctx, elem));
+            sp_offset += 8;
+          }
+          while (static_cast<size_t>(sp_offset) < SizeofType(ctx.src, obj->type)) {
+            ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + sp_offset,
+                              Asm::kRegZero, Asm::kQWord);
+            sp_offset += 8;
+          }
+        } else if (obj->type->kind == Type::kStruct) {
+          auto init_list_base = UseAnyCalcReg(free_calc_regs);
+          GenerateAsm(ctx, node->rhs, init_list_base, free_calc_regs, labels);
+          size_t field_offset = 0;
+          int sp_offset = 0;
+          auto elem = node->rhs->lhs;
+          for (auto ft = obj->type->next; ft; ft = ft->next) {
+            auto field_size = SizeofType(ctx.src, ft);
+            auto field_dt = BytesToDataType(field_size);
+            if (elem) {
+              ctx.asmgen.Load64(dest, init_list_base, sp_offset);
+              ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + field_offset,
+                                dest, field_dt);
+              elem = elem->next;
+            } else {
+              ctx.asmgen.StoreN(Asm::kRegBP, obj->bp_offset + field_offset,
+                                Asm::kRegZero, field_dt);
+            }
+            sp_offset += 8;
+            field_offset += field_size;
+          }
         }
       } else {
         GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);

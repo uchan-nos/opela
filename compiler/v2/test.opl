@@ -82,6 +82,8 @@ func main() int {
   TEST_INT(7,  testArrayInit());
   TEST_INT(6,  testArrayAssign());
   TEST_INT(-3, testStruct());
+  TEST_INT(5,  testStructPtr());
+  TEST_INT(6,  testStructInit());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -184,6 +186,8 @@ func testBinaryLiteral() int { return 0b0110; }
 func testArrayInit() int { var x [3]int = {3, 4}; return x[0] + x[1] + x[2]; }
 func testArrayAssign() int { var x [3]int; x = {2, 3}; return x[0] * x[1]; }
 func testStruct() int { var x struct{a int;b int;}; x.a=2; x.b=5; return x.a-x.b; }
+func testStructPtr() int { var p *Pair; var x Pair; p=&x; x.a=2; return (*p).a+3;}
+func testStructInit() int { var x struct{a int;b int;c int;} = {5, -1}; return x.a-x.b+x.c; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -200,5 +204,6 @@ func ptrWrite(p *int){ *p = 3; }
 extern "C" alloc4 func(a, b, c, d int) *int;
 extern "C" strlen func(s *byte)int64;
 extern "C" variadic_sum func(argc int, ...) int;
+type Pair struct{a int; b int;};
 
 extern "C" printf func(format *byte, ...) int;
