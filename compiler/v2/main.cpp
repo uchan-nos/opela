@@ -225,31 +225,36 @@ void GenerateAssign(GenContext& ctx, const EvalBinOp& e,
   if (rhs_t->kind == Type::kInitList) {
     if (lhs_t->kind == Type::kArray) {
       const auto reg = UseAnyCalcReg(free_calc_regs);
-      const auto elem_dt = DataTypeOf(ctx, lhs_t->base);
+      const auto elem_size = SizeofType(ctx.src, lhs_t->base);
+      const auto elem_dt = BytesToDataType(elem_size);
+      int elem_offset = 0;
       int sp_offset = 0;
-      auto elem = e.node->rhs->lhs;
+      auto init_elem = e.node->rhs->lhs;
       for (int i = 0; i < get<long>(lhs_t->value); ++i) {
-        if (elem) {
-          ctx.asmgen.Load64(reg, e.rhs_reg, sp_offset);
-          ctx.asmgen.StoreN(e.lhs_reg, sp_offset, reg, elem_dt);
-          elem = elem->next;
+        if (init_elem) {
+          ctx.asmgen.LoadN(reg, e.rhs_reg, sp_offset,
+                           DataTypeOf(ctx, init_elem));
+          ctx.asmgen.StoreN(e.lhs_reg, elem_offset, reg, elem_dt);
+          init_elem = init_elem->next;
         } else {
-          ctx.asmgen.StoreN(e.lhs_reg, sp_offset, Asm::kRegZero, elem_dt);
+          ctx.asmgen.StoreN(e.lhs_reg, elem_offset, Asm::kRegZero, elem_dt);
         }
         sp_offset += 8;
+        elem_offset += elem_size;
       }
     } else if (lhs_t->kind == Type::kStruct) {
       const auto reg = UseAnyCalcReg(free_calc_regs);
       int field_offset = 0;
       int sp_offset = 0;
-      auto elem = e.node->rhs->lhs;
+      auto init_elem = e.node->rhs->lhs;
       for (auto ft = lhs_t->next; ft; ft = ft->next) {
         const auto field_size = SizeofType(ctx.src, ft);
         const auto field_dt = BytesToDataType(field_size);
-        if (elem) {
-          ctx.asmgen.Load64(reg, e.rhs_reg, sp_offset);
+        if (init_elem) {
+          ctx.asmgen.LoadN(reg, e.rhs_reg, sp_offset,
+                           DataTypeOf(ctx, init_elem));
           ctx.asmgen.StoreN(e.lhs_reg, field_offset, reg, field_dt);
-          elem = elem->next;
+          init_elem = init_elem->next;
         } else {
           ctx.asmgen.StoreN(e.lhs_reg, field_offset, Asm::kRegZero, field_dt);
         }

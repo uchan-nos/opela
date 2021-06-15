@@ -71,6 +71,7 @@ class Asm {
   virtual void Leave() = 0;
   virtual void Load64(Register dest, Register addr, int disp) = 0;
   virtual void Load64(Register dest, std::string_view label) = 0;
+  virtual void LoadN(Register dest, Register addr, int disp, DataType dt) = 0;
   virtual void Store64(Register addr, int disp, Register v) = 0;
   virtual void Store64(std::string_view label, Register v) = 0;
   virtual void StoreN(Register addr, int disp, Register v, DataType dt) = 0;

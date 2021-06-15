@@ -141,12 +141,17 @@ class AsmX86_64 : public Asm {
   }
 
   void Load64(Register dest, Register addr, int disp) override {
-    out_ << "    mov " << RegName(dest)
-         << ",[" << RegName(addr) << (disp >= 0 ? "+" : "") << disp << "]\n";
+    LoadN(dest, addr, disp, kQWord);
   }
 
   void Load64(Register dest, std::string_view label) override {
     out_ << "    mov " << RegName(dest) << ",[rip+" << label << "]\n";
+  }
+
+  void LoadN(Register dest, Register addr, int disp, DataType dt) override {
+    out_ << "    mov " << RegName(dest, dt) << ", "
+         << kDataTypeName[dt] << " ptr ["
+         << RegName(addr) << (disp >= 0 ? "+" : "") << disp << "]\n";
   }
 
   void Store64(Register addr, int disp, Register v) override {
