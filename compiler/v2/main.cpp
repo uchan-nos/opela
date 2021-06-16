@@ -272,6 +272,33 @@ void GenerateAssign(GenContext& ctx, const EvalBinOp& e,
   }
 }
 
+void GenerateGVarData(GenContext& ctx, Type* obj_t, Node* init) {
+  obj_t = GetUserBaseType(obj_t);
+  const auto obj_size = SizeofType(ctx.src, obj_t);
+
+  if (init == nullptr || IsLiteral(init) == false) {
+    ctx.asmgen.Output() << "    .zero " << obj_size << '\n';
+  } else if (init->kind == Node::kInt) {
+    ctx.asmgen.Output() << "    " << kSizeMap[obj_size] << ' '
+                        << get<opela_type::Int>(init->value) << '\n';
+  } else if (init->kind == Node::kInitList && obj_t->kind == Type::kArray) {
+    auto init_elem = init->lhs;
+    for (int i = 0; i < get<long>(obj_t->value); ++i) {
+      GenerateGVarData(ctx, obj_t->base, init_elem);
+      init_elem = init_elem ? init_elem->next : nullptr;
+    }
+  } else if (init->kind == Node::kInitList && obj_t->kind == Type::kStruct) {
+    auto init_elem = init->lhs;
+    for (auto ft = obj_t->next; ft; ft = ft->next) {
+      GenerateGVarData(ctx, ft->base, init_elem);
+      init_elem = init_elem ? init_elem->next : nullptr;
+    }
+  } else {
+    cerr << "unknown initial data type" << endl;
+    ErrorAt(ctx.src, *init->token);
+  }
+}
+
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  const LabelSet& labels, bool lval) {
@@ -854,50 +881,11 @@ int main(int argc, char** argv) {
     cout << "0\n";
   }
 
+  GenContext ctx{src, *asmgen, nullptr};
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
-      auto var_def = obj->def;
-      auto obj_size = SizeofType(src, obj->type);
-      asmgen->Output() << obj->id->raw << ": ";
-      if (var_def->rhs && IsLiteral(var_def->rhs)) {
-        if (var_def->rhs->kind == Node::kInt) {
-          asmgen->Output() << kSizeMap[obj_size] << ' '
-                           << get<opela_type::Int>(var_def->rhs->value) << '\n';
-        } else if (var_def->rhs->kind == Node::kInitList) {
-          asmgen->Output() << '\n';
-          auto obj_t = GetUserBaseType(obj->type);
-          if (obj_t->kind == Type::kArray) {
-            const auto elem_size = SizeofType(src, obj_t->base);
-            auto elem = var_def->rhs->lhs;
-            for (int i = 0; i < get<long>(obj_t->value); ++i) {
-              if (elem) {
-                asmgen->Output() << "    " << kSizeMap[elem_size] << ' '
-                                 << get<opela_type::Int>(elem->value) << '\n';
-                elem = elem->next;
-              } else {
-                asmgen->Output() << "    .zero " << elem_size << '\n';
-              }
-            }
-          } else if (obj_t->kind == Type::kStruct) {
-            auto elem = var_def->rhs->lhs;
-            for (auto ft = obj_t->next; ft; ft = ft->next) {
-              const auto field_size = SizeofType(src, ft->base);
-              if (elem) {
-                asmgen->Output() << "    " << kSizeMap[field_size] << ' '
-                                 << get<opela_type::Int>(elem->value) << '\n';
-                elem = elem->next;
-              } else {
-                asmgen->Output() << "    .zero " << field_size << '\n';
-              }
-            }
-          } else {
-            cerr << "not implemented type to initialize" << endl;
-            ErrorAt(src, *var_def->token);
-          }
-        }
-      } else {
-        asmgen->Output() << ".zero " << obj_size << '\n';
-      }
+      asmgen->Output() << obj->id->raw << ":\n";
+      GenerateGVarData(ctx, obj->type, obj->def->rhs);
     }
   }
 }
