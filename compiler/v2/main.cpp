@@ -826,10 +826,15 @@ int main(int argc, char** argv) {
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
       auto var_def = obj->def;
-      if (var_def->rhs && var_def->rhs->kind != Node::kInt) {
+      if (var_def->rhs && IsLiteral(var_def->rhs) == false) {
         GenContext ctx{src, *asmgen, obj};
         GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs, {});
-        ctx.asmgen.Store64(var_def->lhs->token->raw, Asm::kRegA);
+        auto lhs_reg = UseAnyCalcReg(free_calc_regs);
+        GenerateAsm(ctx, var_def->lhs, lhs_reg, free_calc_regs, {}, true);
+        GenerateAssign(
+            ctx,
+            {var_def, lhs_reg, Asm::kRegA, lhs_reg, Asm::kRegA, true},
+            free_calc_regs, false);
       }
     }
   }
@@ -854,9 +859,42 @@ int main(int argc, char** argv) {
       auto var_def = obj->def;
       auto obj_size = SizeofType(src, obj->type);
       asmgen->Output() << obj->id->raw << ": ";
-      if (var_def->rhs && var_def->rhs->kind == Node::kInt) {
-        asmgen->Output() << kSizeMap[obj_size] << ' '
-                         << get<opela_type::Int>(var_def->rhs->value) << '\n';
+      if (var_def->rhs && IsLiteral(var_def->rhs)) {
+        if (var_def->rhs->kind == Node::kInt) {
+          asmgen->Output() << kSizeMap[obj_size] << ' '
+                           << get<opela_type::Int>(var_def->rhs->value) << '\n';
+        } else if (var_def->rhs->kind == Node::kInitList) {
+          asmgen->Output() << '\n';
+          auto obj_t = GetUserBaseType(obj->type);
+          if (obj_t->kind == Type::kArray) {
+            const auto elem_size = SizeofType(src, obj_t->base);
+            auto elem = var_def->rhs->lhs;
+            for (int i = 0; i < get<long>(obj_t->value); ++i) {
+              if (elem) {
+                asmgen->Output() << "    " << kSizeMap[elem_size] << ' '
+                                 << get<opela_type::Int>(elem->value) << '\n';
+                elem = elem->next;
+              } else {
+                asmgen->Output() << "    .zero " << elem_size << '\n';
+              }
+            }
+          } else if (obj_t->kind == Type::kStruct) {
+            auto elem = var_def->rhs->lhs;
+            for (auto ft = obj_t->next; ft; ft = ft->next) {
+              const auto field_size = SizeofType(src, ft->base);
+              if (elem) {
+                asmgen->Output() << "    " << kSizeMap[field_size] << ' '
+                                 << get<opela_type::Int>(elem->value) << '\n';
+                elem = elem->next;
+              } else {
+                asmgen->Output() << "    .zero " << field_size << '\n';
+              }
+            }
+          } else {
+            cerr << "not implemented type to initialize" << endl;
+            ErrorAt(src, *var_def->token);
+          }
+        }
       } else {
         asmgen->Output() << ".zero " << obj_size << '\n';
       }

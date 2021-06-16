@@ -183,3 +183,4 @@ void ResolveType(ASTContext& ctx);
 Type* MergeTypeBinOp(Type* l, Type* r);
 void SetType(ASTContext& ctx, Node* node);
 void SetTypeProgram(ASTContext& ctx, Node* ast);
+bool IsLiteral(Node* node);

@@ -1183,3 +1183,19 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     break;
   }
 }
+
+bool IsLiteral(Node* node) {
+  switch (node->kind) {
+  case Node::kInt:
+    return true;
+  case Node::kInitList:
+    for (auto elem = node->lhs; elem; elem = elem->next) {
+      if (IsLiteral(elem) == false) {
+        return false;
+      }
+    }
+    return true;
+  default:
+    return false;
+  }
+}
