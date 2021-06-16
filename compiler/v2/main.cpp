@@ -584,6 +584,25 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
     }
     return;
+  case Node::kArrow:
+    {
+      size_t field_offset = 0;
+      auto ptr_t = GetUserBaseType(node->lhs->type);
+      auto ft = GetUserBaseType(ptr_t->base)->next;
+      for (; ft; ft = ft->next) {
+        if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
+          break;
+        }
+        field_offset += SizeofType(ctx.src, ft);
+      }
+      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, false);
+      if (lval) {
+        ctx.asmgen.Add64(dest, field_offset);
+      } else {
+        ctx.asmgen.Load64(dest, dest, field_offset);
+      }
+    }
+    return;
   default:
     ; // pass
   }

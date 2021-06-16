@@ -627,6 +627,9 @@ Node* Postfix(ASTContext& ctx) {
     } else if (auto op = ctx.t.Consume(".")) {
       auto id = ctx.t.Expect(Token::kId);
       node = NewNodeBinOp(Node::kDot, op, node, NewNode(Node::kId, id));
+    } else if (auto op = ctx.t.Consume("->")) {
+      auto id = ctx.t.Expect(Token::kId);
+      node = NewNodeBinOp(Node::kArrow, op, node, NewNode(Node::kId, id));
     } else {
       return node;
     }
@@ -1121,6 +1124,23 @@ void SetType(ASTContext& ctx, Node* node) {
     if (auto t = GetUserBaseType(node->lhs->type);
         t->kind != Type::kStruct) {
       cerr << "lhs must be a struct" << endl;
+      ErrorAt(ctx.src, *node->token);
+    } else {
+      for (auto ft = t->next; ft; ft = ft->next) {
+        if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
+          node->type = ft->base;
+          break;
+        }
+      }
+    }
+    break;
+  case Node::kArrow:
+    SetType(ctx, node->lhs);
+    if (auto p = GetUserBaseType(node->lhs->type); p->kind != Type::kPointer) {
+      cerr << "lhs must be a pointer to a struct" << endl;
+      ErrorAt(ctx.src, *node->token);
+    } else if (auto t = GetUserBaseType(p->base); t->kind != Type::kStruct) {
+      cerr << "lhs must be a pointer to a struct" << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
       for (auto ft = t->next; ft; ft = ft->next) {
