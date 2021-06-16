@@ -52,6 +52,7 @@ class Asm {
   Asm(std::ostream& out) : out_{out} {}
   virtual ~Asm() = default;
 
+  virtual std::string RegName(Register reg, DataType dt = kQWord) = 0;
   virtual bool SameReg(Register a, Register b) = 0;
 
   virtual void Mov64(Register dest, std::uint64_t v) = 0;
@@ -103,3 +104,15 @@ enum class AsmArch {
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out);
+
+constexpr Asm::DataType BitsToDataType(int bits) {
+  switch (bits) {
+  case 8: return Asm::kByte;
+  case 16: return Asm::kWord;
+  case 32: return Asm::kDWord;
+  case 64: return Asm::kQWord;
+  }
+  return Asm::kNonStandardDataType;
+}
+
+void PrintAsm(Asm* asmgen, const char* format, ...);

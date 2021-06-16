@@ -1,6 +1,7 @@
 #include "asm.hpp"
 
 #include <array>
+#include <cstdarg>
 #include <iostream>
 #include <limits>
 #include <string>
@@ -47,9 +48,6 @@ class AsmX86_64 : public Asm {
     }
     return "failed to get register name for " + stem;
   }
-  static std::string RegName(Register reg, DataType dt = kQWord) {
-    return RegName(kRegNames[reg], dt);
-  }
 
   static constexpr std::array<const char*, 5> kDataTypeName{
     "", "byte", "word", "dword", "qword"
@@ -57,87 +55,90 @@ class AsmX86_64 : public Asm {
 
   using Asm::Asm;
 
+  std::string RegName(Register reg, DataType dt = kQWord) override {
+    return RegName(kRegNames[reg], dt);
+  }
+
   bool SameReg(Register a, Register b) override {
     return RegName(a) == RegName(b);
   }
 
   void Mov64(Register dest, std::uint64_t v) override {
     if (v <= numeric_limits<uint32_t>::max()) {
-      out_ << "    mov " << RegName(dest, kDWord) << ',' << v << '\n';
+      PrintAsm(this, "    mov %r32, %u64\n", dest, v);
     } else {
-      out_ << "    mov " << RegName(dest) << ',' << v << '\n';
+      PrintAsm(this, "    mov %r64, %u64\n", dest, v);
     }
   }
 
   void Mov64(Register dest, Register v) override {
-    out_ << "    mov " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    mov %r64, %r64\n", dest, v);
   }
 
   void Add64(Register dest, std::uint64_t v) override {
-    out_ << "    add " << RegName(dest) << ',' << v << '\n';
+    PrintAsm(this, "    add %r64, %u64\n", dest, v);
   }
 
   void Add64(Register dest, Register v) override {
-    out_ << "    add " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    add %r64, %r64\n", dest, v);
   }
 
   void Sub64(Register dest, std::uint64_t v) override {
-    out_ << "    sub " << RegName(dest) << ',' << v << '\n';
+    PrintAsm(this, "    sub %r64, %u64\n", dest, v);
   }
 
   void Sub64(Register dest, Register v) override {
-    out_ << "    sub " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    sub %r64, %r64\n", dest, v);
   }
 
   void Mul64(Register dest, Register v) override {
-    out_ << "    imul " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    imul %r64, %r64\n", dest, v);
   }
 
   void Mul64(Register dest, Register a, std::uint64_t b) override {
-    out_ << "    imul " << RegName(dest) << ','
-         << RegName(a) << ',' << b << '\n';
+    PrintAsm(this, "    imul %r64, %r64, %u64\n", dest, a, b);
   }
 
   void Div64(Register dest, Register v) override {
     if (dest == kRegA) {
-      out_ << "    push rdx\n"
-              "    xor edx, edx\n"
-              "    div " << RegName(v) << "\n"
-              "    pop rdx\n";
+      PrintAsm(this, "    push rdx\n"
+                     "    xor edx, edx\n"
+                     "    div %r64\n"
+                     "    pop rdx\n", v);
     } else {
-      out_ << "    push rax\n"
-              "    push rdx\n"
-              "    mov rax, " << RegName(dest) << "\n"
-              "    xor rdx, rdx\n"
-              "    div " << RegName(v) << "\n"
-              "    mov " << RegName(dest) << ", rax\n"
-              "    pop rdx\n"
-              "    pop rax\n";
+      PrintAsm(this, "    push rax\n"
+                     "    push rdx\n"
+                     "    mov rax, %r64\n"
+                     "    xor edx, edx\n"
+                     "    div %r64\n"
+                     "    mov %r64, rax\n"
+                     "    pop rdx\n"
+                     "    pop rax\n", dest, v, dest);
     }
   }
 
   void And64(Register dest, std::uint64_t v) override {
-    out_ << "    and " << RegName(dest) << ',' << v << '\n';
+    PrintAsm(this, "    and %r64, %u64\n", dest, v);
   }
 
   void And64(Register dest, Register v) override {
-    out_ << "    and " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    and %r64, %r64\n", dest, v);
   }
 
   void Or64(Register dest, Register v) override {
-    out_ << "    or " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    or %r64, %r64\n", dest, v);
   }
 
   void Push64(Register reg) override {
-    out_ << "    push " << RegName(reg) << '\n';
+    PrintAsm(this, "    push %r64\n", reg);
   }
 
   void Pop64(Register reg) override {
-    out_ << "    pop " << RegName(reg) << '\n';
+    PrintAsm(this, "    pop %r64\n", reg);
   }
 
   void Leave() override {
-    out_ << "    leave\n";
+    PrintAsm(this, "    leave\n");
   }
 
   void Load64(Register dest, Register addr, int disp) override {
@@ -145,13 +146,12 @@ class AsmX86_64 : public Asm {
   }
 
   void Load64(Register dest, std::string_view label) override {
-    out_ << "    mov " << RegName(dest) << ",[rip+" << label << "]\n";
+    PrintAsm(this, "    mov %r64, [rip+%S]\n", dest, label);
   }
 
   void LoadN(Register dest, Register addr, int disp, DataType dt) override {
-    out_ << "    mov " << RegName(dest, dt) << ", "
-         << kDataTypeName[dt] << " ptr ["
-         << RegName(addr) << (disp >= 0 ? "+" : "") << disp << "]\n";
+    PrintAsm(this, "    mov %rm, %s ptr [%r64%i]\n",
+             dest, dt, kDataTypeName[dt], addr, disp);
   }
 
   void Store64(Register addr, int disp, Register v) override {
@@ -159,91 +159,87 @@ class AsmX86_64 : public Asm {
   }
 
   void Store64(std::string_view label, Register v) override {
-    out_ << "    mov qword ptr [rip+" << label << "]," << RegName(v) << '\n';
+    PrintAsm(this, "    mov qword ptr [rip+%S], %r64\n", label, v);
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
-    out_ << "    mov " << kDataTypeName[dt] << " ptr ["
-         << RegName(addr) << (disp >= 0 ? "+" : "") << disp
-         << "]," << RegName(v, dt) << '\n';
+    PrintAsm(this, "    mov %s ptr [%r64%i], %rm\n",
+             kDataTypeName[dt], addr, disp, v, dt);
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
-    out_ << "    cmp " << RegName(lhs) << ',' << RegName(rhs) << '\n';
-    out_ << "    set";
+    const char* cmp;
     switch (c) {
-      case kCmpE:  out_ << "e"; break;
-      case kCmpNE: out_ << "ne"; break;
-      case kCmpG:  out_ << "g"; break;
-      case kCmpLE: out_ << "le"; break;
-      case kCmpA:  out_ << "a"; break;
-      case kCmpBE: out_ << "be"; break;
+      case kCmpE:  cmp = "e"; break;
+      case kCmpNE: cmp = "ne"; break;
+      case kCmpG:  cmp = "g"; break;
+      case kCmpLE: cmp = "le"; break;
+      case kCmpA:  cmp = "a"; break;
+      case kCmpBE: cmp = "be"; break;
     }
-    out_ << ' ' << RegName(dest, kByte) << '\n';
-    out_ << "    movzx " << RegName(dest, kDWord) << ','
-         << RegName(dest, kByte) << '\n';
+    PrintAsm(this, "    cmp %r64, %r64\n",  lhs, rhs);
+    PrintAsm(this, "    set%s %r8\n",       cmp, dest);
+    PrintAsm(this, "    movzx %r32, %r8\n", dest, dest);
   }
 
   void Xor64(Register dest, Register v) override {
-    out_ << "    xor " << RegName(dest) << ',' << RegName(v) << '\n';
+    PrintAsm(this, "    xor %r64, %r64\n", dest, v);
   }
 
   void Ret() override {
-    out_ << "    ret\n";
+    PrintAsm(this, "    ret\n");
   }
 
   void Jmp(std::string_view label) override {
-    out_ << "    jmp " << label << '\n';
+    PrintAsm(this, "    jmp %S\n", label);
   }
 
   void JmpIfZero(Register v, std::string_view label) override {
-    out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n';
-    out_ << "    jz " << label << '\n';
+    PrintAsm(this, "    test %r64, %r64\n", v, v);
+    PrintAsm(this, "    jz %S\n", label);
   }
 
   void JmpIfNotZero(Register v, std::string_view label) override {
-    out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n';
-    out_ << "    jnz " << label << '\n';
+    PrintAsm(this, "    test %r64, %r64\n", v, v);
+    PrintAsm(this, "    jnz %S\n", label);
   }
 
   void LEA(Register dest, Register base, int disp) override {
-    out_ << "    lea " << RegName(dest)
-         << ", [" << RegName(base)
-         << (disp >= 0 ? "+" : "") << disp << "]\n";
+    PrintAsm(this, "    lea %r64, [%r64%i]\n", dest, base, disp);
   }
 
   void Call(Register addr) override {
-    out_ << "    call " << RegName(addr) << '\n';
+    PrintAsm(this, "    call %r64\n", addr);
   }
 
   void LoadLabelAddr(Register dest, std::string_view label) override {
-    out_ << "    movabs " << RegName(dest) << ",offset " << label << '\n';
+    PrintAsm(this, "    movabs %r64, offset %S\n", dest, label);
   }
 
   void Set1IfNonZero64(Register dest, Register v) override {
-    out_ << "    test " << RegName(v) << ',' << RegName(v) << '\n'
-         << "    setnz " << RegName(dest, kByte) << '\n'
-         << "    movzx " << RegName(dest) << ',' << RegName(dest, kByte) << '\n';
+    PrintAsm(this, "    test %r64, %r64\n", v, v);
+    PrintAsm(this, "    setnz %r8\n",       dest);
+    PrintAsm(this, "    movzx %r32, %r8\n", dest, dest);
   }
 
   void ShiftL64(Register dest, int bits) override {
-    out_ << "    shl " << RegName(dest) << ',' << bits << '\n';
+    PrintAsm(this, "    shl %r64, %i\n", dest, bits);
   }
 
   void ShiftR64(Register dest, int bits) override {
-    out_ << "    shr " << RegName(dest) << ',' << bits << '\n';
+    PrintAsm(this, "    shr %r64, %i\n", dest, bits);
   }
 
   void ShiftAR64(Register dest, int bits) override {
-    out_ << "    sar " << RegName(dest) << ',' << bits << '\n';
+    PrintAsm(this, "    sar %r64, %i\n", dest, bits);
   }
 
   void IncN(Register addr, DataType dt) override {
-    out_ << "    inc " << kDataTypeName[dt] << " ptr [" << RegName(addr) << "]\n";
+    PrintAsm(this, "    inc %s ptr [%r64]\n", kDataTypeName[dt], addr);
   }
 
   void DecN(Register addr, DataType dt) override {
-    out_ << "    dec " << kDataTypeName[dt] << " ptr [" << RegName(addr) << "]\n";
+    PrintAsm(this, "    dec %s ptr [%r64]\n", kDataTypeName[dt], addr);
   }
 };
 
@@ -253,4 +249,83 @@ Asm* NewAsm(AsmArch arch, std::ostream& out) {
     return new AsmX86_64(out);
   }
   return nullptr;
+}
+
+void PrintAsm(Asm* asmgen, const char* format, ...) {
+  va_list args;
+  va_start(args, format);
+
+  const char* p = format;
+  auto& out = asmgen->Output() << showpos;
+
+  auto read_bits = [&]{
+    long bits = strtol(p, NULL, 10);
+    if (bits == 0) {
+      // pass
+    } else if (bits < 10) {
+      p++;
+    } else if (bits < 100) {
+      p += 2;
+    } else if (bits < 1000) {
+      p += 3;
+    }
+    return bits;
+  };
+
+  while (*p) {
+    if (*p != '%') {
+      out << *p;
+      p++;
+      continue;
+    }
+
+    p++;
+    const char c = *p;
+    if (c == 'r') { // register
+      auto r = static_cast<Asm::Register>(va_arg(args, int));
+      p++;
+      if (*p == 'm') {
+        auto dt = static_cast<Asm::DataType>(va_arg(args, int));
+        out << asmgen->RegName(r, dt);
+        p++;
+      } else if (isdigit(*p)) {
+        long bits = read_bits();
+        out << asmgen->RegName(r, BitsToDataType(bits));
+      }
+    } else if (c == 'i') { // signed value
+      p++;
+      long bits = read_bits();
+      int64_t v = 0;
+      if (bits <= 16) {
+        v = va_arg(args, int);
+      } else if (bits == 32) {
+        v = va_arg(args, int32_t);
+      } else if (bits == 64) {
+        v = va_arg(args, int64_t);
+      }
+      out << v;
+    } else if (c == 'u') { // unsigned value
+      p++;
+      long bits = read_bits();
+      uint64_t v = 0;
+      if (bits <= 16) {
+        v = va_arg(args, int);
+      } else if (bits == 32) {
+        v = va_arg(args, uint32_t);
+      } else if (bits == 64) {
+        v = va_arg(args, uint64_t);
+      }
+      out << v;
+    } else if (c == 's') {
+      p++;
+      auto s = va_arg(args, const char*);
+      out << s;
+    } else if (c == 'S') {
+      p++;
+      auto s = va_arg(args, string_view);
+      out << s;
+    }
+  }
+
+  va_end(args);
 }
