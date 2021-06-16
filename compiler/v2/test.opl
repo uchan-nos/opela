@@ -88,6 +88,8 @@ func main() int {
   TEST_INT(0xae, testArrayUInt8());
   TEST_INT(0xad, testStructUInt8());
   TEST_INT(5,  testStructArrowOp());
+  TEST_INT(8,  testStructArg());
+  TEST_INT(42, testRecursiveType());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -196,6 +198,8 @@ func testStructAssign() int { var x Triple; x = {5, -1}; return x.a*x.b+x.c; }
 func testArrayUInt8() int { var x [3]uint8={0xdead@uint16,1@uint16}; return x[0]+x[1]+x[2]; }
 func testStructUInt8() int { var x struct{a uint8;b uint8;}={0xdead@uint16}; return x.a+x.b; }
 func testStructArrowOp() int { var x Pair = {3, 2}; p := &x; return p->a + x.b; }
+func testStructArg() int { var x Pair = {7}; myIncField(&x); return x.a; }
+func testRecursiveType() int { var x Node={42}; var y Node={2, &x}; return y.next->value; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -214,5 +218,7 @@ extern "C" strlen func(s *byte)int64;
 extern "C" variadic_sum func(argc int, ...) int;
 type Pair struct{a int; b int;};
 type Triple struct{a int; b int; c int;};
+func myIncField(x *Pair) { x->a++; }
+type Node struct { value int; next *Node; };
 
 extern "C" printf func(format *byte, ...) int;
