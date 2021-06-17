@@ -327,7 +327,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
         if (lval) {
           ctx.asmgen.LEA(dest, Asm::kRegBP, obj->bp_offset);
         } else {
-          ctx.asmgen.Load64(dest, Asm::kRegBP, obj->bp_offset);
+          ctx.asmgen.LoadN(dest, Asm::kRegBP, obj->bp_offset,
+                           DataTypeOf(ctx, obj->type));
         }
         break;
       case Object::kGlobal:
@@ -335,7 +336,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
         if (lval || obj->kind == Object::kFunc) {
           ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
         } else {
-          ctx.asmgen.Load64(dest, obj->id->raw);
+          ctx.asmgen.LoadN(dest, obj->id->raw, DataTypeOf(ctx, obj->type));
         }
         break;
       }
@@ -366,7 +367,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
       int arg_index = 0;
       for (auto param = node->rhs; param; param = param->next) {
         auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + arg_index);
-        ctx.asmgen.Store64(Asm::kRegBP, -8 * (1 + arg_index), arg_reg);
+        ctx.asmgen.StoreN(Asm::kRegBP, -8 * (1 + arg_index),
+                          arg_reg, Asm::kQWord);
         ++arg_index;
       }
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs, labels);
@@ -607,7 +609,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       if (lval) {
         ctx.asmgen.Add64(dest, field_offset);
       } else {
-        ctx.asmgen.Load64(dest, dest, field_offset);
+        ctx.asmgen.LoadN(dest, dest, field_offset, DataTypeOf(ctx, ft->base));
       }
     }
     return;
@@ -626,7 +628,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       if (lval) {
         ctx.asmgen.Add64(dest, field_offset);
       } else {
-        ctx.asmgen.Load64(dest, dest, field_offset);
+        ctx.asmgen.LoadN(dest, dest, field_offset, DataTypeOf(ctx, ft->base));
       }
     }
     return;
@@ -745,18 +747,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
     break;
   case Node::kDeref:
     if (!lval) {
-      ctx.asmgen.Load64(dest, dest, 0);
+      ctx.asmgen.LoadN(dest, dest, 0, DataTypeOf(ctx, lhs_t));
     }
     break;
   case Node::kSubscr:
-    if (lhs_in_dest) {
-      ctx.asmgen.Mul64(rhs_reg, rhs_reg, SizeofType(ctx.src, lhs_t->base));
-    } else {
-      ctx.asmgen.Mul64(lhs_reg, lhs_reg, SizeofType(ctx.src, rhs_t->base));
-    }
+    ctx.asmgen.Mul64(rhs_reg, rhs_reg, SizeofType(ctx.src, lhs_t->base));
     ctx.asmgen.Add64(dest, reg);
     if (!lval) {
-      ctx.asmgen.Load64(dest, dest, 0);
+      ctx.asmgen.LoadN(dest, dest, 0, DataTypeOf(ctx, lhs_t->base));
     }
     break;
   default:

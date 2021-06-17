@@ -141,30 +141,24 @@ class AsmX86_64 : public Asm {
     PrintAsm(this, "    leave\n");
   }
 
-  void Load64(Register dest, Register addr, int disp) override {
-    LoadN(dest, addr, disp, kQWord);
-  }
-
-  void Load64(Register dest, std::string_view label) override {
-    PrintAsm(this, "    mov %r64, [rip+%S]\n", dest, label);
-  }
-
   void LoadN(Register dest, Register addr, int disp, DataType dt) override {
     PrintAsm(this, "    mov %rm, %s ptr [%r64%i]\n",
              dest, dt, kDataTypeName[dt], addr, disp);
   }
 
-  void Store64(Register addr, int disp, Register v) override {
-    StoreN(addr, disp, v, kQWord);
-  }
-
-  void Store64(std::string_view label, Register v) override {
-    PrintAsm(this, "    mov qword ptr [rip+%S], %r64\n", label, v);
+  void LoadN(Register dest, std::string_view label, DataType dt) override {
+    PrintAsm(this, "    mov %rm, %s ptr [rip+%S]\n",
+             dest, dt, kDataTypeName[dt], label);
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
     PrintAsm(this, "    mov %s ptr [%r64%i], %rm\n",
              kDataTypeName[dt], addr, disp, v, dt);
+  }
+
+  void StoreN(std::string_view label, Register v, DataType dt) override {
+    PrintAsm(this, "    mov %s ptr [rip+%S], %rm\n",
+             kDataTypeName[dt], label, v, dt);
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
