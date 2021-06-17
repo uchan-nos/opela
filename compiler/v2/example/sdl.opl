@@ -1,0 +1,117 @@
+func main() int {
+  if SDL_Init(0x20@uint) < 0 { // SDL_INIT_VIDEO
+    printf("Failed to initialize SDL: %s\n", SDL_GetError());
+    return 1;
+  }
+  printf("Creating a window\n");
+  window := SDL_CreateWindow("SDL by OpeLa", 0x1fff0000, 0x1fff0000, 300, 200, 0@uint);
+  renderer := SDL_CreateRenderer(window, -1, 6@uint);
+
+  color := 0;
+  color_type := 1;
+  dir := 1;
+  var event SDL_Event;
+  logo_x := 50;
+  logo_y := 50;
+
+  for {
+    for SDL_PollEvent(&event) != 0 {
+      if event.event_type == 256@uint32 { // SDL_QUIT
+        SDL_DestroyWindow(window);
+        SDL_Quit();
+        return 0;
+      } else if event.event_type == 0x300@uint32 { // SDL_KEYDOWN
+        if event.keysym.keycode == 0x4000004f { // SDLK_RIGHT
+          logo_x += 1;
+        } else if event.keysym.keycode == 0x40000050 { // SDLK_LEFT
+          logo_x -= 1;
+        } else if event.keysym.keycode == 0x40000051 { // SDLK_DOWN
+          logo_y += 1;
+        } else if event.keysym.keycode == 0x40000052 { // SDLK_UP
+          logo_y -= 1;
+        } else if event.keysym.keycode == ' ' { // SDLK_SPACE
+          color_type++;
+          if color_type == 8 { color_type = 1; }
+        }
+      }
+    }
+
+    color += dir;
+    if color == 255 {
+      dir = -1;
+    } else if color == 0 {
+      dir = 1;
+    }
+
+    r := color_type / 4;
+    g := (color_type - r * 4) / 2;
+    b := color_type - r * 4 - g * 2;
+    SDL_SetRenderDrawColor(renderer, r * color, g * color, b * color, 255);
+    SDL_RenderClear(renderer);
+
+    SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+    // O
+    DrawRect(renderer, 30, 60, logo_x + 40*0, logo_y);
+    // p
+    DrawRect(renderer, 30, 30,   logo_x + 40*1, logo_y + 30);
+    SDL_RenderDrawLine(renderer, logo_x + 40*1, logo_y + 60,
+                                 logo_x + 40*1, logo_y + 90);
+    // e
+    DrawRect(renderer, 30, 15,   logo_x + 40*2,      logo_y + 30);
+    SDL_RenderDrawLine(renderer, logo_x + 40*2,      logo_y + 45,
+                                 logo_x + 40*2,      logo_y + 60);
+    SDL_RenderDrawLine(renderer, logo_x + 40*2,      logo_y + 60,
+                                 logo_x + 40*2 + 30, logo_y + 60);
+    // L
+    SDL_RenderDrawLine(renderer, logo_x + 40*3,      logo_y,
+                                 logo_x + 40*3,      logo_y + 60);
+    SDL_RenderDrawLine(renderer, logo_x + 40*3,      logo_y + 60,
+                                 logo_x + 40*3 + 30, logo_y + 60);
+    // a
+    DrawRect(renderer, 30, 15,   logo_x + 40*4,      logo_y + 45);
+    SDL_RenderDrawLine(renderer, logo_x + 40*4 + 29, logo_y + 30,
+                                 logo_x + 40*4 + 29, logo_y + 45);
+    SDL_RenderDrawLine(renderer, logo_x + 40*4,      logo_y + 30,
+                                 logo_x + 40*4 + 29, logo_y + 30);
+
+    SDL_RenderPresent(renderer);
+    SDL_Delay(16);
+  }
+}
+
+func DrawRect(ren *int, w, h, x, y int) {
+  var r [4]uint32 = {x@uint32, y@uint32, w@uint32, h@uint32};
+  SDL_RenderDrawRect(ren, &r[0]);
+}
+
+extern "C" SDL_Init func(flag uint) int;
+extern "C" SDL_GetError func() *byte;
+extern "C" SDL_CreateWindow func(title *byte, x, y, w, h int, flags uint) *int;
+extern "C" SDL_CreateRenderer func(win *int, index int, flags uint) *int;
+extern "C" SDL_PollEvent func(e *SDL_Event) int;
+extern "C" SDL_DestroyWindow func(win *int);
+extern "C" SDL_Quit func();
+extern "C" SDL_SetRenderDrawColor func(ren *int, r, g, b, a int);
+extern "C" SDL_RenderClear func(ren *int);
+extern "C" SDL_RenderDrawRect func(ren *int, rect *uint32);
+extern "C" SDL_RenderDrawLine func(ren *int, x1, y1, x2, y2 int);
+extern "C" SDL_RenderPresent func(ren *int);
+extern "C" SDL_Delay func(ms int);
+extern "C" printf func(format *byte, ...) int;
+
+type SDL_Event struct {
+  event_type uint32;
+  timestamp uint32;
+  window_id uint32;
+  state uint8;
+  repeat uint8;
+  reserved uint16;
+  keysym struct {
+    scancode int32;
+    keycode int32;
+    mod uint16;
+    reserved uint16;
+    unused uint32;
+  };
+  reserved2 [8]int32;
+};

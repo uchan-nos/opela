@@ -1,0 +1,46 @@
+/*
+ * RPN calculator implemented in OpeLa language
+ */
+func main() {
+  var stk [128]int;
+  stk_i := 0;
+  var a int;
+  var b int;
+
+  var buf [128]byte;
+  bytes := read(0, &buf[0], 128);
+  p := &buf[0];
+
+  for i := 0; i < bytes; i += 1 {
+    if p[i] == ' ' || p[i] == '\n' { // skip spaces
+    } else if p[i] == '+' {
+      b = stk[stk_i];
+      a = stk[stk_i - 1];
+      stk[stk_i - 1] = a + b;
+      stk_i -= 1;
+    } else if p[i] == '-' {
+      b = stk[stk_i];
+      a = stk[stk_i - 1];
+      stk[stk_i - 1] = a - b;
+      stk_i -= 1;
+    } else if p[i] == '*' {
+      b = stk[stk_i];
+      a = stk[stk_i - 1];
+      stk[stk_i - 1] = a * b;
+      stk_i -= 1;
+    } else if p[i] == '/' {
+      b = stk[stk_i];
+      a = stk[stk_i - 1];
+      stk[stk_i - 1] = a / b;
+      stk_i -= 1;
+    } else { // digit
+      stk_i += 1;
+      stk[stk_i] = p[i]@int - '0';
+    }
+  }
+
+  printf("%d\n", stk[stk_i]);
+}
+
+extern "C" read func(fd int, s *byte, n int) int;
+extern "C" printf func(format *byte, ...) int;
