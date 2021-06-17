@@ -55,6 +55,22 @@ Token* NextToken(Source& src, const char* p) {
       continue;
     }
 
+    if (string_view comment{p, 2}; comment == "//") {
+      if (auto end_comment = strchr(p + 2, '\n')) {
+        p = end_comment + 1;
+        continue;
+      }
+      p = src.End();
+      break;
+    } else if (comment == "/*") {
+      if (auto end_comment = strstr(p + 2, "*/")) {
+        p = end_comment + 2;
+        continue;
+      }
+      p = src.End();
+      break;
+    }
+
     if (isdigit(*p)) {
       int base = 10;
       auto literal = p;

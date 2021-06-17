@@ -256,7 +256,7 @@ void PrintAsm(Asm* asmgen, const char* format, ...) {
   va_start(args, format);
 
   const char* p = format;
-  auto& out = asmgen->Output() << showpos;
+  auto& out = asmgen->Output();
 
   auto read_bits = [&]{
     long bits = strtol(p, NULL, 10);
@@ -303,7 +303,7 @@ void PrintAsm(Asm* asmgen, const char* format, ...) {
       } else if (bits == 64) {
         v = va_arg(args, int64_t);
       }
-      out << v;
+      out << showpos << v << noshowpos;
     } else if (c == 'u') { // unsigned value
       p++;
       long bits = read_bits();
