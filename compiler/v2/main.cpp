@@ -804,7 +804,7 @@ int main(int argc, char** argv) {
   src.ReadAll(cin);
   Tokenizer tokenizer(src);
   TypeManager type_manager(src);
-  Scope scope;
+  Scope<Object> scope;
   std::vector<opela_type::String> strings;
   list<Type*> unresolved_types;
   list<Node*> undeclared_ids;

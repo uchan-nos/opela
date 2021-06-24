@@ -168,13 +168,13 @@ void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
 }
 
 Object* AllocateLVar(ASTContext& ctx, Token* name, Node* def) {
-  if (ctx.sc.FindObjectCurrentBlock(name->raw)) {
+  if (ctx.sc.FindCurrentBlock(*name)) {
     cerr << "local variable is redefined" << endl;
     ErrorAt(ctx.src, *name);
   }
   auto lvar = NewVar(name, def, Object::kLocal);
   ctx.locals->push_back(lvar);
-  ctx.sc.PutObject(lvar);
+  ctx.sc.Put(*lvar->id, lvar);
   return lvar;
 }
 
@@ -249,7 +249,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
     node->cond->type = ctx.tm.Find("void");
   }
 
-  ctx.sc.PutObject(func_obj);
+  ctx.sc.Put(*func_obj->id, func_obj);
 
   ctx.sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.sc, ctx.strings,
@@ -286,7 +286,7 @@ Node* ExternDeclaration(ASTContext& ctx) {
   node->cond = attr ? NewNodeStr(ctx, attr) : nullptr;
   auto obj = NewFunc(id, node, Object::kExternal);
   node->value = obj;
-  ctx.sc.PutObject(obj);
+  ctx.sc.Put(*obj->id, obj);
   return node;
 }
 
@@ -330,7 +330,7 @@ Node* VariableDefinition(ASTContext& ctx) {
       var = AllocateLVar(ctx, id, def_node);
     } else { // グローバル
       var = NewVar(id, def_node, Object::kGlobal);
-      ctx.sc.PutObject(var);
+      ctx.sc.Put(*var->id, var);
     }
     id_node->value = var;
 
@@ -643,7 +643,7 @@ Node* Primary(ASTContext& ctx) {
     return node;
   } else if (auto id = ctx.t.Consume(Token::kId)) {
     auto node = NewNode(Node::kId, id);
-    if (auto obj = ctx.sc.FindObject(id->raw)) {
+    if (auto obj = ctx.sc.Find(*id)) {
       node->value = obj;
     } else {
       ctx.undeclared_ids.push_back(node);

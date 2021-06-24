@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "object.hpp"
+#include "scope.hpp"
 #include "token.hpp"
 #include "types.hpp"
 #include "typespec.hpp"
@@ -135,7 +136,7 @@ struct ASTContext {
   Source& src;
   Tokenizer& t;
   TypeManager& tm;
-  Scope& sc;
+  Scope<Object>& sc;
   std::vector<opela_type::String>& strings;
   std::list<Type*>& unresolved_types;
   std::list<Node*>& undeclared_ids;

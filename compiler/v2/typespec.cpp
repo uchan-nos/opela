@@ -171,6 +171,14 @@ bool IsEqual(Type* a, Type* b) {
          IsEqual(a->base, b->base);
 }
 
+TypeManager::TypeManager(Source& src) : src_{src} {
+  types_.Put("void", new Type{Type::kVoid, nullptr, nullptr, 0});
+  types_.Put("int", NewTypeIntegral(Type::kInt, 64));
+  types_.Put("uint", NewTypeIntegral(Type::kUInt, 64));
+  types_.Put("bool", new Type{Type::kBool, nullptr, nullptr, 0});
+  types_.Put("byte", NewTypeIntegral(Type::kUInt, 8));
+}
+
 Type* TypeManager::Find(Token& name) {
   bool err;
   if (auto t = Find(string(name.raw), err); err) {
@@ -191,8 +199,8 @@ Type* TypeManager::Find(const std::string& name) {
 
 Type* TypeManager::Find(const std::string& name, bool& err) {
   err = false;
-  if (auto it = types_.find(name); it != types_.end()) {
-    return it->second;
+  if (auto t = types_.Find(name)) {
+    return t;
   }
 
   size_t integral = 0;
@@ -214,7 +222,7 @@ Type* TypeManager::Find(const std::string& name, bool& err) {
       bits = 10*bits + name[i] - '0';
     }
     auto t = NewTypeIntegral(unsig ? Type::kUInt : Type::kInt, bits);
-    types_[name] = t;
+    types_.Put(name, t);
     return t;
   }
 
@@ -223,7 +231,5 @@ Type* TypeManager::Find(const std::string& name, bool& err) {
 
 Type* TypeManager::Register(Type* t) {
   string name(get<Token*>(t->value)->raw);
-  auto old_t = types_[name];
-  types_[name] = t;
-  return old_t;
+  return types_.Put(name, t);
 }

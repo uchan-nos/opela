@@ -3,6 +3,7 @@
 #include <map>
 #include <string>
 
+#include "scope.hpp"
 #include "source.hpp"
 #include "token.hpp"
 
@@ -77,21 +78,18 @@ bool IsEqual(Type* a, Type* b);
 
 class TypeManager {
  public:
-  TypeManager(Source& src) : src_{src} {}
+  TypeManager(Source& src);
 
   Type* Find(Token& name);
   Type* Find(const std::string& name);
   Type* Register(Type* t); // 同じ名前でこれまで登録されていた型を返す
 
+  void Enter() { types_.Enter(); }
+  void Leave() { types_.Leave(); }
+
  private:
   Type* Find(const std::string& name, bool& err);
 
   Source& src_;
-  std::map<std::string, Type*> types_{
-    {"void", new Type{Type::kVoid, nullptr, nullptr, 0}},
-    {"int", NewTypeIntegral(Type::kInt, 64)},
-    {"uint", NewTypeIntegral(Type::kUInt, 64)},
-    {"bool", new Type{Type::kBool, nullptr, nullptr, 0}},
-    {"byte", NewTypeIntegral(Type::kUInt, 8)},
-  };
+  Scope<Type> types_;
 };
