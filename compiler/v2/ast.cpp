@@ -106,6 +106,9 @@ struct NodeValuePrinter {
   void operator()(Object* v) {
     os << v;
   }
+  void operator()(ConcreteFunc* v) {
+    os << Mangle(*v);
+  }
 };
 
 void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
@@ -236,7 +239,19 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.t.Expect(Token::kFunc);
   auto name = ctx.t.Expect(Token::kId);
   auto node = NewNode(Node::kDefFunc, name);
-  auto func_obj = NewFunc(name, node, Object::kGlobal);
+
+  ctx.tm.Enter();
+  Node* generic_func_node = node;
+  if (ctx.t.Consume("<")) {
+    auto type_var = ctx.t.Expect(Token::kId);
+    ctx.t.Expect(">");
+    generic_func_node = NewNodeOneChild(Node::kDefGFunc, name, node);
+    generic_func_node->rhs = NewNode(Node::kId, type_var);
+    ctx.tm.Register(NewTypeGeneric(type_var));
+  }
+
+  auto func_obj = NewFunc(name, generic_func_node, Object::kGlobal);
+  generic_func_node->value = func_obj;
   node->value = func_obj;
 
   ctx.t.Expect("(");
@@ -254,7 +269,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.sc, ctx.strings,
                       ctx.unresolved_types, ctx.undeclared_ids,
-                      &func_obj->locals};
+                      ctx.concrete_funcs, &func_obj->locals};
 
   for (auto param = node->rhs; param; param = param->next) {
     auto var = AllocateLVar(func_ctx, param->token, param);
@@ -263,7 +278,8 @@ Node* FunctionDefinition(ASTContext& ctx) {
 
   node->lhs = CompoundStatement(func_ctx);
   ctx.sc.Leave();
-  return node;
+  ctx.tm.Leave();
+  return generic_func_node;
 }
 
 Node* ExternDeclaration(ASTContext& ctx) {
@@ -738,6 +754,25 @@ Node* TypeSpecifier(ASTContext& ctx) {
     return NewNodeType(struct_token, struct_t);
   }
 
+  if (auto list_token = ctx.t.Consume("<")) {
+    auto type_list = NewNode(Node::kTList, list_token);
+    if (ctx.t.Consume(">")) {
+      return type_list;
+    }
+    if ((type_list->lhs = TypeSpecifier(ctx)) == nullptr) {
+      cerr << "type must be specified" << endl;
+      ErrorAt(ctx.src, *ctx.t.Peek());
+    }
+    for (auto cur = type_list->lhs; !ctx.t.Consume(">"); cur = cur->next) {
+      ctx.t.Expect(",");
+      if ((cur->next = TypeSpecifier(ctx)) == nullptr) {
+        cerr << "type must be specified" << endl;
+        ErrorAt(ctx.src, *ctx.t.Peek());
+      }
+    }
+    return type_list;
+  }
+
   if (auto name_token = ctx.t.Consume(Token::kId)) {
     auto t = ctx.tm.Find(*name_token);
     if (t == nullptr) {
@@ -1053,6 +1088,18 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kCast:
     SetType(ctx, node->lhs);
+    if (node->lhs->kind == Node::kId) {
+      auto gfunc_obj = get<Object*>(node->lhs->value);
+      auto gfunc_def = gfunc_obj->def;
+      if (gfunc_def->kind == Node::kDefGFunc &&
+          node->rhs->kind == Node::kTList) { // キャスト式 Foo@<t1, t2, ...>
+        auto f = ConcretizeFunc(ctx, gfunc_obj, node->rhs);
+        ctx.concrete_funcs.insert({Mangle(ctx.src, *f), f});
+        node->value = f;
+        node->type = CalcConcreteType(ctx.src, *f);
+        break;
+      }
+    }
     node->type = node->rhs->type;
     break;
   case Node::kParam:
@@ -1151,6 +1198,11 @@ void SetType(ASTContext& ctx, Node* node) {
       }
     }
     break;
+  case Node::kDefGFunc:
+    SetType(ctx, node->lhs);
+    break;
+  case Node::kTList:
+    break;
   }
 }
 
@@ -1177,6 +1229,10 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     break;
   case Node::kExtern:
   case Node::kTypedef:
+    SetTypeProgram(ctx, ast->next);
+    break;
+  case Node::kDefGFunc:
+    SetTypeProgram(ctx, ast->lhs);
     SetTypeProgram(ctx, ast->next);
     break;
   default:

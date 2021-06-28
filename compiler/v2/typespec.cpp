@@ -52,6 +52,10 @@ Type* NewTypeArray(Type* base, long size) {
   return new Type{Type::kArray, base, nullptr, size};
 }
 
+Type* NewTypeGeneric(Token* name) {
+  return new Type{Type::kGeneric, nullptr, nullptr, name};
+}
+
 std::ostream& operator<<(std::ostream& os, Type* t) {
   switch (t->kind) {
   case Type::kUndefined: os << "Undefined-type"; break;
@@ -148,6 +152,9 @@ size_t SizeofType(Source& src, Type* t) {
       }
       return s;
     }
+  case Type::kGeneric:
+    cerr << "sizeof kGeneric is not defined" << endl;
+    Error();
   }
   cerr << "should not come here: type=" << t << endl;
   Error();

@@ -5,6 +5,7 @@
 #include <variant>
 #include <vector>
 
+#include "generics.hpp"
 #include "object.hpp"
 #include "scope.hpp"
 #include "token.hpp"
@@ -59,6 +60,8 @@ struct Node {
     kInitList,// 初期値リスト {e1, e2, ...}
     kDot,     // 構造体アクセス演算子
     kArrow,   // 構造体ポインタアクセス演算子
+    kDefGFunc,// ジェネリック関数の定義
+    kTList,  // 型パラメタ <T1, T2, ...>
   } kind;
 
   Token* token; // このノードを代表するトークン
@@ -117,6 +120,11 @@ struct Node {
    *   lhs: 演算対象の式
    * kInitList:
    *   lhs: 先頭の式（順に next で繋がる）
+   * kDefGFunc:
+   *   lhs: kDefFunc ノード
+   *   rhs: 型引数リスト（要素は kId ノード）
+   * kTList:
+   *   lhs: 型情報（kType ノード。順に next で繋がる）
    */
 
   /* next の用途
@@ -128,7 +136,7 @@ struct Node {
    */
 
   std::variant<VariantDummyType, opela_type::Int, StringIndex, Object*,
-               opela_type::Byte> value = {};
+               opela_type::Byte, ConcreteFunc*> value = {};
   int ershov = 0;
 };
 
@@ -140,6 +148,7 @@ struct ASTContext {
   std::vector<opela_type::String>& strings;
   std::list<Type*>& unresolved_types;
   std::list<Node*>& undeclared_ids;
+  std::map<std::string, ConcreteFunc*>& concrete_funcs;
   std::vector<Object*>* locals;
 };
 

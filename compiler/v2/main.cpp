@@ -10,6 +10,7 @@
 
 #include "asm.hpp"
 #include "ast.hpp"
+#include "generics.hpp"
 #include "magic_enum.hpp"
 #include "object.hpp"
 #include "source.hpp"
@@ -88,7 +89,7 @@ int SetErshovNumber(Source& src, Node* expr) {
 struct GenContext {
   Source& src;
   Asm& asmgen;
-  Object* func;
+  ConcreteFunc* conc_func;
 };
 
 struct LabelSet {
@@ -129,6 +130,13 @@ uint64_t GenMaskBits(int bit_width) {
 
 int CeilBitsToRegSize(int bits) {
   return ((bits + 7) >> 3) << 3;
+}
+
+Type* T(GenContext& ctx, Type* type) {
+  if (type == nullptr || type->kind != Type::kGeneric) {
+    return type;
+  }
+  return ctx.conc_func->gtype[string(get<Token*>(type->value)->raw)];
 }
 
 bool GenCast(GenContext& ctx, Asm::Register dest,
@@ -195,7 +203,7 @@ Asm::DataType BytesToDataType(int bytes) {
 }
 
 Asm::DataType DataTypeOf(GenContext& ctx, Type* type) {
-  return BytesToDataType(SizeofType(ctx.src, type));
+  return BytesToDataType(SizeofType(ctx.src, T(ctx, type)));
 }
 
 Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
@@ -350,7 +358,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
-      GenContext func_ctx{ctx.src, ctx.asmgen, func};
+      GenContext func_ctx{ctx.src, ctx.asmgen, new ConcreteFunc{func, {}}};
 
       int stack_size = 0;
       for (Object* obj : func->locals) {
@@ -373,7 +381,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
-      ctx.asmgen.Output() << func->id->raw << ".exit:\n";
+      ctx.asmgen.Output() << Mangle(ctx.src, *func_ctx.conc_func) << ".exit:\n";
       ctx.asmgen.Leave();
       ctx.asmgen.Ret();
       return;
@@ -382,13 +390,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     if (node->lhs) {
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
-      if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base)) {
+      if (GenCast(ctx, dest, node->lhs->type, ctx.conc_func->func->type->base)) {
         cerr << "not implemented cast from " << node->lhs->type
-             << " to " << ctx.func->type->base << endl;
+             << " to " << ctx.conc_func->func->type->base << endl;
         ErrorAt(ctx.src, *node->token);
       }
     }
-    ctx.asmgen.Jmp(string{ctx.func->id->raw} + ".exit");
+    ctx.asmgen.Jmp(Mangle(ctx.src, *ctx.conc_func) + ".exit");
     return;
   case Node::kIf:
     comment_node();
@@ -525,6 +533,12 @@ void GenerateAsm(GenContext& ctx, Node* node,
     ctx.asmgen.Mov64(dest, SizeofType(ctx.src, node->lhs->type));
     return;
   case Node::kCast:
+    if (node->rhs->kind == Node::kTList) {
+      auto conc_func = get<ConcreteFunc*>(node->value);
+      auto mangled_name = Mangle(ctx.src, *conc_func);
+      ctx.asmgen.LoadLabelAddr(dest, mangled_name);
+      return;
+    }
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, lval);
     if (GenCast(ctx, dest, node->lhs->type, node->rhs->type, true)) {
       cerr << "not implemented cast from " << node->lhs->type
@@ -663,8 +677,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   auto lhs_reg = lhs_in_dest ? dest : reg;
   auto rhs_reg = lhs_in_dest ? reg : dest;
 
-  auto lhs_t = GetUserBaseType(node->lhs->type);
-  auto rhs_t = node->rhs ? GetUserBaseType(node->rhs->type) : nullptr;
+  auto lhs_t = GetUserBaseType(T(ctx, node->lhs->type));
+  auto rhs_t = node->rhs ? GetUserBaseType(T(ctx, node->rhs->type)) : nullptr;
 
   comment_node();
 
@@ -808,8 +822,9 @@ int main(int argc, char** argv) {
   std::vector<opela_type::String> strings;
   list<Type*> unresolved_types;
   list<Node*> undeclared_ids;
+  map<string, ConcreteFunc*> concrete_funcs;
   ASTContext ast_ctx{src, tokenizer, type_manager, scope, strings,
-                     unresolved_types, undeclared_ids, nullptr};
+                     unresolved_types, undeclared_ids, concrete_funcs, nullptr};
   auto ast = Program(ast_ctx);
 
   if (verbosity >= 1) {
@@ -839,9 +854,45 @@ int main(int argc, char** argv) {
   auto globals = scope.GetGlobals();
   cout << ".intel_syntax noprefix\n";
   for (auto obj : globals) {
-    if (obj->linkage == Object::kGlobal && obj->kind == Object::kFunc) {
-      GenContext ctx{src, *asmgen, obj};
+    if (obj->linkage == Object::kGlobal && obj->kind == Object::kFunc &&
+        obj->def->kind == Node::kDefFunc) {
+      GenContext ctx{src, *asmgen, nullptr};
       GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs, {});
+    }
+  }
+  for (auto [ conc_name, conc_func ] : concrete_funcs) {
+    GenContext ctx{src, *asmgen, conc_func};
+    for (auto var_name = conc_func->func->def->rhs;
+         var_name; var_name = var_name->next) {
+      cerr << "func type var: " << var_name->token->raw << endl;
+    }
+    //GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs, {});
+    {
+      int stack_size = 0;
+      for (Object* obj : conc_func->func->locals) {
+        auto t = T(ctx, obj->type);
+        stack_size += (SizeofType(ctx.src, t) + 7) & ~7;
+        obj->bp_offset = -stack_size;
+      }
+      stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
+
+      ctx.asmgen.Output() << ".global " << conc_name << '\n'
+                          << conc_name << ":\n";
+      ctx.asmgen.Push64(Asm::kRegBP);
+      ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
+      ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
+      int arg_index = 0;
+      for (auto param = conc_func->func->def->lhs->rhs; param; param = param->next) {
+        auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + arg_index);
+        ctx.asmgen.StoreN(Asm::kRegBP, -8 * (1 + arg_index),
+                          arg_reg, Asm::kQWord);
+        ++arg_index;
+      }
+      GenerateAsm(ctx, conc_func->func->def->lhs->lhs, Asm::kRegA, free_calc_regs, {});
+      ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
+      ctx.asmgen.Output() << conc_name << ".exit:\n";
+      ctx.asmgen.Leave();
+      ctx.asmgen.Ret();
     }
   }
 
@@ -852,7 +903,7 @@ int main(int argc, char** argv) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
       auto var_def = obj->def;
       if (var_def->rhs && IsLiteral(var_def->rhs) == false) {
-        GenContext ctx{src, *asmgen, obj};
+        GenContext ctx{src, *asmgen, nullptr};
         GenerateAsm(ctx, var_def->rhs, Asm::kRegA, free_calc_regs, {});
         auto lhs_reg = UseAnyCalcReg(free_calc_regs);
         GenerateAsm(ctx, var_def->lhs, lhs_reg, free_calc_regs, {}, true);

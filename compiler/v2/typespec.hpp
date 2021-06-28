@@ -24,6 +24,7 @@ struct Type {
     kArray,
     kInitList,
     kStruct,
+    kGeneric, // 型変数
   } kind;
 
   Type* base;
@@ -54,6 +55,7 @@ struct Type {
    * kParam:      [Token*] 引数名、フィールド名（無名なら nullptr）
    * kUnresolved: [Token*] 解決されていない型の名前
    * kUser:       [Token*] 型名
+   * kGeneric:    [Token*] 型変数名
    */
   std::variant<long, Token*> value;
 };
@@ -66,6 +68,7 @@ Type* NewTypeParam(Type* t, Token* name);
 Type* NewTypeUnresolved(Token* name);
 Type* NewTypeUser(Type* base, Token* name);
 Type* NewTypeArray(Type* base, long size);
+Type* NewTypeGeneric(Token* name);
 
 std::ostream& operator<<(std::ostream& os, Type* t);
 size_t SizeofType(Source& src, Type* t);
