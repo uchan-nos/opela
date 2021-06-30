@@ -1,6 +1,7 @@
 #include "generics.hpp"
 
 #include <cassert>
+#include <cstring>
 #include <functional>
 #include <iostream>
 #include <sstream>
@@ -116,4 +117,135 @@ ConcreteFunc* ConcretizeFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {
   }
 
   return cf;
+}
+
+
+Type* ConcretizeType(ConcContext& ctx, Type* type) {
+  if (type == nullptr) {
+    return nullptr;
+  }
+  if (type->base == nullptr && type->next == nullptr) {
+    if (type->kind != Type::kGeneric) {
+      return type;
+    }
+    return ctx.gtype[string(get<Token*>(type->value)->raw)];
+  }
+
+  auto base_dup = ConcretizeType(ctx, type->base);
+  auto next_dup = ConcretizeType(ctx, type->next);
+  if (base_dup == type->base && next_dup == type->next) {
+    return type;
+  }
+
+  auto dup = NewType(type->kind);
+  dup->base = base_dup;
+  dup->next = next_dup;
+  dup->value = type->value;
+  return dup;
+}
+
+Node* ConcretizeNode(ConcContext& ctx, Node* node) {
+  if (node == nullptr) {
+    return nullptr;
+  }
+
+  Node* dup = nullptr;
+  switch (node->kind) {
+  case Node::kParam:
+    dup = NewNode(Node::kParam, node->token);
+    dup->lhs = ConcretizeNode(ctx, node->lhs);
+    dup->next = ConcretizeNode(ctx, node->next);
+    dup->type = dup->lhs->type;
+    break;
+  case Node::kType:
+    dup = NewNodeType(node->token, ConcretizeType(ctx, node->type));
+    break;
+  case Node::kBlock:
+    dup = NewNode(Node::kBlock, node->token);
+    for (auto stmt = node->next, cur = dup; stmt;
+         stmt = stmt->next, cur = cur->next) {
+      cur->next = ConcretizeNode(ctx, stmt);
+    }
+    break;
+  case Node::kRet:
+    dup = NewNode(Node::kRet, node->token);
+    dup->lhs = ConcretizeNode(ctx, node->lhs);
+    dup->type = dup->lhs->type;
+    break;
+  case Node::kAdd:
+    dup = NewNode(Node::kAdd, node->token);
+    dup->lhs = ConcretizeNode(ctx, node->lhs);
+    dup->rhs = ConcretizeNode(ctx, node->rhs);
+    dup->type = MergeTypeBinOp(dup->lhs->type, dup->rhs->type);
+    break;
+  case Node::kId:
+    dup = NewNode(Node::kId, node->token);
+    if (auto p = get_if<Object*>(&node->value)) {
+      Object* obj = *p;
+      auto obj_dup = new Object{*obj};
+      for (size_t i = 0; i < ctx.func->locals.size(); ++i) {
+        if (ctx.func->locals[i] == obj) {
+          ctx.func->locals[i] = obj_dup;
+          break;
+        }
+      }
+      dup->value = obj_dup;
+      dup->type = obj_dup->type = ConcretizeType(ctx, obj->type);
+    } else {
+      dup->type = ConcretizeType(ctx, node->type);
+    }
+    break;
+  case Node::kArrow:
+    dup = NewNode(Node::kArrow, node->token);
+    dup->lhs = ConcretizeNode(ctx, node->lhs);
+    dup->rhs = ConcretizeNode(ctx, node->rhs);
+    if (auto p = GetUserBaseType(dup->lhs->type); p->kind != Type::kPointer) {
+      cerr << "lhs must be a pointer to a struct: " << p << endl;
+      ErrorAt(ctx.src, *node->token);
+    } else if (auto t = GetUserBaseType(p->base); t->kind != Type::kStruct) {
+      cerr << "lhs must be a pointer to a struct: " << t << endl;
+      ErrorAt(ctx.src, *node->token);
+    } else {
+      for (auto ft = t->next; ft; ft = ft->next) {
+        if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
+          dup->type = ft->base;
+          break;
+        }
+      }
+      if (dup->type == nullptr) {
+        cerr << "no such member" << endl;
+        ErrorAt(ctx.src, *node->rhs->token);
+      }
+    }
+    break;
+  default:
+    cerr << "ConcretizeNode: not implemented" << endl;
+    ErrorAt(ctx.src, *node->token);
+  }
+
+  return dup;
+}
+
+Node* ConcretizeDefFunc(ConcContext& ctx, Node* def) {
+  assert(def->kind == Node::kDefFunc);
+  auto def_dup = NewNode(Node::kDefFunc, def->token);
+
+  auto func = get<Object*>(def->value);
+  Type* conc_func_t = ConcretizeType(ctx, func->type);
+  char* conc_name = strdup(Mangle(func->id->raw, conc_func_t).c_str());
+  auto conc_name_token = new Token{Token::kId, string_view{conc_name}, {}};
+
+  auto obj_dup = NewFunc(conc_name_token, def, func->linkage);
+  obj_dup->locals = func->locals;
+  obj_dup->type = conc_func_t;
+  ctx.func = obj_dup;
+
+  def_dup->lhs = ConcretizeNode(ctx, def->lhs);
+  def_dup->rhs = ConcretizeNode(ctx, def->rhs);
+  def_dup->cond = ConcretizeNode(ctx, def->cond);
+
+  //obj_dup->type = NewTypeFunc(def_dup->cond->type, ParamTypeFromDeclList(def_dup->rhs));
+  def_dup->value = obj_dup;
+
+  return def_dup;
 }

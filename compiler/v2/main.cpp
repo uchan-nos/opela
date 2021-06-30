@@ -132,7 +132,7 @@ int CeilBitsToRegSize(int bits) {
   return ((bits + 7) >> 3) << 3;
 }
 
-Type* T(GenContext& ctx, Type* type) {
+Type* ResolveGeneric(GenContext& ctx, Type* type) {
   if (type == nullptr || type->kind != Type::kGeneric) {
     return type;
   }
@@ -203,7 +203,7 @@ Asm::DataType BytesToDataType(int bytes) {
 }
 
 Asm::DataType DataTypeOf(GenContext& ctx, Type* type) {
-  return BytesToDataType(SizeofType(ctx.src, T(ctx, type)));
+  return BytesToDataType(SizeofType(ctx.src, ResolveGeneric(ctx, type)));
 }
 
 Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
@@ -310,10 +310,13 @@ void GenerateGVarData(GenContext& ctx, Type* obj_t, Node* init) {
 void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  const LabelSet& labels, bool lval) {
-  auto comment_node = [ctx, node]{
+  auto comment_node = [&ctx, node]{
     ctx.asmgen.Output() << "    # ";
     PrintAST(ctx.asmgen.Output(), node);
     ctx.asmgen.Output() << '\n';
+  };
+  auto T = [&ctx](Type* t) {
+    return ResolveGeneric(ctx, t);
   };
 
   switch (node->kind) {
@@ -381,7 +384,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
-      ctx.asmgen.Output() << Mangle(ctx.src, *func_ctx.conc_func) << ".exit:\n";
+      ctx.asmgen.Output() << func->id->raw << ".exit:\n";
       ctx.asmgen.Leave();
       ctx.asmgen.Ret();
       return;
@@ -396,7 +399,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
         ErrorAt(ctx.src, *node->token);
       }
     }
-    ctx.asmgen.Jmp(Mangle(ctx.src, *ctx.conc_func) + ".exit");
+    ctx.asmgen.Jmp(string{ctx.conc_func->func->id->raw} + ".exit");
     return;
   case Node::kIf:
     comment_node();
@@ -630,8 +633,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kArrow:
     {
       size_t field_offset = 0;
-      auto ptr_t = GetUserBaseType(node->lhs->type);
-      auto ft = GetUserBaseType(ptr_t->base)->next;
+      auto ptr_t = GetUserBaseType(T(node->lhs->type));
+      auto ft = GetUserBaseType(T(ptr_t->base))->next;
       for (; ft; ft = ft->next) {
         if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
           break;
@@ -677,8 +680,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   auto lhs_reg = lhs_in_dest ? dest : reg;
   auto rhs_reg = lhs_in_dest ? reg : dest;
 
-  auto lhs_t = GetUserBaseType(T(ctx, node->lhs->type));
-  auto rhs_t = node->rhs ? GetUserBaseType(T(ctx, node->rhs->type)) : nullptr;
+  auto lhs_t = GetUserBaseType(T(node->lhs->type));
+  auto rhs_t = node->rhs ? GetUserBaseType(T(node->rhs->type)) : nullptr;
 
   comment_node();
 
@@ -866,34 +869,10 @@ int main(int argc, char** argv) {
          var_name; var_name = var_name->next) {
       cerr << "func type var: " << var_name->token->raw << endl;
     }
-    //GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs, {});
-    {
-      int stack_size = 0;
-      for (Object* obj : conc_func->func->locals) {
-        auto t = T(ctx, obj->type);
-        stack_size += (SizeofType(ctx.src, t) + 7) & ~7;
-        obj->bp_offset = -stack_size;
-      }
-      stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
-
-      ctx.asmgen.Output() << ".global " << conc_name << '\n'
-                          << conc_name << ":\n";
-      ctx.asmgen.Push64(Asm::kRegBP);
-      ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
-      ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
-      int arg_index = 0;
-      for (auto param = conc_func->func->def->lhs->rhs; param; param = param->next) {
-        auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + arg_index);
-        ctx.asmgen.StoreN(Asm::kRegBP, -8 * (1 + arg_index),
-                          arg_reg, Asm::kQWord);
-        ++arg_index;
-      }
-      GenerateAsm(ctx, conc_func->func->def->lhs->lhs, Asm::kRegA, free_calc_regs, {});
-      ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
-      ctx.asmgen.Output() << conc_name << ".exit:\n";
-      ctx.asmgen.Leave();
-      ctx.asmgen.Ret();
-    }
+    ConcContext conc_ctx{src, conc_func->gtype, nullptr};
+    Node* conc_def_node = ConcretizeDefFunc(conc_ctx,
+                                            conc_func->func->def->lhs);
+    GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
   }
 
   asmgen->Output() << ".global _init_opela\n_init_opela:\n";

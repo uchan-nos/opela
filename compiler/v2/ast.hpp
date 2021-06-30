@@ -140,6 +140,17 @@ struct Node {
   int ershov = 0;
 };
 
+Node* NewNode(Node::Kind kind, Token* token);
+Node* NewNodeInt(Token* token, opela_type::Int value);
+Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs);
+Node* NewNodeOneChild(Node::Kind kind, Token* token, Node* child);
+Node* NewNodeCond(Node::Kind kind, Token* token,
+                  Node* cond, Node* lhs, Node* rhs);
+Node* NewNodeType(Token* token, Type* type);
+Node* NewNodeType(ASTContext& ctx, Token* token);
+Node* NewNodeStr(ASTContext& ctx, Token* str);
+Node* NewNodeChar(Token* ch);
+
 struct ASTContext {
   Source& src;
   Tokenizer& t;
@@ -194,3 +205,4 @@ Type* MergeTypeBinOp(Type* l, Type* r);
 void SetType(ASTContext& ctx, Node* node);
 void SetTypeProgram(ASTContext& ctx, Node* ast);
 bool IsLiteral(Node* node);
+Type* ParamTypeFromDeclList(Node* plist);

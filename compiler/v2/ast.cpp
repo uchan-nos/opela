@@ -13,65 +13,6 @@ using namespace std;
 
 namespace {
 
-Node* NewNode(Node::Kind kind, Token* token) {
-  return new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
-}
-
-Node* NewNodeInt(Token* token, opela_type::Int value) {
-  auto node = NewNode(Node::kInt, token);
-  node->value = value;
-  return node;
-}
-
-Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
-  auto node = NewNode(kind, op);
-  node->lhs = lhs;
-  node->rhs = rhs;
-  return node;
-}
-
-Node* NewNodeOneChild(Node::Kind kind, Token* token, Node* child) {
-  auto node = NewNode(kind, token);
-  node->lhs = child;
-  return node;
-}
-
-Node* NewNodeCond(Node::Kind kind, Token* token,
-                  Node* cond, Node* lhs, Node* rhs) {
-  auto node = NewNodeBinOp(kind, token, lhs, rhs);
-  node->cond = cond;
-  return node;
-}
-
-Node* NewNodeType(Token* token, Type* type) {
-  auto node = NewNode(Node::kType, token);
-  node->type = type;
-  return node;
-}
-
-Node* NewNodeType(ASTContext& ctx, Token* token) {
-  auto t = ctx.tm.Find(*token);
-  if (t == nullptr) {
-    t = NewTypeUnresolved(token);
-    cerr << "not implemented: unresolved type handling" << endl;
-    ErrorAt(ctx.src, *token);
-  }
-  return NewNodeType(token, t);
-}
-
-Node* NewNodeStr(ASTContext& ctx, Token* str) {
-  auto node = NewNode(Node::kStr, str);
-  node->value = StringIndex{ctx.strings.size()};
-  ctx.strings.push_back(DecodeEscapeSequence(ctx.src, *str));
-  return node;
-}
-
-Node* NewNodeChar(Token* ch) {
-  auto node = NewNode(Node::kChar, ch);
-  node->value = get<opela_type::Byte>(ch->value);
-  return node;
-}
-
 map<Node*, size_t> node_number;
 size_t NodeNo(Node* node) {
   if (auto it = node_number.find(node); it != node_number.end()) {
@@ -186,28 +127,69 @@ const map<char, Node::Kind> kUnaryOps{
   {'*', Node::kDeref},
 };
 
-Type* ParamTypeFromDeclList(Node* plist) {
-  if (plist == nullptr) {
-    return nullptr;
-  }
-
-  auto param_type = NewTypeParam(plist->lhs->type, plist->token);
-  auto cur = param_type;
-  plist = plist->next;
-  while (plist) {
-    if (plist->kind == Node::kVParam) {
-      cur->next = NewType(Type::kVParam);
-      break;
-    }
-    cur->next = NewTypeParam(plist->lhs->type, plist->token);
-    cur = cur->next;
-    plist = plist->next;
-  }
-  return param_type;
-}
-
 } // namespace
 
+// ノードコンストラクタ
+Node* NewNode(Node::Kind kind, Token* token) {
+  return new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
+}
+
+Node* NewNodeInt(Token* token, opela_type::Int value) {
+  auto node = NewNode(Node::kInt, token);
+  node->value = value;
+  return node;
+}
+
+Node* NewNodeBinOp(Node::Kind kind, Token* op, Node* lhs, Node* rhs) {
+  auto node = NewNode(kind, op);
+  node->lhs = lhs;
+  node->rhs = rhs;
+  return node;
+}
+
+Node* NewNodeOneChild(Node::Kind kind, Token* token, Node* child) {
+  auto node = NewNode(kind, token);
+  node->lhs = child;
+  return node;
+}
+
+Node* NewNodeCond(Node::Kind kind, Token* token,
+                  Node* cond, Node* lhs, Node* rhs) {
+  auto node = NewNodeBinOp(kind, token, lhs, rhs);
+  node->cond = cond;
+  return node;
+}
+
+Node* NewNodeType(Token* token, Type* type) {
+  auto node = NewNode(Node::kType, token);
+  node->type = type;
+  return node;
+}
+
+Node* NewNodeType(ASTContext& ctx, Token* token) {
+  auto t = ctx.tm.Find(*token);
+  if (t == nullptr) {
+    t = NewTypeUnresolved(token);
+    cerr << "not implemented: unresolved type handling" << endl;
+    ErrorAt(ctx.src, *token);
+  }
+  return NewNodeType(token, t);
+}
+
+Node* NewNodeStr(ASTContext& ctx, Token* str) {
+  auto node = NewNode(Node::kStr, str);
+  node->value = StringIndex{ctx.strings.size()};
+  ctx.strings.push_back(DecodeEscapeSequence(ctx.src, *str));
+  return node;
+}
+
+Node* NewNodeChar(Token* ch) {
+  auto node = NewNode(Node::kChar, ch);
+  node->value = get<opela_type::Byte>(ch->value);
+  return node;
+}
+
+// パーサー
 Node* Program(ASTContext& ctx) {
   auto node = DeclarationSequence(ctx);
   ctx.t.Expect(Token::kEOF);
@@ -1183,10 +1165,12 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kArrow:
     SetType(ctx, node->lhs);
-    if (auto p = GetUserBaseType(node->lhs->type); p->kind != Type::kPointer) {
+    if (auto p = GetUserBaseType(node->lhs->type);
+        p->kind != Type::kGeneric && p->kind != Type::kPointer) {
       cerr << "lhs must be a pointer to a struct" << endl;
       ErrorAt(ctx.src, *node->token);
-    } else if (auto t = GetUserBaseType(p->base); t->kind != Type::kStruct) {
+    } else if (auto t = GetUserBaseType(p->base);
+               t->kind != Type::kGeneric && t->kind != Type::kStruct) {
       cerr << "lhs must be a pointer to a struct" << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
@@ -1254,4 +1238,24 @@ bool IsLiteral(Node* node) {
   default:
     return false;
   }
+}
+
+Type* ParamTypeFromDeclList(Node* plist) {
+  if (plist == nullptr) {
+    return nullptr;
+  }
+
+  auto param_type = NewTypeParam(plist->lhs->type, plist->token);
+  auto cur = param_type;
+  plist = plist->next;
+  while (plist) {
+    if (plist->kind == Node::kVParam) {
+      cur->next = NewType(Type::kVParam);
+      break;
+    }
+    cur->next = NewTypeParam(plist->lhs->type, plist->token);
+    cur = cur->next;
+    plist = plist->next;
+  }
+  return param_type;
 }

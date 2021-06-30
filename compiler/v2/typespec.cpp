@@ -112,6 +112,9 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     }
     os << '}';
     break;
+  case Type::kGeneric:
+    os << get<Token*>(t->value)->raw;
+    break;
   }
   return os;
 }
