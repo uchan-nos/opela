@@ -89,7 +89,7 @@ int SetErshovNumber(Source& src, Node* expr) {
 struct GenContext {
   Source& src;
   Asm& asmgen;
-  ConcreteFunc* conc_func;
+  Object* func;
 };
 
 struct LabelSet {
@@ -130,13 +130,6 @@ uint64_t GenMaskBits(int bit_width) {
 
 int CeilBitsToRegSize(int bits) {
   return ((bits + 7) >> 3) << 3;
-}
-
-Type* ResolveGeneric(GenContext& ctx, Type* type) {
-  if (type == nullptr || type->kind != Type::kGeneric) {
-    return type;
-  }
-  return ctx.conc_func->gtype[string(get<Token*>(type->value)->raw)];
 }
 
 bool GenCast(GenContext& ctx, Asm::Register dest,
@@ -203,7 +196,7 @@ Asm::DataType BytesToDataType(int bytes) {
 }
 
 Asm::DataType DataTypeOf(GenContext& ctx, Type* type) {
-  return BytesToDataType(SizeofType(ctx.src, ResolveGeneric(ctx, type)));
+  return BytesToDataType(SizeofType(ctx.src, type));
 }
 
 Asm::DataType DataTypeOf(GenContext& ctx, Node* node) {
@@ -315,9 +308,6 @@ void GenerateAsm(GenContext& ctx, Node* node,
     PrintAST(ctx.asmgen.Output(), node);
     ctx.asmgen.Output() << '\n';
   };
-  auto T = [&ctx](Type* t) {
-    return ResolveGeneric(ctx, t);
-  };
 
   switch (node->kind) {
   case Node::kInt:
@@ -361,7 +351,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kDefFunc:
     {
       auto func = get<Object*>(node->value);
-      GenContext func_ctx{ctx.src, ctx.asmgen, new ConcreteFunc{func, {}}};
+      GenContext func_ctx{ctx.src, ctx.asmgen, func};
 
       int stack_size = 0;
       for (Object* obj : func->locals) {
@@ -393,13 +383,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
     comment_node();
     if (node->lhs) {
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
-      if (GenCast(ctx, dest, node->lhs->type, ctx.conc_func->func->type->base)) {
+      if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base)) {
         cerr << "not implemented cast from " << node->lhs->type
-             << " to " << ctx.conc_func->func->type->base << endl;
+             << " to " << ctx.func->type->base << endl;
         ErrorAt(ctx.src, *node->token);
       }
     }
-    ctx.asmgen.Jmp(string{ctx.conc_func->func->id->raw} + ".exit");
+    ctx.asmgen.Jmp(string{ctx.func->id->raw} + ".exit");
     return;
   case Node::kIf:
     comment_node();
@@ -537,9 +527,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
     return;
   case Node::kCast:
     if (node->rhs->kind == Node::kTList) {
-      auto conc_func = get<ConcreteFunc*>(node->value);
-      auto mangled_name = Mangle(ctx.src, *conc_func);
-      ctx.asmgen.LoadLabelAddr(dest, mangled_name);
+      auto tf = get<TypedFunc*>(node->value);
+      ctx.asmgen.LoadLabelAddr(dest, Mangle(*tf));
       return;
     }
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, lval);
@@ -633,8 +622,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kArrow:
     {
       size_t field_offset = 0;
-      auto ptr_t = GetUserBaseType(T(node->lhs->type));
-      auto ft = GetUserBaseType(T(ptr_t->base))->next;
+      auto ptr_t = GetUserBaseType(node->lhs->type);
+      auto ft = GetUserBaseType(ptr_t->base)->next;
       for (; ft; ft = ft->next) {
         if (get<Token*>(ft->value)->raw == node->rhs->token->raw) {
           break;
@@ -680,8 +669,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   auto lhs_reg = lhs_in_dest ? dest : reg;
   auto rhs_reg = lhs_in_dest ? reg : dest;
 
-  auto lhs_t = GetUserBaseType(T(node->lhs->type));
-  auto rhs_t = node->rhs ? GetUserBaseType(T(node->rhs->type)) : nullptr;
+  auto lhs_t = GetUserBaseType(node->lhs->type);
+  auto rhs_t = node->rhs ? GetUserBaseType(node->rhs->type) : nullptr;
 
   comment_node();
 
@@ -825,9 +814,9 @@ int main(int argc, char** argv) {
   std::vector<opela_type::String> strings;
   list<Type*> unresolved_types;
   list<Node*> undeclared_ids;
-  map<string, ConcreteFunc*> concrete_funcs;
+  vector<TypedFunc*> typed_funcs;
   ASTContext ast_ctx{src, tokenizer, type_manager, scope, strings,
-                     unresolved_types, undeclared_ids, concrete_funcs, nullptr};
+                     unresolved_types, undeclared_ids, typed_funcs, nullptr};
   auto ast = Program(ast_ctx);
 
   if (verbosity >= 1) {
@@ -863,15 +852,14 @@ int main(int argc, char** argv) {
       GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs, {});
     }
   }
-  for (auto [ conc_name, conc_func ] : concrete_funcs) {
-    GenContext ctx{src, *asmgen, conc_func};
-    for (auto var_name = conc_func->func->def->rhs;
+  for (auto typed_func : typed_funcs) {
+    GenContext ctx{src, *asmgen, typed_func->func};
+    for (auto var_name = typed_func->func->def->rhs;
          var_name; var_name = var_name->next) {
       cerr << "func type var: " << var_name->token->raw << endl;
     }
-    ConcContext conc_ctx{src, conc_func->gtype, nullptr};
-    Node* conc_def_node = ConcretizeDefFunc(conc_ctx,
-                                            conc_func->func->def->lhs);
+    Node* conc_def_node = ConcretizeDefFunc(src, typed_func->gtype,
+                                            typed_func->func->def->lhs);
     GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
   }
 

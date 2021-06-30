@@ -10,6 +10,14 @@
 
 using namespace std;
 
+struct ConcContext {
+  Source& src;
+  TypeMap& gtype;
+  Object* func; // 具体化を実行中の関数オブジェクト
+};
+
+namespace {
+
 std::string Mangle(Type* t) {
   ostringstream oss;
   switch (t->kind) {
@@ -42,108 +50,6 @@ std::string Mangle(std::string_view base_name, Type* t) {
   }
 }
 
-std::string Mangle(ConcreteFunc& f) {
-  return Mangle(f.func->id->raw, CalcConcreteType(f));
-}
-
-std::string Mangle(Source& src, ConcreteFunc& f) {
-  return Mangle(f.func->id->raw, CalcConcreteType(src, f));
-}
-
-Type* CalcConcreteType(ConcreteFunc& f, std::function<void (Token*)> err_at) {
-  auto param_type_list = NewType(Type::kInt); // dummy;
-  auto cur = param_type_list;
-  for (auto pt = f.func->type->next; pt; pt = pt->next) {
-    if (pt->base->kind == Type::kGeneric) {
-      auto generic_name = get<Token*>(pt->base->value);
-      if (auto it = f.gtype.find(string{generic_name->raw});
-          it != f.gtype.end()) {
-        cur->next = NewTypeParam(it->second, get<Token*>(pt->value));
-        cerr << "  param is generic: " << get<Token*>(pt->value)->raw << endl;
-      } else {
-        cerr << "unknown generic type name" << endl;
-        if (err_at) { err_at(generic_name); };
-      }
-    } else {
-      cur->next = pt;
-      cerr << "  param is normal: " << get<Token*>(pt->value)->raw << endl;
-    }
-    cerr << " param type: " << cur->next << endl;
-    cur = cur->next;
-  }
-  cerr << "param type list: ";
-  for (auto pt = param_type_list->next; pt; pt = pt->next) {
-    cerr << pt << ',';
-  }
-  cerr << endl;
-
-  auto ret_t = f.func->type->base;
-  if (ret_t->kind == Type::kGeneric) {
-    auto generic_name = get<Token*>(ret_t->value);
-    if (auto it = f.gtype.find(string{generic_name->raw});
-        it != f.gtype.end()) {
-      ret_t = it->second;
-      cerr << "  ret type is generic" << endl;
-    } else {
-      cerr << "unknown generic type name" << endl;
-      if (err_at) { err_at(generic_name); };
-    }
-  }
-
-  return NewTypeFunc(ret_t, param_type_list->next);
-}
-
-Type* CalcConcreteType(ConcreteFunc& f) {
-  return CalcConcreteType(f, nullptr);
-}
-
-Type* CalcConcreteType(Source& src, ConcreteFunc& f) {
-  return CalcConcreteType(f, [&src](Token* token){ ErrorAt(src, *token); });
-}
-
-ConcreteFunc* ConcretizeFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {
-  assert(type_list->kind == Node::kTList);
-
-  auto cf = new ConcreteFunc{gfunc, {}};
-  auto gname = gfunc->def->rhs; // generic name list: T, S, ...
-  for (auto tname = type_list->lhs; tname; tname = tname->next) {
-    if (auto t = ctx.tm.Find(*tname->token)) {
-      cf->gtype[string(gname->token->raw)] = t;
-    } else {
-      cerr << "unknown type name" << endl;
-      ErrorAt(ctx.src, *tname->token);
-    }
-    gname = gname->next;
-  }
-
-  return cf;
-}
-
-
-Type* ConcretizeType(ConcContext& ctx, Type* type) {
-  if (type == nullptr) {
-    return nullptr;
-  }
-  if (type->base == nullptr && type->next == nullptr) {
-    if (type->kind != Type::kGeneric) {
-      return type;
-    }
-    return ctx.gtype[string(get<Token*>(type->value)->raw)];
-  }
-
-  auto base_dup = ConcretizeType(ctx, type->base);
-  auto next_dup = ConcretizeType(ctx, type->next);
-  if (base_dup == type->base && next_dup == type->next) {
-    return type;
-  }
-
-  auto dup = NewType(type->kind);
-  dup->base = base_dup;
-  dup->next = next_dup;
-  dup->value = type->value;
-  return dup;
-}
-
 Node* ConcretizeNode(ConcContext& ctx, Node* node) {
   if (node == nullptr) {
     return nullptr;
@@ -158,7 +64,7 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
     dup->type = dup->lhs->type;
     break;
   case Node::kType:
-    dup = NewNodeType(node->token, ConcretizeType(ctx, node->type));
+    dup = NewNodeType(node->token, ConcretizeType(ctx.gtype, node->type));
     break;
   case Node::kBlock:
     dup = NewNode(Node::kBlock, node->token);
@@ -190,9 +96,9 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
         }
       }
       dup->value = obj_dup;
-      dup->type = obj_dup->type = ConcretizeType(ctx, obj->type);
+      dup->type = obj_dup->type = ConcretizeType(ctx.gtype, obj->type);
     } else {
-      dup->type = ConcretizeType(ctx, node->type);
+      dup->type = ConcretizeType(ctx.gtype, node->type);
     }
     break;
   case Node::kArrow:
@@ -226,25 +132,76 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
   return dup;
 }
 
-Node* ConcretizeDefFunc(ConcContext& ctx, Node* def) {
+} // namespace
+
+Type* ConcretizeType(TypeMap& gtype, Type* type) {
+  if (type == nullptr) {
+    return nullptr;
+  }
+  if (type->base == nullptr && type->next == nullptr) {
+    if (type->kind != Type::kGeneric) {
+      return type;
+    }
+    return gtype[string(get<Token*>(type->value)->raw)];
+  }
+
+  auto base_dup = ConcretizeType(gtype, type->base);
+  auto next_dup = ConcretizeType(gtype, type->next);
+  if (base_dup == type->base && next_dup == type->next) {
+    return type;
+  }
+
+  auto dup = NewType(type->kind);
+  dup->base = base_dup;
+  dup->next = next_dup;
+  dup->value = type->value;
+  return dup;
+}
+
+TypedFunc* NewTypedFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {
+  assert(type_list->kind == Node::kTList);
+
+  auto cf = new TypedFunc{{}, gfunc};
+  auto gname = gfunc->def->rhs; // generic name list: T, S, ...
+  for (auto tname = type_list->lhs; tname; tname = tname->next) {
+    if (auto t = ctx.tm.Find(*tname->token)) {
+      cf->gtype[string(gname->token->raw)] = t;
+    } else {
+      cerr << "unknown type name" << endl;
+      ErrorAt(ctx.src, *tname->token);
+    }
+    gname = gname->next;
+  }
+
+  return cf;
+}
+
+Type* ConcretizeType(TypedFunc& f) {
+  return ConcretizeType(f.gtype, f.func->type);
+}
+
+std::string Mangle(TypedFunc& f) {
+  return Mangle(f.func->id->raw, ConcretizeType(f));
+}
+
+Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
   assert(def->kind == Node::kDefFunc);
   auto def_dup = NewNode(Node::kDefFunc, def->token);
 
   auto func = get<Object*>(def->value);
-  Type* conc_func_t = ConcretizeType(ctx, func->type);
+  Type* conc_func_t = ConcretizeType(gtype, func->type);
   char* conc_name = strdup(Mangle(func->id->raw, conc_func_t).c_str());
   auto conc_name_token = new Token{Token::kId, string_view{conc_name}, {}};
 
   auto obj_dup = NewFunc(conc_name_token, def, func->linkage);
   obj_dup->locals = func->locals;
   obj_dup->type = conc_func_t;
-  ctx.func = obj_dup;
+  ConcContext ctx{src, gtype, obj_dup};
 
   def_dup->lhs = ConcretizeNode(ctx, def->lhs);
   def_dup->rhs = ConcretizeNode(ctx, def->rhs);
   def_dup->cond = ConcretizeNode(ctx, def->cond);
 
-  //obj_dup->type = NewTypeFunc(def_dup->cond->type, ParamTypeFromDeclList(def_dup->rhs));
   def_dup->value = obj_dup;
 
   return def_dup;

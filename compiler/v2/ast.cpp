@@ -47,7 +47,7 @@ struct NodeValuePrinter {
   void operator()(Object* v) {
     os << v;
   }
-  void operator()(ConcreteFunc* v) {
+  void operator()(TypedFunc* v) {
     os << Mangle(*v);
   }
 };
@@ -251,7 +251,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.sc, ctx.strings,
                       ctx.unresolved_types, ctx.undeclared_ids,
-                      ctx.concrete_funcs, &func_obj->locals};
+                      ctx.typed_funcs, &func_obj->locals};
 
   for (auto param = node->rhs; param; param = param->next) {
     auto var = AllocateLVar(func_ctx, param->token, param);
@@ -1075,10 +1075,10 @@ void SetType(ASTContext& ctx, Node* node) {
       auto gfunc_def = gfunc_obj->def;
       if (gfunc_def->kind == Node::kDefGFunc &&
           node->rhs->kind == Node::kTList) { // キャスト式 Foo@<t1, t2, ...>
-        auto f = ConcretizeFunc(ctx, gfunc_obj, node->rhs);
-        ctx.concrete_funcs.insert({Mangle(ctx.src, *f), f});
-        node->value = f;
-        node->type = CalcConcreteType(ctx.src, *f);
+        auto tf = NewTypedFunc(ctx, gfunc_obj, node->rhs);
+        ctx.typed_funcs.push_back(tf);
+        node->value = tf;
+        node->type = ConcretizeType(*tf);
         break;
       }
     }
