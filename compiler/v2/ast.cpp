@@ -229,7 +229,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
     ctx.t.Expect(">");
     generic_func_node = NewNodeOneChild(Node::kDefGFunc, name, node);
     generic_func_node->rhs = NewNode(Node::kId, type_var);
-    ctx.tm.Register(NewTypeGeneric(type_var));
+    ctx.tm.Register(NewTypeGParam(type_var));
   }
 
   auto func_obj = NewFunc(name, generic_func_node, Object::kGlobal);
@@ -1166,11 +1166,11 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kArrow:
     SetType(ctx, node->lhs);
     if (auto p = GetUserBaseType(node->lhs->type);
-        p->kind != Type::kGeneric && p->kind != Type::kPointer) {
+        p->kind != Type::kGParam && p->kind != Type::kPointer) {
       cerr << "lhs must be a pointer to a struct" << endl;
       ErrorAt(ctx.src, *node->token);
     } else if (auto t = GetUserBaseType(p->base);
-               t->kind != Type::kGeneric && t->kind != Type::kStruct) {
+               t->kind != Type::kGParam && t->kind != Type::kStruct) {
       cerr << "lhs must be a pointer to a struct" << endl;
       ErrorAt(ctx.src, *node->token);
     } else {

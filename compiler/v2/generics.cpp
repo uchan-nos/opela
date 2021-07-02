@@ -139,7 +139,7 @@ Type* ConcretizeType(TypeMap& gtype, Type* type) {
     return nullptr;
   }
   if (type->base == nullptr && type->next == nullptr) {
-    if (type->kind != Type::kGeneric) {
+    if (type->kind != Type::kGParam) {
       return type;
     }
     return gtype[string(get<Token*>(type->value)->raw)];

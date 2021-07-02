@@ -52,8 +52,8 @@ Type* NewTypeArray(Type* base, long size) {
   return new Type{Type::kArray, base, nullptr, size};
 }
 
-Type* NewTypeGeneric(Token* name) {
-  return new Type{Type::kGeneric, nullptr, nullptr, name};
+Type* NewTypeGParam(Token* name) {
+  return new Type{Type::kGParam, nullptr, nullptr, name};
 }
 
 std::ostream& operator<<(std::ostream& os, Type* t) {
@@ -112,7 +112,7 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     }
     os << '}';
     break;
-  case Type::kGeneric:
+  case Type::kGParam:
     os << get<Token*>(t->value)->raw;
     break;
   }
@@ -155,8 +155,8 @@ size_t SizeofType(Source& src, Type* t) {
       }
       return s;
     }
-  case Type::kGeneric:
-    cerr << "sizeof kGeneric is not defined" << endl;
+  case Type::kGParam:
+    cerr << "sizeof kGParam is not defined" << endl;
     Error();
   }
   cerr << "should not come here: type=" << t << endl;
