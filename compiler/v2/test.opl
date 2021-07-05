@@ -98,6 +98,8 @@ func main() int {
   TEST_INT(42, testComplexSubscr());
   TEST_INT(5,  testGenericAdd());
   TEST_INT(4,  testGenericMemberAccess());
+  TEST_INT(3,  testGenericStruct());
+  TEST_INT(7,  testGenericNested());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -216,6 +218,8 @@ func testGNestedStruct() int { return grect.pos.a==2 && grect.pos.b==3 && grect.
 func testComplexSubscr() int { var x [1]int = {42}; i:=0; j:=1; return x[i*2+j-1]; }
 func testGenericAdd() int { return Add@<int>(2, 3); }
 func testGenericMemberAccess() int { var x Pair={2,3}; return GetB@<Pair>(&x)+1; }
+func testGenericStruct() int { var x GPair<int8>; x.a=2; x.b=5; return x.a+&x.b-&x.a; }
+func testGenericNested() int { var x GPair<GPair<int8>>; x.a.a=2; x.b.b=5; return x.a.a+x.b.b; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -243,5 +247,6 @@ type Rect struct{pos Pair; size Pair;};
 var grect Rect = {{2,3},{4,5}};
 func Add<T>(a, b T) T { return a + b; }
 func GetB<T>(v *T) int { return v->b; }
+type GPair<T> struct{a T; b T;};
 
 extern "C" printf func(format *byte, ...) int;

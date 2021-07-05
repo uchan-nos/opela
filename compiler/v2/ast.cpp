@@ -224,12 +224,13 @@ Node* FunctionDefinition(ASTContext& ctx) {
 
   ctx.tm.Enter();
   Node* generic_func_node = node;
-  if (ctx.t.Consume("<")) {
-    auto type_var = ctx.t.Expect(Token::kId);
-    ctx.t.Expect(">");
+  if (ctx.t.Peek("<")) {
+    auto param_list = GParamList(ctx);
     generic_func_node = NewNodeOneChild(Node::kDefGFunc, name, node);
-    generic_func_node->rhs = NewNode(Node::kId, type_var);
-    ctx.tm.Register(NewTypeGParam(type_var));
+    generic_func_node->rhs = param_list;
+    for (auto param = param_list; param; param = param->next) {
+      ctx.tm.Register(NewTypeGParam(param->token));
+    }
   }
 
   auto func_obj = NewFunc(name, generic_func_node, Object::kGlobal);
@@ -291,7 +292,27 @@ Node* ExternDeclaration(ASTContext& ctx) {
 Node* TypeDeclaration(ASTContext& ctx) {
   ctx.t.Expect(Token::kType);
   auto name_token = ctx.t.Expect(Token::kId);
-  auto tspec = TypeSpecifier(ctx);
+
+  Node* tspec = nullptr;
+  if (!ctx.t.Peek("<")) {
+    tspec = TypeSpecifier(ctx);
+  } else {
+    Node* param_list = GParamList(ctx);
+
+    ctx.tm.Enter();
+    Type head; // dummy
+    auto cur = &head;
+    for (auto param = param_list; param; param = param->next) {
+      cur->next = NewTypeGParam(param->token);
+      ctx.tm.Register(cur->next);
+      cur = cur->next;
+    }
+    tspec = TypeSpecifier(ctx);
+    tspec = NewNodeType(param_list->token,
+                        NewTypeGeneric(tspec->type, head.next));
+    ctx.tm.Leave();
+  }
+
   ctx.t.Expect(";");
 
   auto type = NewTypeUser(tspec->type, name_token);
@@ -613,7 +634,8 @@ Node* Postfix(ASTContext& ctx) {
         ctx.t.Expect(")");
       }
     } else if (auto op = ctx.t.Consume("@")) {
-      node = NewNodeBinOp(Node::kCast, op, node, TypeSpecifier(ctx));
+      Node* rhs = ctx.t.Peek("<") ? TypeList(ctx) : TypeSpecifier(ctx);
+      node = NewNodeBinOp(Node::kCast, op, node, rhs);
       if (node->rhs == nullptr) {
         cerr << "type spec must be specified" << endl;
         ErrorAt(ctx.src, *op);
@@ -736,30 +758,23 @@ Node* TypeSpecifier(ASTContext& ctx) {
     return NewNodeType(struct_token, struct_t);
   }
 
-  if (auto list_token = ctx.t.Consume("<")) {
-    auto type_list = NewNode(Node::kTList, list_token);
-    if (ctx.t.Consume(">")) {
-      return type_list;
-    }
-    if ((type_list->lhs = TypeSpecifier(ctx)) == nullptr) {
-      cerr << "type must be specified" << endl;
-      ErrorAt(ctx.src, *ctx.t.Peek());
-    }
-    for (auto cur = type_list->lhs; !ctx.t.Consume(">"); cur = cur->next) {
-      ctx.t.Expect(",");
-      if ((cur->next = TypeSpecifier(ctx)) == nullptr) {
-        cerr << "type must be specified" << endl;
-        ErrorAt(ctx.src, *ctx.t.Peek());
-      }
-    }
-    return type_list;
-  }
-
   if (auto name_token = ctx.t.Consume(Token::kId)) {
     auto t = ctx.tm.Find(*name_token);
     if (t == nullptr) {
       t = NewTypeUnresolved(name_token);
       ctx.unresolved_types.push_back(t);
+    }
+    Node* type_list = nullptr;
+    if (ctx.t.Peek("<")) {
+      type_list = TypeList(ctx);
+      auto conc_t = NewType(Type::kConcrete);
+      conc_t->base = t;
+      auto cur = conc_t;
+      for (auto n = type_list->lhs; n; n = n->next) {
+        cur->next = NewTypeParam(n->type, nullptr);
+        cur = cur->next;
+      }
+      t = conc_t;
     }
     auto node = NewNodeType(name_token, t);
     return node;
@@ -812,6 +827,39 @@ Node* ParameterDeclList(ASTContext& ctx) {
       params_untyped.clear();
     }
   }
+}
+
+// 型リスト（例えば < int, *byte >）を読み取る
+Node* TypeList(ASTContext& ctx) {
+  auto list_token = ctx.t.Expect("<");
+  auto type_list = NewNode(Node::kTList, list_token);
+  if (ctx.t.Consume(">")) {
+    return type_list;
+  }
+  if ((type_list->lhs = TypeSpecifier(ctx)) == nullptr) {
+    cerr << "type must be specified" << endl;
+    ErrorAt(ctx.src, *ctx.t.Peek());
+  }
+  for (auto cur = type_list->lhs; !ctx.t.Consume(">"); cur = cur->next) {
+    ctx.t.Expect(",");
+    if ((cur->next = TypeSpecifier(ctx)) == nullptr) {
+      cerr << "type must be specified" << endl;
+      ErrorAt(ctx.src, *ctx.t.Peek());
+    }
+  }
+  return type_list;
+}
+
+// 型パラメタのリスト（例えば < T, S >）を読み取る
+// kId の列となる
+Node* GParamList(ASTContext& ctx) {
+  ctx.t.Expect("<");
+  auto param_list = NewNode(Node::kId, ctx.t.Expect(Token::kId));
+  for (auto cur = param_list; !ctx.t.Consume(">"); cur = cur->next) {
+    ctx.t.Expect(",");
+    cur->next = NewNode(Node::kId, ctx.t.Expect(Token::kId));
+  }
+  return param_list;
 }
 
 void PrintAST(std::ostream& os, Node* ast) {
@@ -1151,7 +1199,7 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kDot:
     SetType(ctx, node->lhs);
     if (auto t = GetUserBaseType(node->lhs->type);
-        t->kind != Type::kStruct) {
+        t->kind != Type::kGParam && t->kind != Type::kStruct) {
       cerr << "lhs must be a struct" << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
@@ -1187,6 +1235,11 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kTList:
     break;
+  }
+
+  if (node->type && node->type->kind == Type::kConcrete) {
+    auto conc_t = ConcretizeType(node->type);
+    *node->type = *conc_t;
   }
 }
 

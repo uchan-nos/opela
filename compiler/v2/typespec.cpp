@@ -4,6 +4,7 @@
 #include <iostream>
 #include <unistd.h>
 
+#include "generics.hpp"
 #include "magic_enum.hpp"
 
 using namespace std;
@@ -54,6 +55,10 @@ Type* NewTypeArray(Type* base, long size) {
 
 Type* NewTypeGParam(Token* name) {
   return new Type{Type::kGParam, nullptr, nullptr, name};
+}
+
+Type* NewTypeGeneric(Type* gtype, Type* param_list) {
+  return new Type{Type::kGeneric, gtype, param_list, 0};
 }
 
 std::ostream& operator<<(std::ostream& os, Type* t) {
@@ -115,6 +120,26 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
   case Type::kGParam:
     os << get<Token*>(t->value)->raw;
     break;
+  case Type::kGeneric:
+    os << t->base << '<';
+    if (auto gparam = t->next) {
+      os << get<Token*>(gparam->value)->raw;
+      for (gparam = gparam->next; gparam; gparam = gparam->next) {
+        os << ',' << get<Token*>(gparam->value)->raw;
+      }
+    }
+    os << '>';
+    break;
+  case Type::kConcrete:
+    os << t->base << '<';
+    if (auto param = t->next) {
+      os << param->base;
+      for (param = param->next; param; param = param->next) {
+        os << ',' << param->base;
+      }
+    }
+    os << '>';
+    break;
   }
   return os;
 }
@@ -158,6 +183,11 @@ size_t SizeofType(Source& src, Type* t) {
   case Type::kGParam:
     cerr << "sizeof kGParam is not defined" << endl;
     Error();
+  case Type::kGeneric:
+    cerr << "sizeof kGeneric is not defined" << endl;
+    Error();
+  case Type::kConcrete:
+    return SizeofType(src, ConcretizeType(t));
   }
   cerr << "should not come here: type=" << t << endl;
   Error();

@@ -7,6 +7,7 @@
 #include <sstream>
 
 #include "ast.hpp"
+#include "magic_enum.hpp"
 
 using namespace std;
 
@@ -156,6 +157,28 @@ Type* ConcretizeType(TypeMap& gtype, Type* type) {
   dup->next = next_dup;
   dup->value = type->value;
   return dup;
+}
+
+Type* ConcretizeType(Type* type) {
+  if (type == nullptr) {
+    return nullptr;
+  } else if (type->kind != Type::kConcrete) {
+    return type;
+  }
+
+  auto generic_t = GetUserBaseType(type->base);
+  auto type_list = type->next;
+
+  TypeMap gtype;
+  auto gparam = generic_t->next;
+  for (auto param = type_list; param; param = param->next) {
+    string gname{get<Token*>(gparam->value)->raw};
+    gtype[gname] = param->base;
+    gparam = gparam->next;
+  }
+
+  auto conc_t = ConcretizeType(gtype, generic_t->base);
+  return conc_t;
 }
 
 TypedFunc* NewTypedFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {

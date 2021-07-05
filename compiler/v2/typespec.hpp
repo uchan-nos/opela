@@ -25,6 +25,8 @@ struct Type {
     kInitList,
     kStruct,
     kGParam, // 型変数
+    kGeneric, // ジェネリック型
+    kConcrete, // ジェネリック型を具体化した型
   } kind;
 
   Type* base;
@@ -46,6 +48,12 @@ struct Type {
    *   next: 要素リスト（kParam のリスト）
    * kStruct:
    *   next: フィールドリスト（kParam のリスト）
+   * kGeneric:
+   *   base: 型変数（kGParam）を用いた抽象型
+   *   next: 型変数（kGParam）のリスト
+   * kConcrete:
+   *   base: ジェネリック型（kGeneric、kUser）
+   *   next: 型パラメタ（kParam）のリスト
    */
 
   /* value の用途
@@ -69,6 +77,7 @@ Type* NewTypeUnresolved(Token* name);
 Type* NewTypeUser(Type* base, Token* name);
 Type* NewTypeArray(Type* base, long size);
 Type* NewTypeGParam(Token* name);
+Type* NewTypeGeneric(Type* gtype, Type* param_list);
 
 std::ostream& operator<<(std::ostream& os, Type* t);
 size_t SizeofType(Source& src, Type* t);

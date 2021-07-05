@@ -187,6 +187,8 @@ Node* Postfix(ASTContext& ctx);
 Node* Primary(ASTContext& ctx);
 Node* TypeSpecifier(ASTContext& ctx);
 Node* ParameterDeclList(ASTContext& ctx);
+Node* TypeList(ASTContext& ctx);
+Node* GParamList(ASTContext& ctx);
 
 void PrintAST(std::ostream& os, Node* ast);
 void PrintASTRec(std::ostream& os, Node* ast);
