@@ -1,0 +1,55 @@
+/*
+ * RPN calculator implemented in OpeLa language
+ */
+func main(argc int, argv **byte) {
+  for i := 1; i < argc; i += 1 {
+    if strcmp(argv[i], "+") == 0 {
+      b := Pop();
+      a := Pop();
+      Push(a + b);
+    } else if strcmp(argv[i], "-") == 0 {
+      b := Pop();
+      a := Pop();
+      Push(a - b);
+    } else if strcmp(argv[i], "*") == 0 {
+      b := Pop();
+      a := Pop();
+      Push(a * b);
+    } else if strcmp(argv[i], "/") == 0 {
+      b := Pop();
+      a := Pop();
+      Push(a / b);
+    } else { // digit
+      Push(atol(argv[i]));
+    }
+  }
+
+  result := 0;
+  if stack_ptr >= 0 {
+    result = Pop();
+  }
+
+  printf("%d\n", result);
+  exit(result);
+}
+
+var (
+  stack_ptr int,
+  stack [100]int
+)
+
+func Pop() int {
+  value := stack[stack_ptr];
+  stack_ptr -= 1;
+  return value;
+}
+
+func Push(value int) {
+  stack_ptr += 1;
+  stack[stack_ptr] = value;
+}
+
+extern "C" atol func(*byte) int;
+extern "C" exit func(int);
+extern "C" printf func(*byte, ...) int;
+extern "C" strcmp func(*byte, *byte) int;
