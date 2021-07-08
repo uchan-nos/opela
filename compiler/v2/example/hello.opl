@@ -1,0 +1,5 @@
+func main() int {
+  printf("hello, world\n");
+}
+
+extern "C" printf func(*byte, ...) int;

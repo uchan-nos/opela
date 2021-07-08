@@ -1,0 +1,11 @@
+func main(argc int, argv **byte) int {
+  printf("command name: %s\n", argv[0]);
+
+  for i := 1; i < argc; i += 1 {
+    printf("argv[%d]: %s\n", i, argv[i]);
+  }
+
+  return 0;
+}
+
+extern "C" printf func(*byte, ...) int;
