@@ -82,6 +82,7 @@ Type* NewTypeGeneric(Type* gtype, Type* param_list);
 std::ostream& operator<<(std::ostream& os, Type* t);
 size_t SizeofType(Source& src, Type* t);
 Type* GetUserBaseType(Type* user_type);
+Type* GetPrimaryType(Type* type);
 
 inline bool IsIntegral(Type* t) {
   return t->kind == Type::kInt || t->kind == Type::kUInt;

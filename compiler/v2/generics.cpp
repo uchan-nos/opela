@@ -4,6 +4,7 @@
 #include <cstring>
 #include <functional>
 #include <iostream>
+#include <map>
 #include <sstream>
 
 #include "ast.hpp"
@@ -30,6 +31,15 @@ std::string Mangle(Type* t) {
     break;
   case Type::kPointer:
     oss << "ptr_" << Mangle(t->base);
+    break;
+  case Type::kUser:
+    oss << get<Token*>(t->value)->raw;
+    break;
+  case Type::kConcrete:
+    oss << Mangle(t->base);
+    for (auto param = t->next; param; param = param->next) {
+      oss << '_' << Mangle(param->base);
+    }
     break;
   default:
     cerr << "Mangle logic is not implemented for " << t << endl;
@@ -135,50 +145,53 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
 
 } // namespace
 
-Type* ConcretizeType(TypeMap& gtype, Type* type) {
+Type* ConcretizeType(TypeMap* gtype, Type* type, std::map<Type*, Type*>& done) {
   if (type == nullptr) {
     return nullptr;
-  }
-  if (type->base == nullptr && type->next == nullptr) {
-    if (type->kind != Type::kGParam) {
-      return type;
-    }
-    return gtype[string(get<Token*>(type->value)->raw)];
+  } else if (auto it = done.find(type); it != done.end()) {
+    return it->second;
   }
 
-  auto base_dup = ConcretizeType(gtype, type->base);
-  auto next_dup = ConcretizeType(gtype, type->next);
-  if (base_dup == type->base && next_dup == type->next) {
-    return type;
+  if (type->kind == Type::kConcrete) {
+    auto generic_t = GetUserBaseType(type->base);
+    auto type_list = type->next;
+
+    TypeMap gtype_;
+    auto gparam = generic_t->next;
+    for (auto param = type_list; param; param = param->next) {
+      string gname{get<Token*>(gparam->value)->raw};
+      gtype_[gname] = param->base;
+      gparam = gparam->next;
+    }
+    gtype = &gtype_;
+
+    return done[type] = ConcretizeType(gtype, generic_t->base, done);
+  }
+
+  if (type->kind == Type::kGParam) {
+    if (gtype) {
+      return done[type] = (*gtype)[string(get<Token*>(type->value)->raw)];
+    }
+    return done[type] = type;
   }
 
   auto dup = NewType(type->kind);
-  dup->base = base_dup;
-  dup->next = next_dup;
+  done[type] = dup;
+
+  dup->base = ConcretizeType(gtype, type->base, done);
+  dup->next = ConcretizeType(gtype, type->next, done);
   dup->value = type->value;
   return dup;
 }
 
+Type* ConcretizeType(TypeMap& gtype, Type* type) {
+  map<Type*, Type*> done;
+  return ConcretizeType(&gtype, type, done);
+}
+
 Type* ConcretizeType(Type* type) {
-  if (type == nullptr) {
-    return nullptr;
-  } else if (type->kind != Type::kConcrete) {
-    return type;
-  }
-
-  auto generic_t = GetUserBaseType(type->base);
-  auto type_list = type->next;
-
-  TypeMap gtype;
-  auto gparam = generic_t->next;
-  for (auto param = type_list; param; param = param->next) {
-    string gname{get<Token*>(gparam->value)->raw};
-    gtype[gname] = param->base;
-    gparam = gparam->next;
-  }
-
-  auto conc_t = ConcretizeType(gtype, generic_t->base);
-  return conc_t;
+  map<Type*, Type*> done;
+  return ConcretizeType(nullptr, type, done);
 }
 
 TypedFunc* NewTypedFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {

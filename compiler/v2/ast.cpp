@@ -1213,13 +1213,13 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   case Node::kArrow:
     SetType(ctx, node->lhs);
-    if (auto p = GetUserBaseType(node->lhs->type);
+    if (auto p = GetPrimaryType(node->lhs->type);
         p->kind != Type::kGParam && p->kind != Type::kPointer) {
-      cerr << "lhs must be a pointer to a struct" << endl;
+      cerr << "lhs must be a pointer to a struct: " << p << endl;
       ErrorAt(ctx.src, *node->token);
-    } else if (auto t = GetUserBaseType(p->base);
+    } else if (auto t = GetPrimaryType(p->base);
                t->kind != Type::kGParam && t->kind != Type::kStruct) {
-      cerr << "lhs must be a pointer to a struct" << endl;
+      cerr << "lhs must be a pointer to a struct: " << t << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
       for (auto ft = t->next; ft; ft = ft->next) {
@@ -1237,9 +1237,11 @@ void SetType(ASTContext& ctx, Node* node) {
     break;
   }
 
-  if (node->type && node->type->kind == Type::kConcrete) {
+  if (node->type) {
     auto conc_t = ConcretizeType(node->type);
-    *node->type = *conc_t;
+    if (conc_t != node->type) {
+      *node->type = *conc_t;
+    }
   }
 }
 

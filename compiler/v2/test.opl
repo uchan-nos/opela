@@ -100,6 +100,7 @@ func main() int {
   TEST_INT(4,  testGenericMemberAccess());
   TEST_INT(3,  testGenericStruct());
   TEST_INT(7,  testGenericNested());
+  TEST_INT(42, testGenericNested2());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -220,6 +221,7 @@ func testGenericAdd() int { return Add@<int>(2, 3); }
 func testGenericMemberAccess() int { var x Pair={2,3}; return GetB@<Pair>(&x)+1; }
 func testGenericStruct() int { var x GPair<int8>; x.a=2; x.b=5; return x.a+&x.b-&x.a; }
 func testGenericNested() int { var x GPair<GPair<int8>>; x.a.a=2; x.b.b=5; return x.a.a+x.b.b; }
+func testGenericNested2() int { var x GNode<int> ={42,0}; var y GNode<int> ={1,&x}; return y.next->value; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -248,5 +250,6 @@ var grect Rect = {{2,3},{4,5}};
 func Add<T>(a, b T) T { return a + b; }
 func GetB<T>(v *T) int { return v->b; }
 type GPair<T> struct{a T; b T;};
+type GNode<T> struct{ value T; next *GNode<T>; };
 
 extern "C" printf func(format *byte, ...) int;

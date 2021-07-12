@@ -8,7 +8,7 @@ ARCH = x86_64
 endif
 
 .PHONY: all
-all: rpn sdl list hello cmdargs
+all: rpn sdl list hello cmdargs vector
 
 .PHONY: clean
 clean:
@@ -24,6 +24,8 @@ list: list.o
 hello: hello.o
 
 cmdargs: cmdargs.o
+
+vector: vector.o
 
 ../opelac:
 	make -C .. opelac

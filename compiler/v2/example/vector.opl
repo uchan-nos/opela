@@ -1,0 +1,58 @@
+func main() int {
+  var vec Vector<int>;
+  VectorInit@<int>(&vec);
+  VectorPushBack@<int>(&vec, 42);
+  Print(&vec);
+  VectorPushBack@<int>(&vec, 2);
+  VectorPushBack@<int>(&vec, -3);
+  Print(&vec);
+  VectorPopBack@<int>(&vec);
+  Print(&vec);
+}
+
+func Print(vec *Vector<int>) {
+  printf("vec:");
+  for i := 0; i < vec->len; i += 1 {
+    printf(" %ld", vec->data[i]);
+  }
+  printf("\n");
+}
+
+func VectorPushBack<T>(vec *Vector<T>, v *T) {
+  if vec->len == vec->cap {
+    VectorExtend@<T>(vec);
+  }
+  vec->data[vec->len] = *v;
+  vec->len++;
+}
+
+func VectorPopBack<T>(vec *Vector<T>) {
+  if vec->len > 0 {
+    vec->len--;
+  }
+}
+
+func VectorExtend<T>(vec *Vector<T>) {
+  if vec->cap == 0 {
+    vec->cap = 4;
+  } else {
+    vec->cap *= 2;
+  }
+  vec->data = realloc(vec->data, sizeof(T) * vec->cap)@*T;
+}
+
+func VectorInit<T>(vec *Vector<T>) {
+  vec->cap = 0;
+  vec->len = 0;
+  vec->data = 0;
+}
+
+type Vector<T> struct {
+  cap int;
+  len int;
+  data *T;
+};
+
+extern "C" printf func(*byte, ...) int;
+extern "C" malloc func(int) *int;
+extern "C" realloc func(*int, int) *int;

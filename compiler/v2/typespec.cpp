@@ -61,7 +61,12 @@ Type* NewTypeGeneric(Type* gtype, Type* param_list) {
   return new Type{Type::kGeneric, gtype, param_list, 0};
 }
 
-std::ostream& operator<<(std::ostream& os, Type* t) {
+std::ostream& PrintType(std::ostream& os, Type* t, int depth) {
+  if (depth == 4) {
+    os << "~";
+    return os;
+  }
+
   switch (t->kind) {
   case Type::kUndefined: os << "Undefined-type"; break;
   case Type::kUnresolved:
@@ -69,22 +74,22 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     break;
   case Type::kInt: os << "int" << get<long>(t->value); break;
   case Type::kUInt: os << "uint" << get<long>(t->value); break;
-  case Type::kPointer: os << '*' << t->base; break;
+  case Type::kPointer: PrintType(os << '*', t->base, depth + 1); break;
   case Type::kFunc:
     os << "func(";
     if (auto pt = t->next) {
-      os << pt;
+      PrintType(os, pt, depth + 1);
       for (pt = pt->next; pt; pt = pt->next) {
-        os << ',' << pt;
+        PrintType(os << ',', pt, depth + 1);
       }
     }
-    os << ')' << t->base;
+    PrintType(os << ')', t->base, depth + 1);
     break;
   case Type::kParam:
     if (auto name = get<Token*>(t->value)) {
       os << name->raw << ' ';
     }
-    os << t->base;
+    PrintType(os, t->base, depth + 1);
     break;
   case Type::kVParam:
     os << "...";
@@ -95,14 +100,14 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     break;
   case Type::kBool: os << "bool"; break;
   case Type::kArray:
-    os << '[' << get<long>(t->value) << ']' << t->base;
+    PrintType(os << '[' << get<long>(t->value) << ']', t->base, depth + 1);
     break;
   case Type::kInitList:
     os << '{';
     if (auto pt = t->next) {
-      os << pt->base;
+      PrintType(os, pt->base, depth + 1);
       for (pt = pt->next; pt; pt = pt->next) {
-        os << ',' << pt->base;
+        PrintType(os << ',', pt->base, depth + 1);
       }
     }
     os << '}';
@@ -110,9 +115,9 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
   case Type::kStruct:
     os << "struct{";
     if (auto ft = t->next) {
-      os << ft;
+      PrintType(os, ft, depth + 1);
       for (ft = ft->next; ft; ft = ft->next) {
-        os << ',' << ft;
+        PrintType(os << ',', ft, depth + 1);
       }
     }
     os << '}';
@@ -121,7 +126,7 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     os << get<Token*>(t->value)->raw;
     break;
   case Type::kGeneric:
-    os << t->base << '<';
+    PrintType(os, t->base, depth + 1) << '<';
     if (auto gparam = t->next) {
       os << get<Token*>(gparam->value)->raw;
       for (gparam = gparam->next; gparam; gparam = gparam->next) {
@@ -131,17 +136,21 @@ std::ostream& operator<<(std::ostream& os, Type* t) {
     os << '>';
     break;
   case Type::kConcrete:
-    os << t->base << '<';
+    PrintType(os, t->base, depth + 1) << '<';
     if (auto param = t->next) {
       os << param->base;
       for (param = param->next; param; param = param->next) {
-        os << ',' << param->base;
+        PrintType(os << ',', param->base, depth + 1);
       }
     }
     os << '>';
     break;
   }
   return os;
+}
+
+std::ostream& operator<<(std::ostream& os, Type* t) {
+  return PrintType(os, t, 0);
 }
 
 size_t SizeofType(Source& src, Type* t) {
@@ -198,6 +207,14 @@ Type* GetUserBaseType(Type* user_type) {
     user_type = user_type->base;
   }
   return user_type;
+}
+
+Type* GetPrimaryType(Type* type) {
+  while (type->kind == Type::kUser || type->kind == Type::kGeneric ||
+         type->kind == Type::kConcrete) {
+    type = type->base;
+  }
+  return type;
 }
 
 bool IsEqual(Type* a, Type* b) {
