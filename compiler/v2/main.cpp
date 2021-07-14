@@ -4,6 +4,7 @@
 #include <bitset>
 #include <cstring>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -814,7 +815,7 @@ int main(int argc, char** argv) {
   std::vector<opela_type::String> strings;
   list<Type*> unresolved_types;
   list<Node*> undeclared_ids;
-  vector<TypedFunc*> typed_funcs;
+  TypedFuncMap typed_funcs;
   ASTContext ast_ctx{src, tokenizer, type_manager, scope, strings,
                      unresolved_types, undeclared_ids, typed_funcs, nullptr};
   auto ast = Program(ast_ctx);
@@ -826,7 +827,7 @@ int main(int argc, char** argv) {
   }
   ResolveIDs(ast_ctx);
   ResolveType(ast_ctx);
-  SetTypeProgram(ast_ctx, ast);
+  SetTypeProgram(ast_ctx, ast); // ここでジェネリック関数の内部まで型を付けてはいけないかも
   cout << "/* AST\n";
   PrintDebugInfo(ast, strings);
   cout << "*/\n\n";
@@ -852,15 +853,44 @@ int main(int argc, char** argv) {
       GenerateAsm(ctx, obj->def, Asm::kRegA, free_calc_regs, {});
     }
   }
-  for (auto typed_func : typed_funcs) {
+
+  set<string> generated_typed_funcs;
+  for (auto [ mangled_name, typed_func ] : typed_funcs) {
+    if (generated_typed_funcs.count(mangled_name)) {
+      continue;
+    }
+
     GenContext ctx{src, *asmgen, typed_func->func};
     for (auto var_name = typed_func->func->def->rhs;
          var_name; var_name = var_name->next) {
       cerr << "func type var: " << var_name->token->raw << endl;
     }
-    Node* conc_def_node = ConcretizeDefFunc(src, typed_func->gtype,
-                                            typed_func->func->def->lhs);
+    Node* conc_def_node = ConcretizeDefFunc(
+        src, typed_func->gtype, typed_func->func->def->lhs);
     GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
+
+    generated_typed_funcs.insert(mangled_name);
+
+    auto typed_func2 = get<TypedFuncMap*>(typed_func->func->def->value);
+    for (auto [ mangled_name2, typed_func2 ] : *typed_func2) {
+      if (generated_typed_funcs.count(mangled_name2)) {
+        continue;
+      }
+
+      cerr << "generating concretize function '" << mangled_name2
+           << "' inside " << mangled_name << endl;
+      TypeMap gtype;
+      for (auto [ gname, t ] : typed_func2->gtype) {
+        gtype[gname] = typed_func->gtype[gname];
+        cerr << "gtype[" << gname << "] = " << typed_func->gtype[gname] << endl;
+      }
+      Node* conc_def_node = ConcretizeDefFunc(
+          src, gtype, typed_func2->func->def->lhs);
+      GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
+
+      cerr << get<Object*>(conc_def_node->value)->id->raw << " was added to generated_typed_funcs" << endl;
+      generated_typed_funcs.insert(string{get<Object*>(conc_def_node->value)->id->raw});
+    }
   }
 
   asmgen->Output() << ".global _init_opela\n_init_opela:\n";

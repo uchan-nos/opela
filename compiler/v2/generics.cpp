@@ -35,6 +35,15 @@ std::string Mangle(Type* t) {
   case Type::kUser:
     oss << get<Token*>(t->value)->raw;
     break;
+  case Type::kStruct:
+    oss << "struct";
+    for (auto param = t->next; param; param = param->next) {
+      oss << '_' << Mangle(param->base);
+    }
+    break;
+  case Type::kGParam:
+    oss << get<Token*>(t->value)->raw;
+    break;
   case Type::kConcrete:
     oss << Mangle(t->base);
     for (auto param = t->next; param; param = param->next) {
@@ -66,37 +75,10 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
     return nullptr;
   }
 
-  Node* dup = nullptr;
-  switch (node->kind) {
-  case Node::kParam:
-    dup = NewNode(Node::kParam, node->token);
-    dup->lhs = ConcretizeNode(ctx, node->lhs);
-    dup->next = ConcretizeNode(ctx, node->next);
-    dup->type = dup->lhs->type;
-    break;
-  case Node::kType:
-    dup = NewNodeType(node->token, ConcretizeType(ctx.gtype, node->type));
-    break;
-  case Node::kBlock:
-    dup = NewNode(Node::kBlock, node->token);
-    for (auto stmt = node->next, cur = dup; stmt;
-         stmt = stmt->next, cur = cur->next) {
-      cur->next = ConcretizeNode(ctx, stmt);
-    }
-    break;
-  case Node::kRet:
-    dup = NewNode(Node::kRet, node->token);
-    dup->lhs = ConcretizeNode(ctx, node->lhs);
-    dup->type = dup->lhs->type;
-    break;
-  case Node::kAdd:
-    dup = NewNode(Node::kAdd, node->token);
-    dup->lhs = ConcretizeNode(ctx, node->lhs);
-    dup->rhs = ConcretizeNode(ctx, node->rhs);
-    dup->type = MergeTypeBinOp(dup->lhs->type, dup->rhs->type);
-    break;
-  case Node::kId:
-    dup = NewNode(Node::kId, node->token);
+  if (node->kind == Node::kType) {
+    return NewNodeType(node->token, ConcretizeType(ctx.gtype, node->type));
+  } else if (node->kind == Node::kId) {
+    auto dup = NewNode(Node::kId, node->token);
     if (auto p = get_if<Object*>(&node->value)) {
       Object* obj = *p;
       auto obj_dup = new Object{*obj};
@@ -111,15 +93,75 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
     } else {
       dup->type = ConcretizeType(ctx.gtype, node->type);
     }
+    return dup;
+  }
+
+  auto lhs = ConcretizeNode(ctx, node->lhs);
+  auto rhs = ConcretizeNode(ctx, node->rhs);
+  auto cond = ConcretizeNode(ctx, node->cond);
+  auto next = ConcretizeNode(ctx, node->next);
+  if (lhs == node->lhs && rhs == node->rhs &&
+      cond == node->cond && next == node->next) {
+    return node;
+  }
+
+  auto dup = NewNode(node->kind, node->token);
+  dup->lhs = lhs;
+  dup->rhs = rhs;
+  dup->cond = cond;
+  dup->next = next;
+  dup->value = node->value;
+  if (auto p = get_if<Object*>(&node->value)) {
+    Object* obj = *p;
+    get<Object*>(dup->value)->type = ConcretizeType(ctx.gtype, obj->type);
+  } else if (auto p = get_if<TypedFunc*>(&node->value)) {
+    TypedFunc* tf = *p;
+    get<TypedFunc*>(dup->value)->func->type =
+      ConcretizeType(ctx.gtype, tf->func->type);
+  }
+
+  switch (node->kind) {
+  case Node::kAdd:
+    dup->type = MergeTypeBinOp(lhs->type, rhs->type);
+    break;
+  case Node::kEqu:
+  case Node::kGT:
+    dup->type = node->type;
+    break;
+  case Node::kBlock:
+    break;
+  case Node::kRet:
+    dup->type = lhs->type;
+    break;
+  case Node::kIf:
+    break;
+  case Node::kAssign:
+    dup->type = lhs->type;
+    break;
+  case Node::kCall:
+    dup->type = lhs->type->base;
+    break;
+  case Node::kParam:
+    dup->type = lhs->type;
+    break;
+  case Node::kCast:
+    dup->type = ConcretizeType(ctx.gtype, node->type);
+    break;
+  case Node::kDeref:
+    dup->type = lhs->type->base;
+    break;
+  case Node::kSubscr:
+    dup->type = lhs->type->base;
+    break;
+  case Node::kInc:
+  case Node::kDec:
+    dup->type = lhs->type;
     break;
   case Node::kArrow:
-    dup = NewNode(Node::kArrow, node->token);
-    dup->lhs = ConcretizeNode(ctx, node->lhs);
-    dup->rhs = ConcretizeNode(ctx, node->rhs);
-    if (auto p = GetUserBaseType(dup->lhs->type); p->kind != Type::kPointer) {
+    if (auto p = GetPrimaryType(lhs->type); p->kind != Type::kPointer) {
       cerr << "lhs must be a pointer to a struct: " << p << endl;
       ErrorAt(ctx.src, *node->token);
-    } else if (auto t = GetUserBaseType(p->base); t->kind != Type::kStruct) {
+    } else if (auto t = GetPrimaryType(p->base); t->kind != Type::kStruct) {
       cerr << "lhs must be a pointer to a struct: " << t << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
@@ -135,6 +177,8 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
       }
     }
     break;
+  case Node::kTList:
+    break;
   default:
     cerr << "ConcretizeNode: not implemented" << endl;
     ErrorAt(ctx.src, *node->token);
@@ -145,10 +189,32 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
 
 } // namespace
 
-Type* ConcretizeType(TypeMap* gtype, Type* type, std::map<Type*, Type*>& done) {
+using DoneKey = std::pair<Type*, TypeMap*>;
+
+struct LessDoneKey {
+  bool operator()(const DoneKey& a, const DoneKey& b) const {
+    if (a.first < b.first) {
+      return true;
+    } else if (a.first > b.first) {
+      return false;
+    }
+    // a.first == b.first
+    if (b.second == nullptr) {
+      return false;
+    } else if (a.second == nullptr) {
+      return true;
+    }
+    // a.second != nullptr && b.second != nullptr
+    return *a.second < *b.second;
+  }
+};
+
+using DoneMap = std::map<DoneKey, Type*, LessDoneKey>;
+
+Type* ConcretizeType(TypeMap* gtype, Type* type, DoneMap& done) {
   if (type == nullptr) {
     return nullptr;
-  } else if (auto it = done.find(type); it != done.end()) {
+  } else if (auto it = done.find({type, gtype}); it != done.end()) {
     return it->second;
   }
 
@@ -160,23 +226,23 @@ Type* ConcretizeType(TypeMap* gtype, Type* type, std::map<Type*, Type*>& done) {
     auto gparam = generic_t->next;
     for (auto param = type_list; param; param = param->next) {
       string gname{get<Token*>(gparam->value)->raw};
-      gtype_[gname] = param->base;
+      gtype_[gname] = ConcretizeType(gtype, param->base, done);
       gparam = gparam->next;
     }
     gtype = &gtype_;
 
-    return done[type] = ConcretizeType(gtype, generic_t->base, done);
+    return done[{type, gtype}] = ConcretizeType(gtype, generic_t->base, done);
   }
 
   if (type->kind == Type::kGParam) {
     if (gtype) {
-      return done[type] = (*gtype)[string(get<Token*>(type->value)->raw)];
+      return done[{type, gtype}] = (*gtype)[string(get<Token*>(type->value)->raw)];
     }
-    return done[type] = type;
+    return done[{type, gtype}] = type;
   }
 
   auto dup = NewType(type->kind);
-  done[type] = dup;
+  done[{type, gtype}] = dup;
 
   dup->base = ConcretizeType(gtype, type->base, done);
   dup->next = ConcretizeType(gtype, type->next, done);
@@ -185,12 +251,12 @@ Type* ConcretizeType(TypeMap* gtype, Type* type, std::map<Type*, Type*>& done) {
 }
 
 Type* ConcretizeType(TypeMap& gtype, Type* type) {
-  map<Type*, Type*> done;
+  DoneMap done;
   return ConcretizeType(&gtype, type, done);
 }
 
 Type* ConcretizeType(Type* type) {
-  map<Type*, Type*> done;
+  DoneMap done;
   return ConcretizeType(nullptr, type, done);
 }
 
@@ -199,13 +265,8 @@ TypedFunc* NewTypedFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {
 
   auto cf = new TypedFunc{{}, gfunc};
   auto gname = gfunc->def->rhs; // generic name list: T, S, ...
-  for (auto tname = type_list->lhs; tname; tname = tname->next) {
-    if (auto t = ctx.tm.Find(*tname->token)) {
-      cf->gtype[string(gname->token->raw)] = t;
-    } else {
-      cerr << "unknown type name" << endl;
-      ErrorAt(ctx.src, *tname->token);
-    }
+  for (auto tnode = type_list->lhs; tnode; tnode = tnode->next) {
+    cf->gtype[string(gname->token->raw)] = tnode->type;
     gname = gname->next;
   }
 
@@ -217,7 +278,8 @@ Type* ConcretizeType(TypedFunc& f) {
 }
 
 std::string Mangle(TypedFunc& f) {
-  return Mangle(f.func->id->raw, ConcretizeType(f));
+  auto t = ConcretizeType(f);
+  return Mangle(f.func->id->raw, t);
 }
 
 Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
@@ -233,6 +295,10 @@ Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
   obj_dup->locals = func->locals;
   obj_dup->type = conc_func_t;
   ConcContext ctx{src, gtype, obj_dup};
+
+  for (auto& [ gname, conc_t ] : gtype) {
+    gtype[gname] = ConcretizeType(gtype, conc_t);
+  }
 
   def_dup->lhs = ConcretizeNode(ctx, def->lhs);
   def_dup->rhs = ConcretizeNode(ctx, def->rhs);

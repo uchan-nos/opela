@@ -50,6 +50,17 @@ struct NodeValuePrinter {
   void operator()(TypedFunc* v) {
     os << Mangle(*v);
   }
+  void operator()(TypedFuncMap* v) {
+    os << '{';
+    auto it = v->begin();
+    if (it != v->end()) {
+      os << it->first;
+      for (++it; it != v->end(); ++it) {
+        os << ' ' << it->first;
+      }
+    }
+    os << '}';
+  }
 };
 
 void PrintAST(std::ostream& os, Node* ast, int indent, bool recursive) {
@@ -117,7 +128,7 @@ Object* AllocateLVar(ASTContext& ctx, Token* name, Node* def) {
     ErrorAt(ctx.src, *name);
   }
   auto lvar = NewVar(name, def, Object::kLocal);
-  ctx.locals->push_back(lvar);
+  ctx.cur_func->locals.push_back(lvar);
   ctx.sc.Put(*lvar->id, lvar);
   return lvar;
 }
@@ -228,13 +239,13 @@ Node* FunctionDefinition(ASTContext& ctx) {
     auto param_list = GParamList(ctx);
     generic_func_node = NewNodeOneChild(Node::kDefGFunc, name, node);
     generic_func_node->rhs = param_list;
+    generic_func_node->value = new TypedFuncMap;
     for (auto param = param_list; param; param = param->next) {
       ctx.tm.Register(NewTypeGParam(param->token));
     }
   }
 
   auto func_obj = NewFunc(name, generic_func_node, Object::kGlobal);
-  generic_func_node->value = func_obj;
   node->value = func_obj;
 
   ctx.t.Expect("(");
@@ -252,7 +263,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
   ctx.sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.sc, ctx.strings,
                       ctx.unresolved_types, ctx.undeclared_ids,
-                      ctx.typed_funcs, &func_obj->locals};
+                      ctx.typed_funcs, func_obj};
 
   for (auto param = node->rhs; param; param = param->next) {
     auto var = AllocateLVar(func_ctx, param->token, param);
@@ -345,7 +356,7 @@ Node* VariableDefinition(ASTContext& ctx) {
     def_node->cond = tspec;
 
     Object* var;
-    if (ctx.locals) { // ローカル
+    if (ctx.cur_func) { // ローカル
       var = AllocateLVar(ctx, id, def_node);
     } else { // グローバル
       var = NewVar(id, def_node, Object::kGlobal);
@@ -1123,8 +1134,36 @@ void SetType(ASTContext& ctx, Node* node) {
       auto gfunc_def = gfunc_obj->def;
       if (gfunc_def->kind == Node::kDefGFunc &&
           node->rhs->kind == Node::kTList) { // キャスト式 Foo@<t1, t2, ...>
+        ctx.tm.Enter();
+        for (auto gname = gfunc_def->rhs; gname; gname = gname->next) {
+          ctx.tm.Register(NewTypeGParam(gname->token));
+        }
         auto tf = NewTypedFunc(ctx, gfunc_obj, node->rhs);
-        ctx.typed_funcs.push_back(tf);
+        ctx.tm.Leave();
+        auto mangled_name = Mangle(*tf);
+        TypedFuncMap* typed_funcs;
+        if (ctx.cur_func->def->kind == Node::kDefGFunc) {
+          bool some_gparam = false;
+          for (auto param = node->rhs->lhs; param; param = param->next) {
+            if (param->type->kind == Type::kGParam) {
+              some_gparam = true;
+              break;
+            }
+          }
+          if (some_gparam) {
+            typed_funcs = get<TypedFuncMap*>(ctx.cur_func->def->value);
+          } else {
+            typed_funcs = &ctx.typed_funcs;
+          }
+        } else {
+          typed_funcs = &ctx.typed_funcs;
+        }
+        if (auto it = typed_funcs->find(mangled_name);
+            it == typed_funcs->end()) {
+          typed_funcs->insert({mangled_name, tf});
+        } else {
+          tf = it->second;
+        }
         node->value = tf;
         node->type = ConcretizeType(*tf);
         break;
@@ -1200,7 +1239,7 @@ void SetType(ASTContext& ctx, Node* node) {
     SetType(ctx, node->lhs);
     if (auto t = GetUserBaseType(node->lhs->type);
         t->kind != Type::kGParam && t->kind != Type::kStruct) {
-      cerr << "lhs must be a struct" << endl;
+      cerr << "lhs must be a struct: " << t << endl;
       ErrorAt(ctx.src, *node->token);
     } else {
       for (auto ft = t->next; ft; ft = ft->next) {
@@ -1256,6 +1295,7 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     SetTypeProgram(ctx, ast->next);
     break;
   case Node::kDefFunc:
+    ctx.cur_func = get<Object*>(ast->value);
     for (auto param = ast->rhs; param; param = param->next) {
       SetType(ctx, param);
     }

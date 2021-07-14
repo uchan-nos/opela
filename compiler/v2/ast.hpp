@@ -136,7 +136,7 @@ struct Node {
    */
 
   std::variant<VariantDummyType, opela_type::Int, StringIndex, Object*,
-               opela_type::Byte, TypedFunc*> value = {};
+               opela_type::Byte, TypedFunc*, TypedFuncMap*> value = {};
   int ershov = 0;
 };
 
@@ -159,8 +159,8 @@ struct ASTContext {
   std::vector<opela_type::String>& strings;
   std::list<Type*>& unresolved_types;
   std::list<Node*>& undeclared_ids;
-  std::vector<TypedFunc*>& typed_funcs;
-  std::vector<Object*>* locals;
+  TypedFuncMap& typed_funcs;
+  Object* cur_func;
 };
 
 Node* Program(ASTContext& ctx);

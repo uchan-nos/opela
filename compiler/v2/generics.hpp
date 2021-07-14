@@ -15,6 +15,7 @@ struct TypedFunc {
   TypeMap gtype; // "T": t1, "S": t2, ...
   Object* func; // ジェネリック関数、あるいは普通の関数
 };
+using TypedFuncMap = std::map<std::string, TypedFunc*>;
 
 struct ASTContext;
 struct Node;
