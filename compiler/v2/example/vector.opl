@@ -18,11 +18,11 @@ func Print(vec *Vector<int>) {
   printf("\n");
 }
 
-func VectorPushBack<T>(vec *Vector<T>, v *T) {
+func VectorPushBack<T>(vec *Vector<T>, v T) {
   if vec->len == vec->cap {
     VectorExtend@<T>(vec);
   }
-  vec->data[vec->len] = *v;
+  vec->data[vec->len] = v;
   vec->len++;
 }
 

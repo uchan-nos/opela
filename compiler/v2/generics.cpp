@@ -16,6 +16,7 @@ struct ConcContext {
   Source& src;
   TypeMap& gtype;
   Object* func; // 具体化を実行中の関数オブジェクト
+  std::map<Object*, Object*>& new_lvars;
 };
 
 namespace {
@@ -81,15 +82,14 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
     auto dup = NewNode(Node::kId, node->token);
     if (auto p = get_if<Object*>(&node->value)) {
       Object* obj = *p;
-      auto obj_dup = new Object{*obj};
-      for (size_t i = 0; i < ctx.func->locals.size(); ++i) {
-        if (ctx.func->locals[i] == obj) {
-          ctx.func->locals[i] = obj_dup;
-          break;
-        }
+      if (auto it = ctx.new_lvars.find(obj); it != ctx.new_lvars.end()) {
+        dup->value = it->second;
+        dup->type = it->second->type;
+      } else {
+        auto obj_dup = new Object{*obj};
+        dup->value = obj_dup;
+        dup->type = obj_dup->type = ConcretizeType(ctx.gtype, obj->type);
       }
-      dup->value = obj_dup;
-      dup->type = obj_dup->type = ConcretizeType(ctx.gtype, obj->type);
     } else {
       dup->type = ConcretizeType(ctx.gtype, node->type);
     }
@@ -122,6 +122,9 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
 
   switch (node->kind) {
   case Node::kAdd:
+  case Node::kSub:
+  case Node::kMul:
+  case Node::kDiv:
     dup->type = MergeTypeBinOp(lhs->type, rhs->type);
     break;
   case Node::kEqu:
@@ -143,6 +146,9 @@ Node* ConcretizeNode(ConcContext& ctx, Node* node) {
     break;
   case Node::kParam:
     dup->type = lhs->type;
+    break;
+  case Node::kSizeof:
+    dup->type = node->type;
     break;
   case Node::kCast:
     dup->type = ConcretizeType(ctx.gtype, node->type);
@@ -286,6 +292,10 @@ Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
   assert(def->kind == Node::kDefFunc);
   auto def_dup = NewNode(Node::kDefFunc, def->token);
 
+  for (auto& [ gname, conc_t ] : gtype) {
+    gtype[gname] = ConcretizeType(gtype, conc_t);
+  }
+
   auto func = get<Object*>(def->value);
   Type* conc_func_t = ConcretizeType(gtype, func->type);
   char* conc_name = strdup(Mangle(func->id->raw, conc_func_t).c_str());
@@ -293,12 +303,20 @@ Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
 
   auto obj_dup = NewFunc(conc_name_token, def, func->linkage);
   obj_dup->locals = func->locals;
-  obj_dup->type = conc_func_t;
-  ConcContext ctx{src, gtype, obj_dup};
-
-  for (auto& [ gname, conc_t ] : gtype) {
-    gtype[gname] = ConcretizeType(gtype, conc_t);
+  map<Object*, Object*> new_lvars;
+  for (size_t i = 0; i < func->locals.size(); ++i) {
+    Object* lvar = func->locals[i];
+    auto t = ConcretizeType(gtype, lvar->type);
+    if (t != lvar->type) {
+      auto new_lvar = new Object{*lvar};
+      new_lvar->type = t;
+      obj_dup->locals[i] = new_lvar;
+      new_lvars[lvar] = new_lvar;
+    }
   }
+
+  obj_dup->type = conc_func_t;
+  ConcContext ctx{src, gtype, obj_dup, new_lvars};
 
   def_dup->lhs = ConcretizeNode(ctx, def->lhs);
   def_dup->rhs = ConcretizeNode(ctx, def->rhs);
