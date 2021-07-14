@@ -794,6 +794,35 @@ void PrintDebugInfo(Node* ast, vector<opela_type::String>& strings) {
   }
 }
 
+void GenerateTypedFunc(Source& src, Asm* asmgen, Asm::RegSet free_calc_regs,
+                       set<string>& generated,
+                       const TypeMap& gtype, TypedFunc* tf) {
+  TypeMap tf_gtype{gtype};
+  tf_gtype.merge(tf->gtype);
+
+  Node* conc_def_node = ConcretizeDefFunc(src, tf_gtype, tf->func->def->lhs);
+  string conc_name{get<Object*>(conc_def_node->value)->id->raw};
+  if (auto [ it, inserted ] = generated.insert(conc_name); !inserted) {
+    return;
+  }
+
+  GenContext ctx{src, *asmgen, tf->func};
+  GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
+
+  auto inner_tfs = get<TypedFuncMap*>(tf->func->def->value);
+  for (auto [ generic_name, inner_tf ] : *inner_tfs) {
+    GenerateTypedFunc(src, asmgen, free_calc_regs, generated, tf_gtype, inner_tf);
+  }
+}
+
+void GenerateTypedFuncs(Source& src, Asm* asmgen, Asm::RegSet free_calc_regs,
+                        const TypedFuncMap& tfs) {
+  set<string> generated;
+  for (auto [ mangled_name, tf ] : tfs) {
+    GenerateTypedFunc(src, asmgen, free_calc_regs, generated, tf->gtype, tf);
+  }
+}
+
 int main(int argc, char** argv) {
   if (int err = ParseArgs(argc, argv)) {
     return err;
@@ -854,44 +883,37 @@ int main(int argc, char** argv) {
     }
   }
 
-  set<string> generated_typed_funcs;
-  for (auto [ mangled_name, typed_func ] : typed_funcs) {
-    if (generated_typed_funcs.count(mangled_name)) {
+  GenerateTypedFuncs(src, asmgen, free_calc_regs, typed_funcs);
+  /*
+  set<string> generated_tf;
+  for (auto [ mangled_name, global_tf ] : typed_funcs) {
+    if (auto [ it, inserted ] = generated_tf.insert(mangled_name); !inserted) {
       continue;
     }
 
-    GenContext ctx{src, *asmgen, typed_func->func};
-    for (auto var_name = typed_func->func->def->rhs;
-         var_name; var_name = var_name->next) {
-      cerr << "func type var: " << var_name->token->raw << endl;
-    }
     Node* conc_def_node = ConcretizeDefFunc(
-        src, typed_func->gtype, typed_func->func->def->lhs);
+        src, global_tf->gtype, global_tf->func->def->lhs);
+    GenContext ctx{src, *asmgen, global_tf->func};
     GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
 
-    generated_typed_funcs.insert(mangled_name);
-
-    auto typed_func2 = get<TypedFuncMap*>(typed_func->func->def->value);
-    for (auto [ mangled_name2, typed_func2 ] : *typed_func2) {
-      if (generated_typed_funcs.count(mangled_name2)) {
-        continue;
-      }
-
-      cerr << "generating concretize function '" << mangled_name2
-           << "' inside " << mangled_name << endl;
+    auto inner_tfs = get<TypedFuncMap*>(global_tf->func->def->value);
+    for (auto [ generic_name, inner_tf ] : *inner_tfs) {
       TypeMap gtype;
-      for (auto [ gname, t ] : typed_func2->gtype) {
-        gtype[gname] = typed_func->gtype[gname];
-        cerr << "gtype[" << gname << "] = " << typed_func->gtype[gname] << endl;
+      for (auto [ gname, t ] : inner_tf->gtype) {
+        gtype[gname] = global_tf->gtype[gname];
       }
       Node* conc_def_node = ConcretizeDefFunc(
-          src, gtype, typed_func2->func->def->lhs);
-      GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
+          src, gtype, inner_tf->func->def->lhs);
 
-      cerr << get<Object*>(conc_def_node->value)->id->raw << " was added to generated_typed_funcs" << endl;
-      generated_typed_funcs.insert(string{get<Object*>(conc_def_node->value)->id->raw});
+      string conc_name{get<Object*>(conc_def_node->value)->id->raw};
+      if (auto [ it, inserted ] = generated_tf.insert(conc_name); !inserted) {
+        continue;
+      }
+      GenContext ctx{src, *asmgen, inner_tf->func};
+      GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
     }
   }
+  */
 
   asmgen->Output() << ".global _init_opela\n_init_opela:\n";
   asmgen->Push64(Asm::kRegBP);

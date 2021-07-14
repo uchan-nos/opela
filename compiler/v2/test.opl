@@ -102,6 +102,7 @@ func main() int {
   TEST_INT(7,  testGenericNested());
   TEST_INT(42, testGenericNested2());
   TEST_INT(4,  testGenericFunc());
+  TEST_INT(1,  testGenericFunc2());
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -224,6 +225,7 @@ func testGenericStruct() int { var x GPair<int8>; x.a=2; x.b=5; return x.a+&x.b-
 func testGenericNested() int { var x GPair<GPair<int8>>; x.a.a=2; x.b.b=5; return x.a.a+x.b.b; }
 func testGenericNested2() int { var x GNode<int> ={42,0}; var y GNode<int> ={1,&x}; return y.next->value; }
 func testGenericFunc() int { var x Pair={2,3}; return GetBNested@<Pair>(&x)+1; }
+func testGenericFunc2() int { var x Pair={2,3}; return GetANested2@<Pair>(&x)-1; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -254,5 +256,8 @@ func GetB<T>(v *T) int { return v->b; }
 type GPair<T> struct{a T; b T;};
 type GNode<T> struct{ value T; next *GNode<T>; };
 func GetBNested<T>(v *T) int { return GetB@<T>(v); }
+func GetA<T>(v *T) int { return v->a; }
+func GetANested<T>(v *T) int { return GetA@<T>(v); }
+func GetANested2<T>(v *T) int { return GetANested@<T>(v); }
 
 extern "C" printf func(format *byte, ...) int;
