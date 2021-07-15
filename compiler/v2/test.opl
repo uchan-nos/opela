@@ -223,7 +223,7 @@ func testGenericAdd() int { return Add@<int>(2, 3); }
 func testGenericMemberAccess() int { var x Pair={2,3}; return GetB@<Pair>(&x)+1; }
 func testGenericStruct() int { var x GPair<int8>; x.a=2; x.b=5; return x.a+&x.b-&x.a; }
 func testGenericNested() int { var x GPair<GPair<int8>>; x.a.a=2; x.b.b=5; return x.a.a+x.b.b; }
-func testGenericNested2() int { var x GNode<int> ={42,0}; var y GNode<int> ={1,&x}; return y.next->value; }
+func testGenericNested2() int { var x GNode<int>={42,0}; var y GNode<int>={1,&x}; return y.next->value; }
 func testGenericFunc() int { var x Pair={2,3}; return GetBNested@<Pair>(&x)+1; }
 func testGenericFunc2() int { var x Pair={2,3}; return GetANested2@<Pair>(&x)-1; }
 

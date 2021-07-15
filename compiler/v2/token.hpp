@@ -51,6 +51,9 @@ class Tokenizer {
 
   void Unexpected(Token& token);
 
+  Token* SubToken(Token::Kind kind, std::size_t len);
+  Token* ConsumeOrSub(std::string_view raw);
+
  private:
   Source& src_;
   Token* cur_token_;

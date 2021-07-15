@@ -218,6 +218,22 @@ void Tokenizer::Unexpected(Token& token) {
   ::Unexpected(src_, token);
 }
 
+Token* Tokenizer::SubToken(Token::Kind kind, std::size_t len) {
+  auto sub_token = cur_token_->raw.substr(0, len);
+  cur_token_->raw = cur_token_->raw.substr(len);
+  return new Token{kind, sub_token, {}};
+}
+
+Token* Tokenizer::ConsumeOrSub(std::string_view raw) {
+  if (auto token = Consume(raw)) {
+    return token;
+  } else if (cur_token_->kind == Token::kReserved &&
+             cur_token_->raw.starts_with(raw)) {
+    return SubToken(Token::kReserved, raw.length());
+  }
+  return nullptr;
+}
+
 void ErrorAt(Source& src, Token& token) {
   ErrorAt(src, token.raw.begin());
 }

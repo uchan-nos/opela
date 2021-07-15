@@ -844,14 +844,14 @@ Node* ParameterDeclList(ASTContext& ctx) {
 Node* TypeList(ASTContext& ctx) {
   auto list_token = ctx.t.Expect("<");
   auto type_list = NewNode(Node::kTList, list_token);
-  if (ctx.t.Consume(">")) {
+  if (ctx.t.ConsumeOrSub(">")) {
     return type_list;
   }
   if ((type_list->lhs = TypeSpecifier(ctx)) == nullptr) {
     cerr << "type must be specified" << endl;
     ErrorAt(ctx.src, *ctx.t.Peek());
   }
-  for (auto cur = type_list->lhs; !ctx.t.Consume(">"); cur = cur->next) {
+  for (auto cur = type_list->lhs; !ctx.t.ConsumeOrSub(">"); cur = cur->next) {
     ctx.t.Expect(",");
     if ((cur->next = TypeSpecifier(ctx)) == nullptr) {
       cerr << "type must be specified" << endl;
