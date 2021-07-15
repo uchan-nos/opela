@@ -1130,41 +1130,26 @@ void SetType(ASTContext& ctx, Node* node) {
   case Node::kCast:
     SetType(ctx, node->lhs);
     if (node->lhs->kind == Node::kId) {
-      auto gfunc_obj = get<Object*>(node->lhs->value);
-      auto gfunc_def = gfunc_obj->def;
-      if (gfunc_def->kind == Node::kDefGFunc &&
+      if (auto gfunc = get<Object*>(node->lhs->value);
+          gfunc->def->kind == Node::kDefGFunc &&
           node->rhs->kind == Node::kTList) { // キャスト式 Foo@<t1, t2, ...>
         ctx.tm.Enter();
-        for (auto gname = gfunc_def->rhs; gname; gname = gname->next) {
+        for (auto gname = gfunc->def->rhs; gname; gname = gname->next) {
           ctx.tm.Register(NewTypeGParam(gname->token));
         }
-        auto tf = NewTypedFunc(ctx, gfunc_obj, node->rhs);
+        auto tf = NewTypedFunc(gfunc, node->rhs);
         ctx.tm.Leave();
+
+        // 具体化して欲しい関数を表に登録する
         auto mangled_name = Mangle(*tf);
         TypedFuncMap* typed_funcs;
         if (ctx.cur_func->def->kind == Node::kDefGFunc) {
-          bool some_gparam = false;
-          for (auto param = node->rhs->lhs; param; param = param->next) {
-            if (param->type->kind == Type::kGParam) {
-              some_gparam = true;
-              break;
-            }
-          }
-          if (some_gparam) {
-            typed_funcs = get<TypedFuncMap*>(ctx.cur_func->def->value);
-          } else {
-            typed_funcs = &ctx.typed_funcs;
-          }
+          typed_funcs = get<TypedFuncMap*>(ctx.cur_func->def->value);
         } else {
           typed_funcs = &ctx.typed_funcs;
         }
-        if (auto it = typed_funcs->find(mangled_name);
-            it == typed_funcs->end()) {
-          typed_funcs->insert({mangled_name, tf});
-        } else {
-          tf = it->second;
-        }
-        node->value = tf;
+        auto [ it, inserted ] = typed_funcs->insert({mangled_name, tf});
+        node->value = tf = it->second;
         node->type = ConcretizeType(*tf);
         break;
       }

@@ -266,7 +266,7 @@ Type* ConcretizeType(Type* type) {
   return ConcretizeType(nullptr, type, done);
 }
 
-TypedFunc* NewTypedFunc(ASTContext& ctx, Object* gfunc, Node* type_list) {
+TypedFunc* NewTypedFunc(Object* gfunc, Node* type_list) {
   assert(type_list->kind == Node::kTList);
 
   auto cf = new TypedFunc{{}, gfunc};

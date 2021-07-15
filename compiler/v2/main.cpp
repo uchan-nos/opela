@@ -884,36 +884,6 @@ int main(int argc, char** argv) {
   }
 
   GenerateTypedFuncs(src, asmgen, free_calc_regs, typed_funcs);
-  /*
-  set<string> generated_tf;
-  for (auto [ mangled_name, global_tf ] : typed_funcs) {
-    if (auto [ it, inserted ] = generated_tf.insert(mangled_name); !inserted) {
-      continue;
-    }
-
-    Node* conc_def_node = ConcretizeDefFunc(
-        src, global_tf->gtype, global_tf->func->def->lhs);
-    GenContext ctx{src, *asmgen, global_tf->func};
-    GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
-
-    auto inner_tfs = get<TypedFuncMap*>(global_tf->func->def->value);
-    for (auto [ generic_name, inner_tf ] : *inner_tfs) {
-      TypeMap gtype;
-      for (auto [ gname, t ] : inner_tf->gtype) {
-        gtype[gname] = global_tf->gtype[gname];
-      }
-      Node* conc_def_node = ConcretizeDefFunc(
-          src, gtype, inner_tf->func->def->lhs);
-
-      string conc_name{get<Object*>(conc_def_node->value)->id->raw};
-      if (auto [ it, inserted ] = generated_tf.insert(conc_name); !inserted) {
-        continue;
-      }
-      GenContext ctx{src, *asmgen, inner_tf->func};
-      GenerateAsm(ctx, conc_def_node, Asm::kRegA, free_calc_regs, {});
-    }
-  }
-  */
 
   asmgen->Output() << ".global _init_opela\n_init_opela:\n";
   asmgen->Push64(Asm::kRegBP);

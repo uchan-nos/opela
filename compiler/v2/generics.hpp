@@ -20,7 +20,7 @@ using TypedFuncMap = std::map<std::string, TypedFunc*>;
 struct ASTContext;
 struct Node;
 
-TypedFunc* NewTypedFunc(ASTContext& ctx, Object* gfunc, Node* type_list);
+TypedFunc* NewTypedFunc(Object* gfunc, Node* type_list);
 Type* ConcretizeType(TypedFunc& f);
 std::string Mangle(TypedFunc& f);
 
