@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <map>
 #include <iostream>
+#include <set>
 #include <sstream>
 #include <string>
 
@@ -13,22 +14,53 @@ using namespace std;
 
 namespace {
 
-map<Node*, size_t> node_number;
-size_t NodeNo(Node* node) {
-  if (auto it = node_number.find(node); it != node_number.end()) {
-    return it->second;
+template <class T>
+class Numbering {
+ public:
+  size_t Number(T value) {
+    if (auto it = number_.find(value); it != number_.end()) {
+      return it->second;
+    }
+    auto n = number_.size();
+    number_.insert({value, n});
+    return n;
   }
-  auto n = node_number.size();
-  node_number.insert({node, n});
-  return n;
-}
 
+  const auto& GetMapping() const {
+    return number_;
+  }
+
+ private:
+  map<T, size_t> number_;
+};
+
+Numbering<Node*> node_number;
 std::string NodeName(Node* node) {
   if (node == nullptr) {
     return "null";
   }
   ostringstream oss;
-  oss << "Node_" << NodeNo(node);
+  oss << "Node_" << node_number.Number(node);
+  return oss.str();
+}
+
+Numbering<Type*> type_number;
+std::string TypeName(Type* type) {
+  if (type == nullptr) {
+    return "null";
+  }
+  ostringstream oss;
+  oss << "Type_" << type_number.Number(type);
+  return oss.str();
+}
+
+Numbering<Object*> object_number;
+std::string ObjectName(Object* object) {
+  if (object == nullptr) {
+    return "null";
+  }
+  ostringstream oss;
+  oss << "Object_" << object_number.Number(object);
   return oss.str();
 }
 
@@ -137,6 +169,138 @@ const map<char, Node::Kind> kUnaryOps{
   {'&', Node::kAddr},
   {'*', Node::kDeref},
 };
+
+void PrintASTDotEdge(std::ostream& os, Type* type);
+void PrintASTDotEdge(std::ostream& os, Object* object);
+void PrintASTDotEdge(std::ostream& os, Node* ast);
+void PrintASTDot(std::ostream& os, Type* type);
+void PrintASTDot(std::ostream& os, Object* object);
+void PrintASTDot(std::ostream& os, Node* ast);
+
+void EscapeDotLabel(std::ostream& os, char c) {
+  if (c == '\"') {
+    os << "\\\"";
+  } else if (c == '\\') {
+    os << "\\\\";
+  } else {
+    os << c;
+  }
+}
+
+void PrintTokenEscape(std::ostream& os, Token* token) {
+  os << '\'';
+  for (auto c : token->raw) {
+    EscapeDotLabel(os, c);
+  }
+  os << '\'';
+}
+
+struct NodeValueDotPrinter {
+  std::ostream& os;
+
+  void operator()(VariantDummyType) {
+    os << "none";
+  }
+  void operator()(opela_type::Int v) {
+    os << v;
+  }
+  void operator()(StringIndex v) {
+    os << "STR" << v.i;
+  }
+  void operator()(Object* v) {
+    os << ObjectName(v);
+  }
+  void operator()(TypedFunc* v) {
+    os << Mangle(*v) << "()";
+  }
+  void operator()(TypedFuncMap* v) {
+    os << "TypedFuncMap_" << (void*)v;
+  }
+};
+
+using Edge = std::tuple<std::string, std::string, std::string>;
+set<Edge> printed_edges;
+
+void PrintDotEdge(std::ostream& os, std::string_view label,
+                  std::string_view lhs, std::string_view rhs) {
+  auto [ it, inserted ] = printed_edges.insert(Edge{label, lhs, rhs});
+  if (inserted) {
+    os << lhs << " -> " << rhs << " [label=\"" << label << "\"];\n";
+  }
+}
+
+void PrintASTDotEdge(std::ostream& os, Type* type) {
+  if (type->base) {
+    PrintDotEdge(os, "base", TypeName(type), TypeName(type->base));
+  }
+  if (type->next) {
+    PrintDotEdge(os, "next", TypeName(type), TypeName(type->base));
+  }
+}
+
+void PrintASTDotEdge(std::ostream& os, Object* object) {
+  PrintDotEdge(os, "def", ObjectName(object), NodeName(object->def));
+  if (object->type) {
+    PrintDotEdge(os, "type", ObjectName(object), TypeName(object->type));
+    PrintASTDotEdge(os, object->type);
+  }
+}
+
+void PrintASTDotEdge(std::ostream& os, Node* ast) {
+  if (ast->type) {
+    PrintDotEdge(os, "type", NodeName(ast), TypeName(ast->type));
+    PrintASTDotEdge(os, ast->type);
+  }
+  if (ast->lhs) {
+    PrintDotEdge(os, "lhs", NodeName(ast), NodeName(ast->lhs));
+    PrintASTDotEdge(os, ast->lhs);
+  }
+  if (ast->rhs) {
+    PrintDotEdge(os, "rhs", NodeName(ast), NodeName(ast->rhs));
+    PrintASTDotEdge(os, ast->rhs);
+  }
+  if (ast->cond) {
+    PrintDotEdge(os, "cond", NodeName(ast), NodeName(ast->cond));
+    PrintASTDotEdge(os, ast->cond);
+  }
+  if (ast->next) {
+    PrintDotEdge(os, "next", NodeName(ast), NodeName(ast->next));
+    PrintASTDotEdge(os, ast->next);
+  }
+  if (!get_if<VariantDummyType>(&ast->value)) {
+    ostringstream oss;
+    visit(NodeValueDotPrinter{oss}, ast->value);
+    PrintDotEdge(os, "value", NodeName(ast), oss.str());
+
+    if (auto p = get_if<Object*>(&ast->value)) {
+      Object* obj = *p;
+      PrintASTDotEdge(os, obj);
+    }
+  }
+}
+
+void PrintASTDot(std::ostream& os, Type* type) {
+  if (type == nullptr) {
+    os << "null";
+    return;
+  }
+  os << TypeName(type) << " [label=\"" << type << "\"];\n";
+  return;
+}
+
+void PrintASTDot(std::ostream& os, Object* object) {
+  if (object == nullptr) {
+    os << "null";
+    return;
+  }
+  os << ObjectName(object) << " [label=\""
+     << magic_enum::enum_name(object->kind)
+     << ' ' << object->id->raw
+     << "\\n" << magic_enum::enum_name(object->linkage)
+     << "\\nbp_offset=" << object->bp_offset
+     << "\"];\n";
+  return;
+}
 
 } // namespace
 
@@ -879,6 +1043,29 @@ void PrintAST(std::ostream& os, Node* ast) {
 
 void PrintASTRec(std::ostream& os, Node* ast) {
   PrintAST(os, ast, 0, true);
+}
+
+void PrintASTDot(std::ostream& os, Node* ast) {
+  os << "digraph AST {\n";
+  PrintASTDotEdge(os, ast);
+
+  for (auto [ node, index ] : node_number.GetMapping()) {
+    os << NodeName(node) << " [label=\"" << NodeName(node) << "\\n"
+       << magic_enum::enum_name(node->kind) << ' ';
+    if (node->token) {
+      PrintTokenEscape(os, node->token);
+    } else {
+      os << "null-token";
+    }
+    os << "\"];\n";
+  }
+  for (auto [ type, index ] : type_number.GetMapping()) {
+    PrintASTDot(os, type);
+  }
+  for (auto [ obj, index ] : object_number.GetMapping()) {
+    PrintASTDot(os, obj);
+  }
+  os << "}\n";
 }
 
 int CountListItems(Node* head) {

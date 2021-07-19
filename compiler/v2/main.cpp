@@ -3,6 +3,7 @@
 #include <bit>
 #include <bitset>
 #include <cstring>
+#include <fstream>
 #include <iostream>
 #include <set>
 #include <sstream>
@@ -23,6 +24,7 @@ namespace {
 
 int verbosity = 0;
 string target_arch = "x86_64";
+string ast_graph;
 
 int ParseArgs(int argc, char** argv) {
   int i = 1;
@@ -38,6 +40,13 @@ int ParseArgs(int argc, char** argv) {
     } else if (opt == "-v") {
       ++verbosity;
       ++i;
+    } else if (opt == "-gen-ast-graph") {
+      if (i == argc - 1) {
+        cerr << "-gen-ast-graph needs one argument" << endl;
+        return 1;
+      }
+      ast_graph = argv[i + 1];
+      i += 2;
     } else {
       cerr << "unknown argument: " << opt << endl;
       return 1;
@@ -860,6 +869,11 @@ int main(int argc, char** argv) {
   cout << "/* AST\n";
   PrintDebugInfo(ast, strings);
   cout << "*/\n\n";
+
+  if (!ast_graph.empty()) {
+    ofstream graph_file(ast_graph);
+    PrintASTDot(graph_file, ast);
+  }
 
   Asm::RegSet free_calc_regs;
   if (!asmgen->SameReg(Asm::kRegA, Asm::kRegV0)) {
