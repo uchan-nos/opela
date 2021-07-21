@@ -175,7 +175,6 @@ void PrintASTDotEdge(std::ostream& os, Object* object);
 void PrintASTDotEdge(std::ostream& os, Node* ast);
 void PrintASTDot(std::ostream& os, Type* type);
 void PrintASTDot(std::ostream& os, Object* object);
-void PrintASTDot(std::ostream& os, Node* ast);
 
 void EscapeDotLabel(std::ostream& os, char c) {
   if (c == '\"') {
@@ -221,20 +220,25 @@ struct NodeValueDotPrinter {
 using Edge = std::tuple<std::string, std::string, std::string>;
 set<Edge> printed_edges;
 
-void PrintDotEdge(std::ostream& os, std::string_view label,
+bool PrintDotEdge(std::ostream& os, std::string_view label,
                   std::string_view lhs, std::string_view rhs) {
   auto [ it, inserted ] = printed_edges.insert(Edge{label, lhs, rhs});
   if (inserted) {
     os << lhs << " -> " << rhs << " [label=\"" << label << "\"];\n";
   }
+  return inserted;
 }
 
 void PrintASTDotEdge(std::ostream& os, Type* type) {
   if (type->base) {
-    PrintDotEdge(os, "base", TypeName(type), TypeName(type->base));
+    if (PrintDotEdge(os, "base", TypeName(type), TypeName(type->base))) {
+      PrintASTDotEdge(os, type->base);
+    }
   }
   if (type->next) {
-    PrintDotEdge(os, "next", TypeName(type), TypeName(type->base));
+    if (PrintDotEdge(os, "next", TypeName(type), TypeName(type->next))) {
+      PrintASTDotEdge(os, type->next);
+    }
   }
 }
 
