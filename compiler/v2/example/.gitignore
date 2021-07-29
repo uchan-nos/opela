@@ -3,3 +3,6 @@
 /sdl
 /hello
 /cmdargs
+/*.dot
+/*.png
+/*.svg

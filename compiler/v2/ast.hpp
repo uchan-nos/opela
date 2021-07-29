@@ -158,7 +158,7 @@ struct ASTContext {
   Scope<Object>& sc;
   std::vector<opela_type::String>& strings;
   std::list<Type*>& unresolved_types;
-  std::list<Node*>& undeclared_ids;
+  std::map<Node*, Node*>& undeclared_ids; // key=kId  value=context
   TypedFuncMap& typed_funcs;
   Object* cur_func;
 };
@@ -210,3 +210,4 @@ void SetType(ASTContext& ctx, Node* node);
 void SetTypeProgram(ASTContext& ctx, Node* ast);
 bool IsLiteral(Node* node);
 Type* ParamTypeFromDeclList(Node* plist);
+std::string MangleByDefNode(Node* func_def);

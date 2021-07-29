@@ -3,11 +3,14 @@
 #include <algorithm>
 #include <map>
 #include <iostream>
+#include <iterator>
+#include <list>
 #include <set>
 #include <sstream>
 #include <string>
 
 #include "magic_enum.hpp"
+#include "mangle.hpp"
 #include "object.hpp"
 
 using namespace std;
@@ -426,7 +429,13 @@ Node* FunctionDefinition(ASTContext& ctx) {
     node->cond->type = ctx.tm.Find("void");
   }
 
-  ctx.sc.Put(*func_obj->id, func_obj);
+  if (name->raw == "main") {
+    func_obj->mangled_name = "main";
+  } else {
+    func_obj->mangled_name = MangleByDefNode(node);
+  }
+
+  ctx.sc.Put(func_obj->mangled_name, func_obj);
 
   ctx.sc.Enter();
   ASTContext func_ctx{ctx.src, ctx.t, ctx.tm, ctx.sc, ctx.strings,
@@ -447,7 +456,10 @@ Node* FunctionDefinition(ASTContext& ctx) {
 Node* ExternDeclaration(ASTContext& ctx) {
   ctx.t.Expect(Token::kExtern);
   auto attr = ctx.t.Consume(Token::kStr);
-  if (attr && attr->raw != R"("C")") {
+  bool mangle = true;
+  if (attr && attr->raw == R"("C")") {
+    mangle = false;
+  } else if (attr) {
     cerr << "unknown attribute" << endl;
     ErrorAt(ctx.src, *attr);
   }
@@ -464,6 +476,11 @@ Node* ExternDeclaration(ASTContext& ctx) {
   node->cond = attr ? NewNodeStr(ctx, attr) : nullptr;
   auto obj = NewFunc(id, node, Object::kExternal);
   node->value = obj;
+  if (mangle) {
+    obj->mangled_name = MangleByDefNode(node);
+  } else {
+    obj->mangled_name = id->raw;
+  }
   ctx.sc.Put(*obj->id, obj);
   return node;
 }
@@ -674,7 +691,7 @@ Node* Assignment(ASTContext& ctx) {
       cerr << "lhs of ':=' must be an identifier" << endl;
       ctx.t.Unexpected(*node->token);
     }
-    ctx.undeclared_ids.remove(node);
+    ctx.undeclared_ids.erase(node);
     auto def_node = NewNodeBinOp(Node::kDefVar, op, node, Assignment(ctx));
 
     auto lvar = AllocateLVar(ctx, node->token, def_node);
@@ -812,6 +829,9 @@ Node* Postfix(ASTContext& ctx) {
         }
         ctx.t.Expect(")");
       }
+      if (ctx.undeclared_ids.count(node->lhs) > 0) {
+        ctx.undeclared_ids[node->lhs] = node;
+      }
     } else if (auto op = ctx.t.Consume("@")) {
       Node* rhs = ctx.t.Peek("<") ? TypeList(ctx) : TypeSpecifier(ctx);
       node = NewNodeBinOp(Node::kCast, op, node, rhs);
@@ -845,7 +865,7 @@ Node* Primary(ASTContext& ctx) {
     if (auto obj = ctx.sc.Find(*id)) {
       node->value = obj;
     } else {
-      ctx.undeclared_ids.push_back(node);
+      ctx.undeclared_ids.insert({node, nullptr});
     }
     return node;
   } else if (auto token = ctx.t.Consume(Token::kStr)) {
@@ -1107,18 +1127,49 @@ opela_type::String DecodeEscapeSequence(Source& src, Token& token) {
 
 void ResolveIDs(ASTContext& ctx) {
   while (!ctx.undeclared_ids.empty()) {
-    auto target = ctx.undeclared_ids.front();
-    ctx.undeclared_ids.pop_front();
+    auto it = ctx.undeclared_ids.begin();
+    auto target = it->first;
+    auto target_ctx = it->second;
+    ctx.undeclared_ids.erase(it);
 
+    // 基本名（Object::id）が一致するグローバルオブジェクトを候補とする
     auto globals = ctx.sc.GetGlobals();
-    auto it = find_if(globals.begin(), globals.end(),
-                      [target](auto o){
-                        return o->id->raw == target->token->raw;
-                      });
-    if (it != globals.end()) {
-      target->value = *it;
-    } else {
+    list<Object*> candidates;
+    copy_if(globals.begin(), globals.end(), back_inserter(candidates),
+            [target](auto o){
+              return o->id->raw == target->token->raw;
+            });
+    switch (candidates.size()) {
+    case 0:
       cerr << "undeclared id" << endl;
+      ErrorAt(ctx.src, *target->token);
+    case 1:
+      target->value = candidates.front();
+      break;
+    default:
+      if (target_ctx && target_ctx->kind == Node::kCall) {
+        size_t num_args = 0;
+        for (auto arg = target_ctx->rhs; arg; arg = arg->next) {
+          ++num_args;
+        }
+
+        // 実引数の数（num_args）と仮引数の数が等しいものに候補を絞る
+        candidates.remove_if(
+          [num_args](auto o){
+            size_t num_params = 0;
+            for (auto param = o->def->rhs; param; param = param->next) {
+              ++num_params;
+            }
+            return num_args != num_params;
+          });
+
+        if (candidates.size() == 1) {
+          target->value = candidates.front();
+          break;
+        }
+      }
+
+      cerr << "ambiguous id" << endl;
       ErrorAt(ctx.src, *target->token);
     }
   }
@@ -1483,6 +1534,9 @@ void SetTypeProgram(ASTContext& ctx, Node* ast) {
     SetTypeProgram(ctx, ast->next);
     break;
   case Node::kExtern:
+    SetType(ctx, ast);
+    SetTypeProgram(ctx, ast->next);
+    break;
   case Node::kTypedef:
     SetTypeProgram(ctx, ast->next);
     break;
@@ -1529,4 +1583,13 @@ Type* ParamTypeFromDeclList(Node* plist) {
     plist = plist->next;
   }
   return param_type;
+}
+
+std::string MangleByDefNode(Node* func_def) {
+  if (func_def->type) {
+    return Mangle(func_def->token->raw, func_def->type);
+  }
+  Type* param_type = ParamTypeFromDeclList(func_def->rhs);
+  Type* func_type = NewTypeFunc(func_def->cond->type, param_type);
+  return Mangle(func_def->token->raw, func_type);
 }

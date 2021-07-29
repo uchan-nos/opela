@@ -14,6 +14,7 @@
 #include "ast.hpp"
 #include "generics.hpp"
 #include "magic_enum.hpp"
+#include "mangle.hpp"
 #include "object.hpp"
 #include "source.hpp"
 #include "token.hpp"
@@ -344,7 +345,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
         break;
       case Object::kGlobal:
       case Object::kExternal:
-        if (lval || obj->kind == Object::kFunc) {
+        if (obj->kind == Object::kFunc) {
+          if (obj->linkage == Object::kExternal &&
+              obj->def->cond->token->raw == R"("C")") {
+            ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
+          } else {
+            ctx.asmgen.LoadLabelAddr(dest, obj->mangled_name);
+          }
+        } else if (lval) {
           ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
         } else {
           ctx.asmgen.LoadN(dest, obj->id->raw, DataTypeOf(ctx, obj->type));
@@ -370,8 +378,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
 
-      ctx.asmgen.Output() << ".global " << func->id->raw << '\n'
-                          << func->id->raw << ":\n";
+      ctx.asmgen.Output() << ".global " << func->mangled_name << '\n'
+                          << func->mangled_name << ":\n";
       ctx.asmgen.Push64(Asm::kRegBP);
       ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
       ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
@@ -384,7 +392,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
-      ctx.asmgen.Output() << func->id->raw << ".exit:\n";
+      ctx.asmgen.Output() << func->mangled_name << ".exit:\n";
       ctx.asmgen.Leave();
       ctx.asmgen.Ret();
       return;
@@ -399,7 +407,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
         ErrorAt(ctx.src, *node->token);
       }
     }
-    ctx.asmgen.Jmp(string{ctx.func->id->raw} + ".exit");
+    ctx.asmgen.Jmp(ctx.func->mangled_name + ".exit");
     return;
   case Node::kIf:
     comment_node();
@@ -852,7 +860,7 @@ int main(int argc, char** argv) {
   Scope<Object> scope;
   std::vector<opela_type::String> strings;
   list<Type*> unresolved_types;
-  list<Node*> undeclared_ids;
+  map<Node*, Node*> undeclared_ids;
   TypedFuncMap typed_funcs;
   ASTContext ast_ctx{src, tokenizer, type_manager, scope, strings,
                      unresolved_types, undeclared_ids, typed_funcs, nullptr};

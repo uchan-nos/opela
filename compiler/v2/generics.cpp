@@ -5,10 +5,10 @@
 #include <functional>
 #include <iostream>
 #include <map>
-#include <sstream>
 
 #include "ast.hpp"
 #include "magic_enum.hpp"
+#include "mangle.hpp"
 
 using namespace std;
 
@@ -20,56 +20,6 @@ struct ConcContext {
 };
 
 namespace {
-
-std::string Mangle(Type* t) {
-  ostringstream oss;
-  switch (t->kind) {
-  case Type::kInt:
-    oss << "int" << get<long>(t->value);
-    break;
-  case Type::kUInt:
-    oss << "uint" << get<long>(t->value);
-    break;
-  case Type::kPointer:
-    oss << "ptr_" << Mangle(t->base);
-    break;
-  case Type::kUser:
-    oss << get<Token*>(t->value)->raw;
-    break;
-  case Type::kStruct:
-    oss << "struct";
-    for (auto param = t->next; param; param = param->next) {
-      oss << '_' << Mangle(param->base);
-    }
-    break;
-  case Type::kGParam:
-    oss << get<Token*>(t->value)->raw;
-    break;
-  case Type::kConcrete:
-    oss << Mangle(t->base);
-    for (auto param = t->next; param; param = param->next) {
-      oss << '_' << Mangle(param->base);
-    }
-    break;
-  default:
-    cerr << "Mangle logic is not implemented for " << t << endl;
-  }
-  return oss.str();
-}
-
-std::string Mangle(std::string_view base_name, Type* t) {
-  if (t->kind == Type::kFunc) {
-    ostringstream oss;
-    oss << base_name;
-    for (auto pt = t->next; pt; pt = pt->next) {
-      oss << "__" << Mangle(pt->base);
-    }
-    return oss.str();
-  } else {
-    cerr << "Mangle logic is not implemented for " << t << endl;
-    assert(false);
-  }
-}
 
 Node* ConcretizeNode(ConcContext& ctx, Node* node) {
   if (node == nullptr) {
@@ -298,10 +248,8 @@ Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
 
   auto func = get<Object*>(def->value);
   Type* conc_func_t = ConcretizeType(gtype, func->type);
-  char* conc_name = strdup(Mangle(func->id->raw, conc_func_t).c_str());
-  auto conc_name_token = new Token{Token::kId, string_view{conc_name}, {}};
 
-  auto obj_dup = NewFunc(conc_name_token, def, func->linkage);
+  auto obj_dup = NewFunc(func->id, def, func->linkage);
   obj_dup->locals = func->locals;
   map<Object*, Object*> new_lvars;
   for (size_t i = 0; i < func->locals.size(); ++i) {
@@ -323,6 +271,8 @@ Node* ConcretizeDefFunc(Source& src, TypeMap& gtype, Node* def) {
   def_dup->cond = ConcretizeNode(ctx, def->cond);
 
   def_dup->value = obj_dup;
+
+  obj_dup->mangled_name = MangleByDefNode(def_dup);
 
   return def_dup;
 }

@@ -1,6 +1,7 @@
 CXXFLAGS = -O0 -std=c++20 -Wall -Wextra -g
 CFLAGS = -O3 -std=c11 -Wall -Wextra
-OBJS = main.o source.o token.o ast.o asm.o object.o typespec.o generics.o
+OBJS = main.o source.o token.o ast.o asm.o object.o typespec.o generics.o \
+       mangle.o
 DEPENDS = $(join $(dir $(OBJS)),$(addprefix .,$(notdir $(OBJS:.o=.d))))
 ASMS = $(OBJS:.o=.s)
 

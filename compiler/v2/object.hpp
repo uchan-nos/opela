@@ -35,14 +35,15 @@ struct Object {
   int bp_offset; // ローカル変数の BP からのオフセット
 
   std::vector<Object*> locals; // 関数のローカル変数リスト
+  std::string mangled_name; // 関数のマングルされた名前
 };
 
 inline Object* NewVar(Token* id, Node* def, Object::Linkage linkage) {
-  return new Object{Object::kVar, id, def, nullptr, linkage, -1, {}};
+  return new Object{Object::kVar, id, def, nullptr, linkage, -1, {}, {}};
 }
 
 inline Object* NewFunc(Token* id, Node* def, Object::Linkage linkage) {
-  return new Object{Object::kFunc, id, def, nullptr, linkage, -1, {}};
+  return new Object{Object::kFunc, id, def, nullptr, linkage, -1, {}, {}};
 }
 
 std::ostream& operator<<(std::ostream& os, Object* o);
