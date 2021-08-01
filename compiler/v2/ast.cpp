@@ -1,10 +1,11 @@
 #include "ast.hpp"
 
 #include <algorithm>
-#include <map>
+#include <fstream>
 #include <iostream>
 #include <iterator>
 #include <list>
+#include <map>
 #include <set>
 #include <sstream>
 #include <string>
@@ -309,6 +310,47 @@ void PrintASTDot(std::ostream& os, Object* object) {
   return;
 }
 
+std::vector<const char*> parse_stack;
+void PrintParseStack(ASTContext& ctx) {
+  static size_t print_parse_stack_timestamp = 0;
+
+  auto openmode = ios_base::out;
+  if (print_parse_stack_timestamp > 0) {
+    openmode |= ios_base::app;
+  }
+
+  ofstream ofs{parse_stack_file, openmode};
+  ofs << "==== " << print_parse_stack_timestamp << '\n';
+
+  const char* loc = &ctx.t.Peek()->raw[0];
+  auto line = ctx.src.GetLine(loc);
+  ofs << line << '\n'
+      << string(&*loc - line.begin(), ' ') << "^\n"
+      << "----\n";
+
+  for (const char* func_name : parse_stack) {
+    ofs << func_name << '\n';
+  }
+
+  ++print_parse_stack_timestamp;
+}
+
+struct StackAppender {
+  StackAppender(ASTContext& ctx, const char* func_name) {
+    if (!parse_stack_file.empty()) {
+      parse_stack.push_back(func_name);
+      PrintParseStack(ctx);
+    }
+  }
+  ~StackAppender() {
+    if (!parse_stack_file.empty()) {
+      parse_stack.pop_back();
+    }
+  }
+};
+
+#define PS(ctx) StackAppender stack_appender((ctx), __func__)
+
 } // namespace
 
 // ノードコンストラクタ
@@ -373,12 +415,14 @@ Node* NewNodeChar(Token* ch) {
 
 // パーサー
 Node* Program(ASTContext& ctx) {
+  PS(ctx);
   auto node = DeclarationSequence(ctx);
   ctx.t.Expect(Token::kEOF);
   return node;
 }
 
 Node* DeclarationSequence(ASTContext& ctx) {
+  PS(ctx);
   auto head = NewNode(Node::kInt, nullptr); // dummy
   auto cur = head;
   for (;;) {
@@ -400,6 +444,7 @@ Node* DeclarationSequence(ASTContext& ctx) {
 }
 
 Node* FunctionDefinition(ASTContext& ctx) {
+  PS(ctx);
   ctx.t.Expect(Token::kFunc);
   auto name = ctx.t.Expect(Token::kId);
   auto node = NewNode(Node::kDefFunc, name);
@@ -454,6 +499,7 @@ Node* FunctionDefinition(ASTContext& ctx) {
 }
 
 Node* ExternDeclaration(ASTContext& ctx) {
+  PS(ctx);
   ctx.t.Expect(Token::kExtern);
   auto attr = ctx.t.Consume(Token::kStr);
   bool mangle = true;
@@ -486,6 +532,7 @@ Node* ExternDeclaration(ASTContext& ctx) {
 }
 
 Node* TypeDeclaration(ASTContext& ctx) {
+  PS(ctx);
   ctx.t.Expect(Token::kType);
   auto name_token = ctx.t.Expect(Token::kId);
 
@@ -522,6 +569,7 @@ Node* TypeDeclaration(ASTContext& ctx) {
 }
 
 Node* VariableDefinition(ASTContext& ctx) {
+  PS(ctx);
   ctx.t.Expect(Token::kVar);
 
   auto one_def = [&ctx]{
@@ -576,6 +624,7 @@ Node* VariableDefinition(ASTContext& ctx) {
 }
 
 Node* Statement(ASTContext& ctx) {
+  PS(ctx);
   if (ctx.t.Peek("{")) {
     return CompoundStatement(ctx);
   }
@@ -605,6 +654,7 @@ Node* Statement(ASTContext& ctx) {
 }
 
 Node* CompoundStatement(ASTContext& ctx) {
+  PS(ctx);
   ctx.sc.Enter();
 
   auto node = NewNode(Node::kBlock, ctx.t.Expect("{"));
@@ -621,6 +671,7 @@ Node* CompoundStatement(ASTContext& ctx) {
 }
 
 Node* SelectionStatement(ASTContext& ctx) {
+  PS(ctx);
   auto if_token = ctx.t.Expect(Token::kIf);
   auto cond = Expression(ctx);
   auto body_then = CompoundStatement(ctx);
@@ -636,6 +687,7 @@ Node* SelectionStatement(ASTContext& ctx) {
 }
 
 Node* IterationStatement(ASTContext& ctx) {
+  PS(ctx);
   auto for_token = ctx.t.Expect(Token::kFor);
   if (ctx.t.Peek("{")) {
     auto node = NewNode(Node::kLoop, for_token);
@@ -656,6 +708,7 @@ Node* IterationStatement(ASTContext& ctx) {
 }
 
 Node* ExpressionStatement(ASTContext& ctx) {
+  PS(ctx);
   auto node = Expression(ctx);
   if (auto op = ctx.t.Consume("++")) {
     node = NewNodeOneChild(Node::kInc, op, node);
@@ -667,10 +720,12 @@ Node* ExpressionStatement(ASTContext& ctx) {
 }
 
 Node* Expression(ASTContext& ctx) {
+  PS(ctx);
   return Assignment(ctx);
 }
 
 Node* Assignment(ASTContext& ctx) {
+  PS(ctx);
   const map<string_view, Node::Kind> opmap{
     {"+=", Node::kAdd},
     {"-=", Node::kSub},
@@ -704,6 +759,7 @@ Node* Assignment(ASTContext& ctx) {
 }
 
 Node* LogicalOr(ASTContext& ctx) {
+  PS(ctx);
   auto node = LogicalAnd(ctx);
 
   for (;;) {
@@ -716,6 +772,7 @@ Node* LogicalOr(ASTContext& ctx) {
 }
 
 Node* LogicalAnd(ASTContext& ctx) {
+  PS(ctx);
   auto node = Equality(ctx);
 
   for (;;) {
@@ -728,6 +785,7 @@ Node* LogicalAnd(ASTContext& ctx) {
 }
 
 Node* Equality(ASTContext& ctx) {
+  PS(ctx);
   auto node = Relational(ctx);
 
   for (;;) {
@@ -742,6 +800,7 @@ Node* Equality(ASTContext& ctx) {
 }
 
 Node* Relational(ASTContext& ctx) {
+  PS(ctx);
   auto node = Additive(ctx);
 
   for (;;) {
@@ -760,6 +819,7 @@ Node* Relational(ASTContext& ctx) {
 }
 
 Node* Additive(ASTContext& ctx) {
+  PS(ctx);
   auto node = Multiplicative(ctx);
 
   for (;;) {
@@ -774,6 +834,7 @@ Node* Additive(ASTContext& ctx) {
 }
 
 Node* Multiplicative(ASTContext& ctx) {
+  PS(ctx);
   auto node = Unary(ctx);
 
   for (;;) {
@@ -788,6 +849,7 @@ Node* Multiplicative(ASTContext& ctx) {
 }
 
 Node* Unary(ASTContext& ctx) {
+  PS(ctx);
   if (ctx.t.Consume("+")) {
     return Unary(ctx);
   } else if (auto op = ctx.t.Consume("-")) {
@@ -817,6 +879,7 @@ Node* Unary(ASTContext& ctx) {
 }
 
 Node* Postfix(ASTContext& ctx) {
+  PS(ctx);
   auto node = Primary(ctx);
 
   for (;;) {
@@ -856,6 +919,7 @@ Node* Postfix(ASTContext& ctx) {
 }
 
 Node* Primary(ASTContext& ctx) {
+  PS(ctx);
   if (ctx.t.Consume("(")) {
     auto node = Expression(ctx);
     ctx.t.Expect(")");
@@ -894,6 +958,7 @@ Node* Primary(ASTContext& ctx) {
 }
 
 Node* TypeSpecifier(ASTContext& ctx) {
+  PS(ctx);
   if (auto ptr_token = ctx.t.Consume("*")) {
     auto base_tspec = TypeSpecifier(ctx);
     if (!base_tspec) {
@@ -983,6 +1048,7 @@ Node* TypeSpecifier(ASTContext& ctx) {
 }
 
 Node* ParameterDeclList(ASTContext& ctx) {
+  PS(ctx);
   auto head = NewNode(Node::kInt, nullptr); // dummy
   auto cur = head;
 
@@ -1030,6 +1096,7 @@ Node* ParameterDeclList(ASTContext& ctx) {
 
 // 型リスト（例えば < int, *byte >）を読み取る
 Node* TypeList(ASTContext& ctx) {
+  PS(ctx);
   auto list_token = ctx.t.Expect("<");
   auto type_list = NewNode(Node::kTList, list_token);
   if (ctx.t.ConsumeOrSub(">")) {
@@ -1052,6 +1119,7 @@ Node* TypeList(ASTContext& ctx) {
 // 型パラメタのリスト（例えば < T, S >）を読み取る
 // kId の列となる
 Node* GParamList(ASTContext& ctx) {
+  PS(ctx);
   ctx.t.Expect("<");
   auto param_list = NewNode(Node::kId, ctx.t.Expect(Token::kId));
   for (auto cur = param_list; !ctx.t.Consume(">"); cur = cur->next) {

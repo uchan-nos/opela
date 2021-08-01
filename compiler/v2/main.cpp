@@ -48,6 +48,13 @@ int ParseArgs(int argc, char** argv) {
       }
       ast_graph = argv[i + 1];
       i += 2;
+    } else if (opt == "-gen-parse-stack") {
+      if (i == argc - 1) {
+        cerr << "-gen-parse-stack needs one argument" << endl;
+        return 1;
+      }
+      parse_stack_file = argv[i + 1];
+      i += 2;
     } else {
       cerr << "unknown argument: " << opt << endl;
       return 1;

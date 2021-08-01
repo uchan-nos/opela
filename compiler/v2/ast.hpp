@@ -211,3 +211,5 @@ void SetTypeProgram(ASTContext& ctx, Node* ast);
 bool IsLiteral(Node* node);
 Type* ParamTypeFromDeclList(Node* plist);
 std::string MangleByDefNode(Node* func_def);
+
+inline std::string parse_stack_file;
