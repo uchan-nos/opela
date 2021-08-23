@@ -48,12 +48,12 @@ int ParseArgs(int argc, char** argv) {
       }
       ast_graph = argv[i + 1];
       i += 2;
-    } else if (opt == "-gen-parse-stack") {
+    } else if (opt == "-gen-parse-anime") {
       if (i == argc - 1) {
-        cerr << "-gen-parse-stack needs one argument" << endl;
+        cerr << "-gen-parse-anime needs one argument" << endl;
         return 1;
       }
-      parse_stack_file = argv[i + 1];
+      parse_anime_dir = argv[i + 1];
       i += 2;
     } else {
       cerr << "unknown argument: " << opt << endl;
@@ -887,7 +887,7 @@ int main(int argc, char** argv) {
 
   if (!ast_graph.empty()) {
     ofstream graph_file(ast_graph);
-    PrintASTDot(graph_file, ast);
+    PrintGeneratedNodes(graph_file);
   }
 
   Asm::RegSet free_calc_regs;

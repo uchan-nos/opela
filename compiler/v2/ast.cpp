@@ -334,95 +334,65 @@ void PrintASTDot(std::ostream& os, Object* object) {
 }
 
 std::vector<const char*> parse_stack;
-void PrintParseStack(ASTContext& ctx) {
-  static size_t print_parse_stack_timestamp = 0;
-
-  //auto openmode = ios_base::out;
-  //if (print_parse_stack_timestamp > 0) {
-  //  openmode |= ios_base::app;
-  //}
-
-  //ofstream ofs{parse_stack_file, openmode};
-  //ofs << "==== " << print_parse_stack_timestamp << '\n';
-  ostringstream oss;
-  oss << print_parse_stack_timestamp;
-  auto anime_dir = path("parse_anime") / path(oss.str());
-  create_directory(anime_dir);
-
-  auto parse_stack_file = anime_dir / path("stack.txt");
-  ofstream ofs{parse_stack_file.native()};
-  ofs << "==== " << print_parse_stack_timestamp << '\n';
-
+void PrintParseStack(std::ostream& os, ASTContext& ctx) {
   const char* loc = &ctx.t.Peek()->raw[0];
   auto line = ctx.src.GetLine(loc);
-  ofs << line << '\n'
-      << string(&*loc - line.begin(), ' ') << "^\n"
-      << "----\n";
+  os << line << '\n'
+     << string(&*loc - line.begin(), ' ') << "^\n"
+     << "----\n";
 
   for (const char* func_name : parse_stack) {
-    ofs << func_name << '\n';
+    os << func_name << '\n';
   }
-
-  ++print_parse_stack_timestamp;
 }
 
 std::set<Node*> generated_nodes;
-void PrintGeneratedNodes() {
-  static size_t timestamp = 0;
 
+std::filesystem::path AnimeFilePath(size_t timestamp, const char* filename) {
+  create_directory(parse_anime_dir);
   ostringstream oss;
   oss << timestamp;
-  auto dot_file_path = path("parse_anime") / path(oss.str()) / path("ast.dot");
-  ofstream ofs{dot_file_path.native()};
-  ofs << "digraph AST {\n";
+  auto anime_dir = path(parse_anime_dir) / path(oss.str());
+  create_directory(anime_dir);
+  return anime_dir / path(filename);
+}
 
-  DotEdgePrinter dep{ofs};
+void GenerateAnimePage(ASTContext& ctx) {
+  static size_t timestamp = 0;
 
-  for (auto node : generated_nodes) {
-    ofs << NodeName(node) << " [label=\"" << NodeName(node) << "\\n"
-        << magic_enum::enum_name(node->kind) << ' ';
-    if (node->token) {
-      PrintTokenEscape(ofs, node->token);
-    } else {
-      ofs << "null-token";
-    }
-    ofs << "\"];\n";
-    cerr << "printing node edges " << node->lhs << "," << node->rhs << endl;
-    PrintASTDotEdge(dep, node, false);
+  if (parse_anime_dir.empty()) {
+    return;
   }
-  for (auto [ type, index ] : type_number.GetMapping()) {
-    PrintASTDot(ofs, type);
-  }
-  for (auto [ obj, index ] : object_number.GetMapping()) {
-    PrintASTDot(ofs, obj);
-  }
-  ofs << "}\n";
+
+  ofstream stack_file{AnimeFilePath(timestamp, "stack.txt").native()};
+  PrintParseStack(stack_file, ctx);
+
+  ofstream ast_file{AnimeFilePath(timestamp, "ast.dot").native()};
+  PrintGeneratedNodes(ast_file);
 
   ++timestamp;
 }
 
-struct StackAppender {
-  StackAppender(ASTContext& ctx, const char* func_name) {
-    if (!parse_stack_file.empty()) {
-      parse_stack.push_back(func_name);
-      PrintParseStack(ctx);
-      PrintGeneratedNodes();
-    }
+struct ParseStackAnimator {
+  ASTContext& ctx;
+
+  ParseStackAnimator(ASTContext& ctx, const char* func_name) : ctx{ctx} {
+    parse_stack.push_back(func_name);
+    GenerateAnimePage(ctx);
   }
-  ~StackAppender() {
-    if (!parse_stack_file.empty()) {
-      parse_stack.pop_back();
-    }
+
+  ~ParseStackAnimator() {
+    parse_stack.pop_back();
+    GenerateAnimePage(ctx);
   }
 };
 
-#define PS(ctx) StackAppender stack_appender((ctx), __func__)
+#define PS(ctx) ParseStackAnimator psanimator((ctx), __func__)
 
 } // namespace
 
 // ノードコンストラクタ
 Node* NewNode(Node::Kind kind, Token* token) {
-  //return new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
   Node* n = new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
   generated_nodes.insert(n);
   return n;
@@ -493,8 +463,8 @@ Node* Program(ASTContext& ctx) {
 
 Node* DeclarationSequence(ASTContext& ctx) {
   PS(ctx);
-  auto head = NewNode(Node::kInt, nullptr); // dummy
-  auto cur = head;
+  Node head; // dummy
+  auto cur = &head;
   for (;;) {
     if (ctx.t.Peek(Token::kFunc)) {
       cur->next = FunctionDefinition(ctx);
@@ -505,7 +475,7 @@ Node* DeclarationSequence(ASTContext& ctx) {
     } else if (ctx.t.Peek(Token::kVar)) {
       cur->next = VariableDefinition(ctx);
     } else {
-      return head->next;
+      return head.next;
     }
     while (cur->next) {
       cur = cur->next;
@@ -670,8 +640,8 @@ Node* VariableDefinition(ASTContext& ctx) {
     return def_node;
   };
 
-  auto head = NewNode(Node::kInt, nullptr); // dummy
-  auto cur = head;
+  Node head; // dummy
+  auto cur = &head;
   if (ctx.t.Consume("(")) {
     for (;;) {
       cur->next = one_def();
@@ -685,7 +655,7 @@ Node* VariableDefinition(ASTContext& ctx) {
         break;
       }
     }
-    return head->next;
+    return head.next;
   }
 
   auto node = one_def();
@@ -1011,14 +981,14 @@ Node* Primary(ASTContext& ctx) {
     if (ctx.t.Consume("}")) {
       return node;
     }
-    auto head = NewNode(Node::kInt, nullptr); // dummy
-    auto cur = head;
+    Node head; // dummy
+    auto cur = &head;
     for (;;) {
       cur->next = Expression(ctx);
       cur = cur->next;
       if (!ctx.t.Consume(",")) {
         ctx.t.Expect("}");
-        node->lhs = head->next;
+        node->lhs = head.next;
         return node;
       }
     }
@@ -1119,14 +1089,14 @@ Node* TypeSpecifier(ASTContext& ctx) {
 
 Node* ParameterDeclList(ASTContext& ctx) {
   PS(ctx);
-  auto head = NewNode(Node::kInt, nullptr); // dummy
-  auto cur = head;
+  Node head; // dummy
+  auto cur = &head;
 
   vector<Token*> params_untyped;
   for (;;) {
     if (auto op = ctx.t.Consume("...")) { // 可変長引数
       cur->next = NewNode(Node::kVParam, op);
-      return head->next;
+      return head.next;
     }
     auto name_or_type = ctx.t.Consume(Token::kId);
     if (name_or_type == nullptr) {
@@ -1137,7 +1107,7 @@ Node* ParameterDeclList(ASTContext& ctx) {
           continue;
         }
       }
-      return head->next;
+      return head.next;
     }
     params_untyped.push_back(name_or_type);
 
@@ -1151,7 +1121,7 @@ Node* ParameterDeclList(ASTContext& ctx) {
       if (ctx.t.Consume(",")) {
         params_untyped.clear();
       } else {
-        return head->next;
+        return head.next;
       }
     } else {
       for (auto tname_token : params_untyped) {
@@ -1207,13 +1177,12 @@ void PrintASTRec(std::ostream& os, Node* ast) {
   PrintAST(os, ast, 0, true);
 }
 
-void PrintASTDot(std::ostream& os, Node* ast) {
+void PrintGeneratedNodes(std::ostream& os) {
+  os << "digraph AST {\n";
+
   DotEdgePrinter dep{os};
 
-  os << "digraph AST {\n";
-  PrintASTDotEdge(dep, ast, true);
-
-  for (auto [ node, index ] : node_number.GetMapping()) {
+  for (auto node : generated_nodes) {
     os << NodeName(node) << " [label=\"" << NodeName(node) << "\\n"
        << magic_enum::enum_name(node->kind) << ' ';
     if (node->token) {
@@ -1222,6 +1191,8 @@ void PrintASTDot(std::ostream& os, Node* ast) {
       os << "null-token";
     }
     os << "\"];\n";
+    cerr << "printing node edges " << node->lhs << "," << node->rhs << endl;
+    PrintASTDotEdge(dep, node, false);
   }
   for (auto [ type, index ] : type_number.GetMapping()) {
     PrintASTDot(os, type);

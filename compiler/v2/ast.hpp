@@ -193,7 +193,7 @@ Node* GParamList(ASTContext& ctx);
 void PrintAST(std::ostream& os, Node* ast);
 void PrintASTRec(std::ostream& os, Node* ast);
 
-void PrintASTDot(std::ostream& os, Node* ast);
+void PrintGeneratedNodes(std::ostream& os);
 
 // 線形リスト（next によるリスト）の要素数を返す。
 // nullptr -> 0
@@ -212,4 +212,4 @@ bool IsLiteral(Node* node);
 Type* ParamTypeFromDeclList(Node* plist);
 std::string MangleByDefNode(Node* func_def);
 
-inline std::string parse_stack_file;
+inline std::string parse_anime_dir;
