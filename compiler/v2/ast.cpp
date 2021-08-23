@@ -1,6 +1,7 @@
 #include "ast.hpp"
 
 #include <algorithm>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -15,6 +16,7 @@
 #include "object.hpp"
 
 using namespace std;
+using std::filesystem::path, std::filesystem::create_directory;
 
 namespace {
 
@@ -174,9 +176,34 @@ const map<char, Node::Kind> kUnaryOps{
   {'*', Node::kDeref},
 };
 
-void PrintASTDotEdge(std::ostream& os, Type* type);
-void PrintASTDotEdge(std::ostream& os, Object* object);
-void PrintASTDotEdge(std::ostream& os, Node* ast);
+struct Edge {
+  std::string label, from, to;
+};
+
+bool operator<(const Edge& lhs, const Edge& rhs) {
+  tuple l = tie(lhs.label, lhs.from, lhs.to);
+  tuple r = tie(rhs.label, rhs.from, rhs.to);
+  return l < r;
+}
+
+class DotEdgePrinter {
+  std::set<Edge> printed_edges_;
+  std::ostream& os_;
+
+ public:
+  DotEdgePrinter(std::ostream& os) : os_{os} {}
+  bool Print(const Edge& e) {
+    auto [ it, inserted ] = printed_edges_.insert(e);
+    if (inserted) {
+      os_ << e.from << " -> " << e.to << " [label=\"" << e.label << "\"];\n";
+    }
+    return inserted;
+  }
+};
+
+void PrintASTDotEdge(DotEdgePrinter& dep, Type* type);
+void PrintASTDotEdge(DotEdgePrinter& dep, Object* object);
+void PrintASTDotEdge(DotEdgePrinter& dep, Node* ast, bool recursive);
 void PrintASTDot(std::ostream& os, Type* type);
 void PrintASTDot(std::ostream& os, Object* object);
 
@@ -221,68 +248,64 @@ struct NodeValueDotPrinter {
   }
 };
 
-using Edge = std::tuple<std::string, std::string, std::string>;
-set<Edge> printed_edges;
-
-bool PrintDotEdge(std::ostream& os, std::string_view label,
-                  std::string_view lhs, std::string_view rhs) {
-  auto [ it, inserted ] = printed_edges.insert(Edge{label, lhs, rhs});
-  if (inserted) {
-    os << lhs << " -> " << rhs << " [label=\"" << label << "\"];\n";
-  }
-  return inserted;
-}
-
-void PrintASTDotEdge(std::ostream& os, Type* type) {
+void PrintASTDotEdge(DotEdgePrinter& dep, Type* type) {
   if (type->base) {
-    if (PrintDotEdge(os, "base", TypeName(type), TypeName(type->base))) {
-      PrintASTDotEdge(os, type->base);
+    if (dep.Print({"base", TypeName(type), TypeName(type->base)})) {
+      PrintASTDotEdge(dep, type->base);
     }
   }
   if (type->next) {
-    if (PrintDotEdge(os, "next", TypeName(type), TypeName(type->next))) {
-      PrintASTDotEdge(os, type->next);
+    if (dep.Print({"next", TypeName(type), TypeName(type->next)})) {
+      PrintASTDotEdge(dep, type->next);
     }
   }
 }
 
-void PrintASTDotEdge(std::ostream& os, Object* object) {
-  PrintDotEdge(os, "def", ObjectName(object), NodeName(object->def));
+void PrintASTDotEdge(DotEdgePrinter& dep, Object* object) {
+  dep.Print({"def", ObjectName(object), NodeName(object->def)});
   if (object->type) {
-    PrintDotEdge(os, "type", ObjectName(object), TypeName(object->type));
-    PrintASTDotEdge(os, object->type);
+    dep.Print({"type", ObjectName(object), TypeName(object->type)});
+    PrintASTDotEdge(dep, object->type);
   }
 }
 
-void PrintASTDotEdge(std::ostream& os, Node* ast) {
+void PrintASTDotEdge(DotEdgePrinter& dep, Node* ast, bool recursive) {
   if (ast->type) {
-    PrintDotEdge(os, "type", NodeName(ast), TypeName(ast->type));
-    PrintASTDotEdge(os, ast->type);
+    dep.Print({"type", NodeName(ast), TypeName(ast->type)});
+    PrintASTDotEdge(dep, ast->type);
   }
   if (ast->lhs) {
-    PrintDotEdge(os, "lhs", NodeName(ast), NodeName(ast->lhs));
-    PrintASTDotEdge(os, ast->lhs);
+    dep.Print({"lhs", NodeName(ast), NodeName(ast->lhs)});
+    if (recursive) {
+      PrintASTDotEdge(dep, ast->lhs, recursive);
+    }
   }
   if (ast->rhs) {
-    PrintDotEdge(os, "rhs", NodeName(ast), NodeName(ast->rhs));
-    PrintASTDotEdge(os, ast->rhs);
+    dep.Print({"rhs", NodeName(ast), NodeName(ast->rhs)});
+    if (recursive) {
+      PrintASTDotEdge(dep, ast->rhs, recursive);
+    }
   }
   if (ast->cond) {
-    PrintDotEdge(os, "cond", NodeName(ast), NodeName(ast->cond));
-    PrintASTDotEdge(os, ast->cond);
+    dep.Print({"cond", NodeName(ast), NodeName(ast->cond)});
+    if (recursive) {
+      PrintASTDotEdge(dep, ast->cond, recursive);
+    }
   }
   if (ast->next) {
-    PrintDotEdge(os, "next", NodeName(ast), NodeName(ast->next));
-    PrintASTDotEdge(os, ast->next);
+    dep.Print({"next", NodeName(ast), NodeName(ast->next)});
+    if (recursive) {
+      PrintASTDotEdge(dep, ast->next, recursive);
+    }
   }
   if (!get_if<VariantDummyType>(&ast->value)) {
     ostringstream oss;
     visit(NodeValueDotPrinter{oss}, ast->value);
-    PrintDotEdge(os, "value", NodeName(ast), oss.str());
+    dep.Print({"value", NodeName(ast), oss.str()});
 
     if (auto p = get_if<Object*>(&ast->value)) {
       Object* obj = *p;
-      PrintASTDotEdge(os, obj);
+      PrintASTDotEdge(dep, obj);
     }
   }
 }
@@ -314,12 +337,20 @@ std::vector<const char*> parse_stack;
 void PrintParseStack(ASTContext& ctx) {
   static size_t print_parse_stack_timestamp = 0;
 
-  auto openmode = ios_base::out;
-  if (print_parse_stack_timestamp > 0) {
-    openmode |= ios_base::app;
-  }
+  //auto openmode = ios_base::out;
+  //if (print_parse_stack_timestamp > 0) {
+  //  openmode |= ios_base::app;
+  //}
 
-  ofstream ofs{parse_stack_file, openmode};
+  //ofstream ofs{parse_stack_file, openmode};
+  //ofs << "==== " << print_parse_stack_timestamp << '\n';
+  ostringstream oss;
+  oss << print_parse_stack_timestamp;
+  auto anime_dir = path("parse_anime") / path(oss.str());
+  create_directory(anime_dir);
+
+  auto parse_stack_file = anime_dir / path("stack.txt");
+  ofstream ofs{parse_stack_file.native()};
   ofs << "==== " << print_parse_stack_timestamp << '\n';
 
   const char* loc = &ctx.t.Peek()->raw[0];
@@ -335,11 +366,47 @@ void PrintParseStack(ASTContext& ctx) {
   ++print_parse_stack_timestamp;
 }
 
+std::set<Node*> generated_nodes;
+void PrintGeneratedNodes() {
+  static size_t timestamp = 0;
+
+  ostringstream oss;
+  oss << timestamp;
+  auto dot_file_path = path("parse_anime") / path(oss.str()) / path("ast.dot");
+  ofstream ofs{dot_file_path.native()};
+  ofs << "digraph AST {\n";
+
+  DotEdgePrinter dep{ofs};
+
+  for (auto node : generated_nodes) {
+    ofs << NodeName(node) << " [label=\"" << NodeName(node) << "\\n"
+        << magic_enum::enum_name(node->kind) << ' ';
+    if (node->token) {
+      PrintTokenEscape(ofs, node->token);
+    } else {
+      ofs << "null-token";
+    }
+    ofs << "\"];\n";
+    cerr << "printing node edges " << node->lhs << "," << node->rhs << endl;
+    PrintASTDotEdge(dep, node, false);
+  }
+  for (auto [ type, index ] : type_number.GetMapping()) {
+    PrintASTDot(ofs, type);
+  }
+  for (auto [ obj, index ] : object_number.GetMapping()) {
+    PrintASTDot(ofs, obj);
+  }
+  ofs << "}\n";
+
+  ++timestamp;
+}
+
 struct StackAppender {
   StackAppender(ASTContext& ctx, const char* func_name) {
     if (!parse_stack_file.empty()) {
       parse_stack.push_back(func_name);
       PrintParseStack(ctx);
+      PrintGeneratedNodes();
     }
   }
   ~StackAppender() {
@@ -355,7 +422,10 @@ struct StackAppender {
 
 // ノードコンストラクタ
 Node* NewNode(Node::Kind kind, Token* token) {
-  return new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
+  //return new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
+  Node* n = new Node{kind, token, nullptr, nullptr, nullptr, nullptr};
+  generated_nodes.insert(n);
+  return n;
 }
 
 Node* NewNodeInt(Token* token, opela_type::Int value) {
@@ -1138,8 +1208,10 @@ void PrintASTRec(std::ostream& os, Node* ast) {
 }
 
 void PrintASTDot(std::ostream& os, Node* ast) {
+  DotEdgePrinter dep{os};
+
   os << "digraph AST {\n";
-  PrintASTDotEdge(os, ast);
+  PrintASTDotEdge(dep, ast, true);
 
   for (auto [ node, index ] : node_number.GetMapping()) {
     os << NodeName(node) << " [label=\"" << NodeName(node) << "\\n"
