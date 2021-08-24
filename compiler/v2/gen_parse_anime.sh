@@ -21,8 +21,8 @@ do
   fi
 
   convert -font Noto-Mono -pointsize 20 label:"$(cat $page_dir/stack.txt)" $page_dir/stack.gif
-  dot -Tgif $page_dir/ast.dot > $page_dir/ast.gif
-  convert +append $page_dir/stack.gif $page_dir/ast.gif $parse_anime_dir/page_$page.gif
+  dot -Tpng $page_dir/ast.dot > $page_dir/ast.png
+  convert +append $page_dir/stack.gif $page_dir/ast.png $parse_anime_dir/page_$page.gif
 
   w=$(identify -format "%w" $parse_anime_dir/page_$page.gif)
   h=$(identify -format "%h" $parse_anime_dir/page_$page.gif)

@@ -48,9 +48,12 @@ int { return 42; }` という OpeLa プログラムをコンパイルする過�
 この処理により、次のファイルが生成されます。
 
 - `parse_anime_foo/i/stack.gif` : stack.txt を画像化したもの
-- `parse_anime_foo/i/ast.gif` : ast.dot を画像化したもの
-- `parse_anime_foo/page_i.gif` : stack.gif と ast.gif を結合したもの
+- `parse_anime_foo/i/ast.png` : ast.dot を画像化したもの
+- `parse_anime_foo/page_i.gif` : stack.gif と ast.png を結合したもの
 - `parse_anime_foo/anime.gif` : 全ページを連結したアニメーション
+
+※Dot は GIF で画像化すると背景が少し灰色がかってしまったり、変な影が発生してし
+まいます。PNG 形式なら綺麗な画像が得られます。
 
 どのような画像が生成されるか興味のある方向けに、`parse_anime_hello/anime.gif` に
 含まれるページをいくつか紹介します。
