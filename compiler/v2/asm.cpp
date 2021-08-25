@@ -148,7 +148,7 @@ class AsmX86_64 : public Asm {
 
   void LoadN(Register dest, std::string_view label, DataType dt) override {
     PrintAsm(this, "    mov %rm, %s ptr [rip+%S]\n",
-             dest, dt, kDataTypeName[dt], label);
+             dest, dt, kDataTypeName[dt], label.data(), label.length());
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
@@ -158,7 +158,7 @@ class AsmX86_64 : public Asm {
 
   void StoreN(std::string_view label, Register v, DataType dt) override {
     PrintAsm(this, "    mov %s ptr [rip+%S], %rm\n",
-             kDataTypeName[dt], label, v, dt);
+             kDataTypeName[dt], label.data(), label.length(), v, dt);
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
@@ -185,17 +185,17 @@ class AsmX86_64 : public Asm {
   }
 
   void Jmp(std::string_view label) override {
-    PrintAsm(this, "    jmp %S\n", label);
+    PrintAsm(this, "    jmp %S\n", label.data(), label.length());
   }
 
   void JmpIfZero(Register v, std::string_view label) override {
     PrintAsm(this, "    test %r64, %r64\n", v, v);
-    PrintAsm(this, "    jz %S\n", label);
+    PrintAsm(this, "    jz %S\n", label.data(), label.length());
   }
 
   void JmpIfNotZero(Register v, std::string_view label) override {
     PrintAsm(this, "    test %r64, %r64\n", v, v);
-    PrintAsm(this, "    jnz %S\n", label);
+    PrintAsm(this, "    jnz %S\n", label.data(), label.length());
   }
 
   void LEA(Register dest, Register base, int disp) override {
@@ -207,7 +207,8 @@ class AsmX86_64 : public Asm {
   }
 
   void LoadLabelAddr(Register dest, std::string_view label) override {
-    PrintAsm(this, "    movabs %r64, offset %S\n", dest, label);
+    PrintAsm(this, "    movabs %r64, offset %S\n",
+             dest, label.data(), label.length());
   }
 
   void Set1IfNonZero64(Register dest, Register v) override {
@@ -316,8 +317,9 @@ void PrintAsm(Asm* asmgen, const char* format, ...) {
       out << s;
     } else if (c == 'S') {
       p++;
-      auto s = va_arg(args, string_view);
-      out << s;
+      auto s = va_arg(args, const char*);
+      auto l = va_arg(args, size_t);
+      out << string_view(s, l);
     }
   }
 

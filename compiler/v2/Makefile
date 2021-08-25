@@ -14,7 +14,7 @@ endif
 
 # ビルドルール
 opelac: $(OBJS) $(DEPENDS)
-	$(CXX) $(CXXFLAGS) -Wl,--export-dynamic -o $@ $(OBJS)
+	$(CXX) $(CXXFLAGS) -o $@ $(OBJS)
 
 .PHONY: clean
 clean:

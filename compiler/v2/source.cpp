@@ -26,7 +26,7 @@ std::string_view Source::GetLine(const char* loc) {
   while (*line_end != '\n' && line_end < &*src_.end()) {
     ++line_end;
   }
-  return {line, line_end};
+  return {line, static_cast<size_t>(line_end - line)};
 }
 
 void ErrorAt(Source& src, const char* loc) {

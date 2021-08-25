@@ -1039,7 +1039,7 @@ Node* TypeSpecifier(ASTContext& ctx) {
       ErrorAt(ctx.src, *ctx.t.Peek());
     }
 
-    auto arr_type = NewTypeArray(elem_type->type, get<long>(arr_size->value));
+    auto arr_type = NewTypeArray(elem_type->type, get<opela_type::Int>(arr_size->value));
     return NewNodeType(arr_token, arr_type);
   }
 

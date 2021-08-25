@@ -90,7 +90,7 @@ Token* NextToken(Source& src, const char* p) {
 
       char* non_digit;
       opela_type::Int v = strtol(literal, &non_digit, base);
-      return new Token{Token::kInt, {p, non_digit}, v};
+      return new Token{Token::kInt, {p, static_cast<size_t>(non_digit - p)}, v};
     }
 
     if (string_view op{p, 3}; op == "...") {
@@ -122,7 +122,7 @@ Token* NextToken(Source& src, const char* p) {
       while (p < src.End() && (isalnum(*p) || *p == '_')) {
         ++p;
       }
-      return new Token{Token::kId, {id, p}, {}};
+      return new Token{Token::kId, {id, static_cast<size_t>(p - id)}, {}};
     }
 
     if (*p == '"') {
@@ -131,7 +131,7 @@ Token* NextToken(Source& src, const char* p) {
         cerr << "incomplete string literal" << endl;
         ErrorAt(src, p);
       }
-      return new Token{Token::kStr, {p, str_end}, {}};
+      return new Token{Token::kStr, {p, static_cast<size_t>(str_end - p)}, {}};
     }
 
     if (*p == '\'') {
