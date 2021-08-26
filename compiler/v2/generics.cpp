@@ -178,16 +178,15 @@ Type* ConcretizeType(TypeMap* gtype, Type* type, DoneMap& done) {
     auto generic_t = GetUserBaseType(type->base);
     auto type_list = type->next;
 
-    TypeMap gtype_;
+    auto gtype_ = new TypeMap;
     auto gparam = generic_t->next;
     for (auto param = type_list; param; param = param->next) {
       string gname{get<Token*>(gparam->value)->raw};
-      gtype_[gname] = ConcretizeType(gtype, param->base, done);
+      gtype_->insert({gname, ConcretizeType(gtype, param->base, done)});
       gparam = gparam->next;
     }
-    gtype = &gtype_;
 
-    return done[{type, gtype}] = ConcretizeType(gtype, generic_t->base, done);
+    return done[{type, gtype_}] = ConcretizeType(gtype_, generic_t->base, done);
   }
 
   if (type->kind == Type::kGParam) {
