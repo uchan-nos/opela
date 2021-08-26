@@ -6,6 +6,11 @@
 #include <limits>
 #include <string>
 
+#define NOT_IMPLEMENTED \
+  do { \
+    this->Output() << "# not implemented: " << __func__ << std::endl; \
+  } while (0)
+
 using namespace std;
 
 class AsmX86_64 : public Asm {
@@ -53,7 +58,7 @@ class AsmX86_64 : public Asm {
     "", "byte", "word", "dword", "qword"
   };
 
-  using Asm::Asm;
+  using Asm::Asm; // コンストラクタ
 
   std::string RegName(Register reg, DataType dt = kQWord) override {
     return RegName(kRegNames[reg], dt);
@@ -236,12 +241,170 @@ class AsmX86_64 : public Asm {
   void DecN(Register addr, DataType dt) override {
     PrintAsm(this, "    dec %s ptr [%r64]\n", kDataTypeName[dt], addr);
   }
+
+  void FilePrologue() override {
+    PrintAsm(this,  ".intel_syntax noprefix\n");
+  }
+};
+
+class AsmAArch64 : public Asm {
+ public:
+  using Asm::Asm; // コンストラクタ
+
+  std::string RegName(Register reg, DataType dt = kQWord) override {
+    return "not-implemented";
+  }
+
+  bool SameReg(Register a, Register b) override {
+    return RegName(a) == RegName(b);
+  }
+
+  void Mov64(Register dest, std::uint64_t v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Mov64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Add64(Register dest, std::uint64_t v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Add64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Sub64(Register dest, std::uint64_t v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Sub64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Mul64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Mul64(Register dest, Register a, std::uint64_t b) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Div64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void And64(Register dest, std::uint64_t v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void And64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Or64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Push64(Register reg) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Pop64(Register reg) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Leave() override {
+    NOT_IMPLEMENTED;
+  }
+
+  void LoadN(Register dest, Register addr, int disp, DataType dt) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void LoadN(Register dest, std::string_view label, DataType dt) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void StoreN(Register addr, int disp, Register v, DataType dt) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void StoreN(std::string_view label, Register v, DataType dt) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Xor64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Ret() override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Jmp(std::string_view label) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void JmpIfZero(Register v, std::string_view label) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void JmpIfNotZero(Register v, std::string_view label) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void LEA(Register dest, Register base, int disp) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Call(Register addr) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void LoadLabelAddr(Register dest, std::string_view label) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void Set1IfNonZero64(Register dest, Register v) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void ShiftL64(Register dest, int bits) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void ShiftR64(Register dest, int bits) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void ShiftAR64(Register dest, int bits) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void IncN(Register addr, DataType dt) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void DecN(Register addr, DataType dt) override {
+    NOT_IMPLEMENTED;
+  }
+
+  void FilePrologue() override {
+  }
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out) {
   switch (arch) {
   case AsmArch::kX86_64:
     return new AsmX86_64(out);
+  case AsmArch::kAArch64:
+    return new AsmAArch64(out);
   }
   return nullptr;
 }

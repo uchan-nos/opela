@@ -855,6 +855,8 @@ int main(int argc, char** argv) {
   Asm* asmgen;
   if (target_arch == "x86_64") {
     asmgen = NewAsm(AsmArch::kX86_64, cout);
+  } else if (target_arch == "aarch64") {
+    asmgen = NewAsm(AsmArch::kAArch64, cout);
   } else {
     cerr << "current version doesn't support " << target_arch << endl;
     return 1;
@@ -903,7 +905,7 @@ int main(int argc, char** argv) {
   free_calc_regs.set(Asm::kRegY);
 
   auto globals = scope.GetGlobals();
-  cout << ".intel_syntax noprefix\n";
+  asmgen->FilePrologue();
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kFunc &&
         obj->def->kind == Node::kDefFunc) {

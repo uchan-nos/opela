@@ -90,6 +90,8 @@ class Asm {
   virtual void IncN(Register addr, DataType dt) = 0;
   virtual void DecN(Register addr, DataType dt) = 0;
 
+  virtual void FilePrologue() = 0;
+
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }
 
@@ -99,6 +101,7 @@ class Asm {
 
 enum class AsmArch {
   kX86_64,
+  kAArch64,
 };
 
 Asm* NewAsm(AsmArch arch, std::ostream& out);
