@@ -97,6 +97,9 @@ test_exit 8  'func main() int { foo := 3; foo = 4; return foo * 2; }'
 test_exit 38 'func main() int { foo:=5; bar:=7; foo=(bar=1)=42; return foo-4; }'
 test_exit 42 'func main() int { foo:=5; bar:=7; return foo=bar=42; }'
 test_exit 9  'func main() int { a:=5; a=b:=3; return a*b; }'
+test_exit 55 'func main() int { i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } return s; }'
+test_exit 55 'func main() int { s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }'
+test_exit 9  'func main() int { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } return s; }'
 
 echo "============================="
 #echo "Running extra testcases..."
