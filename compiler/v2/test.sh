@@ -93,6 +93,10 @@ test_exit 0  'func main() int { if 42 < 10 { return 2; } }'
 test_exit 2  'func main() int { cond := 10 < 200; if cond { return 2; } }'
 test_exit 4  'func main() int { if 0 { return 3; } else { return 4; } }'
 test_exit 5  'func main() int { if 0 { return 3; } else if 1 { return 5; } else { return 4; } }'
+test_exit 8  'func main() int { foo := 3; foo = 4; return foo * 2; }'
+test_exit 38 'func main() int { foo:=5; bar:=7; foo=(bar=1)=42; return foo-4; }'
+test_exit 42 'func main() int { foo:=5; bar:=7; return foo=bar=42; }'
+test_exit 9  'func main() int { a:=5; a=b:=3; return a*b; }'
 
 echo "============================="
 #echo "Running extra testcases..."
