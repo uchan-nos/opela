@@ -81,6 +81,10 @@ test_exit 42 'func main() int { return 42; }'
 test_exit 30 'func main() int { return (1+2) / 2+ (( 3 -4) +5 *  6 ); }'
 test_exit 5  'func main() int { return -3 + (+8); }'
 test_exit 2  'func main() int { return -2 * -1; }'
+test_exit 0  'func main() int { return 3 < (1 + 1); }'
+test_exit 1  'func main() int { return 3 > (1 + 1); }'
+test_exit 1  'func main() int { return 2*3 >= 13/2; }'
+test_exit 1  'func main() int { return 2>2 == 4<=3; }'
 
 echo "============================="
 #echo "Running extra testcases..."

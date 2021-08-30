@@ -401,7 +401,17 @@ class AsmAArch64 : public Asm {
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
-    NOT_IMPLEMENTED;
+    const char* cmp;
+    switch (c) {
+      case kCmpE:  cmp = "eq"; break;
+      case kCmpNE: cmp = "ne"; break;
+      case kCmpG:  cmp = "gt"; break;
+      case kCmpLE: cmp = "le"; break;
+      case kCmpA:  cmp = "hi"; break;
+      case kCmpBE: cmp = "ls"; break;
+    }
+    PrintAsm(this, "    cmp %r64, %r64\n", lhs, rhs);
+    PrintAsm(this, "    cset %r64, %s\n",  dest, cmp);
   }
 
   void Xor64(Register dest, Register v) override {
