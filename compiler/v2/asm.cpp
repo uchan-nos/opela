@@ -443,11 +443,11 @@ class AsmAArch64 : public Asm {
   }
 
   void JmpIfZero(Register v, std::string_view label) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    cbz %r64, %S\n", v, label.data(), label.length());
   }
 
   void JmpIfNotZero(Register v, std::string_view label) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    cbnz %r64, %S\n", v, label.data(), label.length());
   }
 
   void LEA(Register dest, Register base, int disp) override {
