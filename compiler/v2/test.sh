@@ -85,6 +85,8 @@ test_exit 0  'func main() int { return 3 < (1 + 1); }'
 test_exit 1  'func main() int { return 3 > (1 + 1); }'
 test_exit 1  'func main() int { return 2*3 >= 13/2; }'
 test_exit 1  'func main() int { return 2>2 == 4<=3; }'
+test_exit 15 'func main() int { foo:=5; bar:=3; return foo*bar; }'
+test_exit 6  'func main() int { foo:=2; { foo:=3; } return foo+4; }'
 
 echo "============================="
 #echo "Running extra testcases..."

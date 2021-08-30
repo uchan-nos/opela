@@ -8,7 +8,7 @@
 
 #define NOT_IMPLEMENTED \
   do { \
-    this->Output() << "# not implemented: " << __func__ << std::endl; \
+    this->Output() << "# not implemented: " << __PRETTY_FUNCTION__ << std::endl; \
   } while (0)
 
 using namespace std;
@@ -283,7 +283,7 @@ class AsmAArch64 : public Asm {
     "0", "1", "2", "3", "4", "5",
     "8", "9",
     "19", "20", "21", "22", "23",
-    "x29", "sp", "zr",
+    "29", "sp", "zr",
   };
   static std::string RegName(std::string stem, DataType dt) {
     if (stem == "sp") {
@@ -322,7 +322,7 @@ class AsmAArch64 : public Asm {
   }
 
   void Mov64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    mov %r64, %r64\n", dest, v);
   }
 
   void Add64(Register dest, std::uint64_t v) override {
@@ -385,7 +385,15 @@ class AsmAArch64 : public Asm {
   }
 
   void LoadN(Register dest, Register addr, int disp, DataType dt) override {
-    NOT_IMPLEMENTED;
+    const char* fmt;
+    switch (dt) {
+      case kByte:  fmt = "    ldrb %r32, [%r64, #%i]\n"; break;
+      case kWord:  fmt = "    ldrh %r32, [%r64, #%i]\n"; break;
+      case kDWord: fmt = "    ldr %r32, [%r64, #%i]\n"; break;
+      case kQWord: fmt = "    ldr %r64, [%r64, #%i]\n"; break;
+      default:     fmt = "non-standard size is not supported\n";
+    }
+    PrintAsm(this, fmt, dest, addr, disp);
   }
 
   void LoadN(Register dest, std::string_view label, DataType dt) override {
@@ -393,7 +401,15 @@ class AsmAArch64 : public Asm {
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
-    NOT_IMPLEMENTED;
+    const char* fmt;
+    switch (dt) {
+      case kByte:  fmt = "    strb %r32, [%r64, #%i]\n"; break;
+      case kWord:  fmt = "    strh %r32, [%r64, #%i]\n"; break;
+      case kDWord: fmt = "    str %r32, [%r64, #%i]\n"; break;
+      case kQWord: fmt = "    str %r64, [%r64, #%i]\n"; break;
+      default:     fmt = "non-standard size is not supported\n";
+    }
+    PrintAsm(this, fmt, v, addr, disp);
   }
 
   void StoreN(std::string_view label, Register v, DataType dt) override {
@@ -435,7 +451,7 @@ class AsmAArch64 : public Asm {
   }
 
   void LEA(Register dest, Register base, int disp) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    add %r64, %r64, #%i\n", dest, base, disp);
   }
 
   void Call(Register addr) override {
