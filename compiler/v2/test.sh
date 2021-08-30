@@ -78,11 +78,14 @@ function test_argv() {
 echo "Running standard testcases..."
 #./test.exe
 test_exit 42 'func main() int { return 42; }'
+test_exit 30 'func main() int { return (1+2) / 2+ (( 3 -4) +5 *  6 ); }'
+test_exit 5  'func main() int { return -3 + (+8); }'
+test_exit 2  'func main() int { return -2 * -1; }'
 
 echo "============================="
-echo "Running extra testcases..."
-test_stdout 'foo' 'func main() { write(1, "foo", 3); }
-  extern "C" write func(int, *byte, int);'
+#echo "Running extra testcases..."
+#test_stdout 'foo' 'func main() { write(1, "foo", 3); }
+#  extern "C" write func(int, *byte, int);'
 
 echo "$passed passed, $failed failed"
 if [ $failed -ne 0 ]

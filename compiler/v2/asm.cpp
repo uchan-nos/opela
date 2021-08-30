@@ -326,31 +326,38 @@ class AsmAArch64 : public Asm {
   }
 
   void Add64(Register dest, std::uint64_t v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    add %r64, %r64, #%u64\n", dest, dest, v);
   }
 
   void Add64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    add %r64, %r64, %r64\n", dest, dest, v);
   }
 
   void Sub64(Register dest, std::uint64_t v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    sub %r64, %r64, #%u64\n", dest, dest, v);
   }
 
   void Sub64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    sub %r64, %r64, %r64\n", dest, dest, v);
   }
 
   void Mul64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    mul %r64, %r64, %r64\n", dest, dest, v);
   }
 
   void Mul64(Register dest, Register a, std::uint64_t b) override {
-    NOT_IMPLEMENTED;
+    auto breg = Register::kRegV0;
+    while (breg == dest || breg == a) {
+      breg = static_cast<Register>(static_cast<int>(breg) + 1);
+    }
+    Push64(breg);
+    Mov64(breg, b);
+    PrintAsm(this, "    mul %r64, %r64, %r64\n", dest, a, breg);
+    Pop64(breg);
   }
 
   void Div64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    sdiv %r64, %r64, %r64\n", dest, dest, v);
   }
 
   void And64(Register dest, std::uint64_t v) override {
