@@ -91,6 +91,12 @@ class Asm {
   virtual void DecN(Register addr, DataType dt) = 0;
 
   virtual void FilePrologue() = 0;
+  virtual void SectionText() = 0;
+  virtual void SectionInit() = 0;
+  virtual void SectionData(bool readonly) = 0;
+  virtual std::string SymLabel(std::string_view sym_name) = 0;
+  virtual void FuncPrologue(std::string_view sym_name) = 0;
+  virtual void FuncEpilogue() = 0;
 
   // アーキテクチャ非依存な行を出力したいときに使う汎用出力メソッド
   std::ostream& Output() { return out_; }

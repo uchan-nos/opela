@@ -385,10 +385,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       stack_size = (stack_size + 0xf) & ~static_cast<size_t>(0xf);
 
-      ctx.asmgen.Output() << ".global " << func->mangled_name << '\n'
-                          << func->mangled_name << ":\n";
-      ctx.asmgen.Push64(Asm::kRegBP);
-      ctx.asmgen.Mov64(Asm::kRegBP, Asm::kRegSP);
+      ctx.asmgen.FuncPrologue(func->mangled_name);
+
       ctx.asmgen.Sub64(Asm::kRegSP, stack_size);
       int arg_index = 0;
       for (auto param = node->rhs; param; param = param->next) {
@@ -400,8 +398,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       GenerateAsm(func_ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.Xor64(Asm::kRegA, Asm::kRegA);
       ctx.asmgen.Output() << func->mangled_name << ".exit:\n";
-      ctx.asmgen.Leave();
-      ctx.asmgen.Ret();
+      ctx.asmgen.FuncEpilogue();
       return;
     }
   case Node::kRet:
@@ -906,6 +903,7 @@ int main(int argc, char** argv) {
 
   auto globals = scope.GetGlobals();
   asmgen->FilePrologue();
+  asmgen->SectionText();
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kFunc &&
         obj->def->kind == Node::kDefFunc) {
@@ -938,10 +936,10 @@ int main(int argc, char** argv) {
   asmgen->Leave();
   asmgen->Ret();
 
-  asmgen->Output() << ".section .init_array\n";
+  asmgen->SectionInit();
   asmgen->Output() << "    .dc.a _init_opela\n";
 
-  asmgen->Output() << ".section .data\n";
+  asmgen->SectionData(false);
   for (size_t i = 0; i < strings.size(); ++i) {
     cout << StringLabel(i) << ":\n    .byte ";
     for (auto ch : strings[i]) {

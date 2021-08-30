@@ -16,6 +16,25 @@ function build_tmp() {
   cc -o tmp tmp.s cfunc.o
 }
 
+function test_exit() {
+  want="$1"
+  input="$2"
+
+  build_tmp "$input"
+  ./tmp
+  got=$?
+  rm tmp tmp.s
+
+  if [ "$want" = "$got" ]
+  then
+    echo "[  OK  ]: $input -> '$got'"
+    (( ++passed ))
+  else
+    echo "[FAILED]: $input -> '$got', want '$want'"
+    (( ++failed ))
+  fi
+}
+
 function test_stdout() {
   want="$1"
   input="$2"
@@ -54,10 +73,11 @@ function test_argv() {
   fi
 }
 
-make test.exe || exit 1
+#make test.exe || exit 1
 
 echo "Running standard testcases..."
-./test.exe
+#./test.exe
+test_exit 42 'func main() int { return 42; }'
 
 echo "============================="
 echo "Running extra testcases..."

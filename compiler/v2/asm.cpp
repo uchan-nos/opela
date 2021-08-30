@@ -245,14 +245,62 @@ class AsmX86_64 : public Asm {
   void FilePrologue() override {
     PrintAsm(this,  ".intel_syntax noprefix\n");
   }
+
+  void SectionText() override {
+    PrintAsm(this, ".code64\n.section .text\n");
+  }
+
+  void SectionInit() override {
+    PrintAsm(this, ".section .init_array\n");
+  }
+
+  void SectionData(bool readonly) override {
+    PrintAsm(this, ".section %s\n", readonly ? ".rodata" : ".data");
+  }
+
+  std::string SymLabel(std::string_view sym_name) override {
+    return std::string{sym_name};
+  }
+
+  void FuncPrologue(std::string_view sym_name) override {
+    string sym_label{sym_name};
+    PrintAsm(this, ".global %s\n", sym_label.c_str());
+    PrintAsm(this, "%s:\n", sym_label.c_str());
+    PrintAsm(this, "    push rbp\n");
+    PrintAsm(this, "    mov rbp, rsp\n");
+  }
+
+  void FuncEpilogue() override {
+    PrintAsm(this, "    leave\n");
+    PrintAsm(this, "    ret\n");
+  }
 };
 
 class AsmAArch64 : public Asm {
  public:
+  static constexpr std::array<const char*, kRegNum> kRegNames{
+    "0",
+    "0", "1", "2", "3", "4", "5",
+    "8", "9",
+    "19", "20", "21", "22", "23",
+    "x29", "sp", "zr",
+  };
+  static std::string RegName(std::string stem, DataType dt) {
+    if (stem == "sp") {
+      return stem;
+    }
+    if (dt == kDWord) {
+      return "w" + stem;
+    } else if (dt == kQWord) {
+      return "x" + stem;
+    }
+    return "failed to get register name for " + stem;
+  }
+
   using Asm::Asm; // コンストラクタ
 
   std::string RegName(Register reg, DataType dt = kQWord) override {
-    return "not-implemented";
+    return RegName(kRegNames[reg], dt);
   }
 
   bool SameReg(Register a, Register b) override {
@@ -260,7 +308,17 @@ class AsmAArch64 : public Asm {
   }
 
   void Mov64(Register dest, std::uint64_t v) override {
-    NOT_IMPLEMENTED;
+    if (v <= 0xffffu) {
+      PrintAsm(this, "    mov %r64, #%u64\n", dest, v);
+      return;
+    }
+
+    for (int shift = 0; shift < 64; shift += 16) {
+      if (uint16_t v16 = v >> shift; v16 != 0) {
+        PrintAsm(this, "    %s %r64, #%u16, lsl #%u0\n",
+                 shift == 0 ? "movz" : "movk", dest, v16, shift);
+      }
+    }
   }
 
   void Mov64(Register dest, Register v) override {
@@ -340,15 +398,15 @@ class AsmAArch64 : public Asm {
   }
 
   void Xor64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    eor %r64, %r64, %r64\n", dest, dest, v);
   }
 
   void Ret() override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    ret\n");
   }
 
   void Jmp(std::string_view label) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    b %S\n", label.data(), label.length());
   }
 
   void JmpIfZero(Register v, std::string_view label) override {
@@ -396,6 +454,38 @@ class AsmAArch64 : public Asm {
   }
 
   void FilePrologue() override {
+  }
+
+  void SectionText() override {
+    PrintAsm(this, ".section __TEXT,__text,regular,pure_instructions\n");
+  }
+
+  void SectionInit() override {
+    PrintAsm(this, ".section __DATA,__mod_init_func,mod_init_funcs\n");
+    PrintAsm(this, ".p2align 3\n");
+  }
+
+  void SectionData(bool readonly) override {
+    PrintAsm(this, ".section __DATA,%s\n", readonly ? "__const" : "__data");
+  }
+
+  std::string SymLabel(std::string_view sym_name) override {
+    return std::string{"_"}.append(sym_name);
+  }
+
+  void FuncPrologue(std::string_view sym_name) override {
+    auto sym_label = SymLabel(sym_name);
+    PrintAsm(this, ".global %s\n", sym_label.c_str());
+    PrintAsm(this, ".p2align 2\n");
+    PrintAsm(this, "%s:\n", sym_label.c_str());
+    PrintAsm(this, "    stp x29, x30, [sp, #-16]!\n");
+    PrintAsm(this, "    mov x29, sp\n");
+  }
+
+  void FuncEpilogue() override {
+    PrintAsm(this, "    mov sp, x29\n");
+    PrintAsm(this, "    ldp x29, x30, [sp], #16\n");
+    PrintAsm(this, "    ret\n");
   }
 };
 
