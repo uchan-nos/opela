@@ -100,6 +100,9 @@ test_exit 9  'func main() int { a:=5; a=b:=3; return a*b; }'
 test_exit 55 'func main() int { i:=0; s:=0; for i <= 10 { s=s+i; i=i+1; } return s; }'
 test_exit 55 'func main() int { s:=0; for i:=0; i<=10; i=i+1 { s=s+i; } return s; }'
 test_exit 9  'func main() int { s:=0; for i:=1;i<3;i=i+1{ for j:=1;j<3;j=j+1{ s=s+i*j; } } return s; }'
+test_exit 39 'func main() int { return func42() - 3; } extern "C" func42 func()int;'
+test_exit 42 'func main() int { return funcfunc42()(); } extern "C" funcfunc42 func() *func()int;'
+test_exit 43 'func main() int { return add((1+2)*(3+4), add(func42(), 1)) - 21; } extern "C" func42 func()int; extern "C" add func(a, b int) int;'
 
 echo "============================="
 #echo "Running extra testcases..."

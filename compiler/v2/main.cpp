@@ -478,7 +478,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
       for (int i = 0; i < num_arg; ++i) {
         auto reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
-        if (reg != dest && !free_calc_regs.test(reg)) {
+        if (!ctx.asmgen.SameReg(reg, dest) && !free_calc_regs.test(reg)) {
           save_reg(reg);
           free_calc_regs.set(reg);
         }
@@ -915,8 +915,7 @@ int main(int argc, char** argv) {
   GenerateTypedFuncs(src, asmgen, free_calc_regs, typed_funcs);
 
   asmgen->Output() << ".global _init_opela\n_init_opela:\n";
-  asmgen->Push64(Asm::kRegBP);
-  asmgen->Mov64(Asm::kRegBP, Asm::kRegSP);
+  asmgen->FuncPrologue("_init_opela");
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
       auto var_def = obj->def;
@@ -933,8 +932,7 @@ int main(int argc, char** argv) {
     }
   }
   asmgen->Output() << "_init_opela.exit:\n";
-  asmgen->Leave();
-  asmgen->Ret();
+  asmgen->FuncEpilogue();
 
   asmgen->SectionInit();
   asmgen->Output() << "    .dc.a _init_opela\n";

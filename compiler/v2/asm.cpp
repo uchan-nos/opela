@@ -346,7 +346,7 @@ class AsmAArch64 : public Asm {
   }
 
   void Mul64(Register dest, Register a, std::uint64_t b) override {
-    auto breg = Register::kRegV0;
+    auto breg = Register::kRegV1;
     while (breg == dest || breg == a) {
       breg = static_cast<Register>(static_cast<int>(breg) + 1);
     }
@@ -373,11 +373,11 @@ class AsmAArch64 : public Asm {
   }
 
   void Push64(Register reg) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    str %r64, [sp, #-16]!\n", reg);
   }
 
   void Pop64(Register reg) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    ldr %r64, [sp], #16\n", reg);
   }
 
   void Leave() override {
@@ -455,11 +455,14 @@ class AsmAArch64 : public Asm {
   }
 
   void Call(Register addr) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    blr %r64\n", addr);
   }
 
   void LoadLabelAddr(Register dest, std::string_view label) override {
-    NOT_IMPLEMENTED;
+    auto sym_label = SymLabel(label);
+    PrintAsm(this, "    adrp %r64, %s@GOTPAGE\n", dest, sym_label.c_str());
+    PrintAsm(this, "    ldr %r64, [%r64, %s@GOTPAGEOFF]\n",
+             dest, dest, sym_label.c_str());
   }
 
   void Set1IfNonZero64(Register dest, Register v) override {
