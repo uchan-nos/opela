@@ -361,11 +361,18 @@ class AsmAArch64 : public Asm {
   }
 
   void And64(Register dest, std::uint64_t v) override {
-    NOT_IMPLEMENTED;
+    auto breg = Register::kRegV1;
+    while (breg == dest) {
+      breg = static_cast<Register>(static_cast<int>(breg) + 1);
+    }
+    Push64(breg);
+    Mov64(breg, v);
+    PrintAsm(this, "    and %r64, %r64, %r64\n", dest, dest, breg);
+    Pop64(breg);
   }
 
   void And64(Register dest, Register v) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    and %r64, %r64, %r64\n", dest, dest, v);
   }
 
   void Or64(Register dest, Register v) override {
@@ -470,15 +477,15 @@ class AsmAArch64 : public Asm {
   }
 
   void ShiftL64(Register dest, int bits) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    lsl %r64, %r64, #%i\n", dest, dest, bits);
   }
 
   void ShiftR64(Register dest, int bits) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    lsr %r64, %r64, #%i\n", dest, dest, bits);
   }
 
   void ShiftAR64(Register dest, int bits) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    asr %r64, %r64, #%i\n", dest, dest, bits);
   }
 
   void IncN(Register addr, DataType dt) override {
