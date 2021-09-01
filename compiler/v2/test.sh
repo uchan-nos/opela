@@ -105,6 +105,8 @@ test_exit 42 'func main() int { return funcfunc42()(); } extern "C" funcfunc42 f
 test_exit 43 'func main() int { return add((1+2)*(3+4), add(func42(), 1)) - 21; } extern "C" func42 func()int; extern "C" add func(a, b int) int;'
 test_exit 4  'func main() int { return sizeof(myInt); } type myInt int32;'
 test_exit 6  'func main() int { return (3@myInt2 + 2@int2) + 5; } type myInt2 int2;'
+test_exit 57 'func main() int {return add(sum10(), 2);} extern "C" add func(a,b int)int; func sum10()int{s:=0; for i:=1;i<=10;i=i+1 {s=s+i;} return s;}'
+test_exit 5  'func main() int {return myAdd(-3,8);} func myAdd(a,b int)int{return a+b;}'
 
 echo "============================="
 #echo "Running extra testcases..."
