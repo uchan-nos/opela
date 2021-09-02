@@ -32,6 +32,9 @@ class Asm {
     kRegBP, kRegSP,
 
     kRegZero, // ゼロレジスタ
+
+    kRegScr0, kRegScr1, // スクラッチレジスタ
+
     kRegNum,  // 列挙子の数
   };
   using RegSet = std::bitset<kRegNum>;

@@ -18,7 +18,7 @@ class AsmX86_64 : public Asm {
   static constexpr std::array<const char*, kRegNum> kRegNames{
     "a", "di", "si", "d", "c", "r8", "r9", "r10", "r11", // 戻り値、引数、計算用
     "rbx", "r12", "r13", "r14", "r15",                   // 計算用（不揮発）
-    "bp", "sp", "zero",
+    "bp", "sp", "zero", "", ""
   };
   static std::string RegName(std::string stem, DataType dt) {
     if (stem == "zero") {
@@ -283,7 +283,7 @@ class AsmAArch64 : public Asm {
     "0", "1", "2", "3", "4", "5",
     "8", "9",
     "19", "20", "21", "22", "23",
-    "29", "sp", "zr",
+    "29", "sp", "zr", "16", "17",
   };
   static std::string RegName(std::string stem, DataType dt) {
     if (stem == "sp") {
@@ -388,54 +388,19 @@ class AsmAArch64 : public Asm {
   }
 
   void LoadN(Register dest, Register addr, int disp, DataType dt) override {
-    const char* fmt;
-    switch (dt) {
-      case kByte:  fmt = "    ldrb %r32, [%r64, #%i]\n"; break;
-      case kWord:  fmt = "    ldrh %r32, [%r64, #%i]\n"; break;
-      case kDWord: fmt = "    ldr %r32, [%r64, #%i]\n"; break;
-      case kQWord: fmt = "    ldr %r64, [%r64, #%i]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, dest, addr, disp);
+    LoadStoreN("ldr", dest, addr, disp, dt);
   }
 
   void LoadN(Register dest, std::string_view label, DataType dt) override {
-    PrintAsm(this, "    adrp %r64, _%S@PAGE\n",
-             dest, label.data(), label.length());
-    const char* fmt;
-    switch (dt) {
-      case kByte:  fmt = "    ldrb %r32, [%r64, _%S@PAGEOFF]\n"; break;
-      case kWord:  fmt = "    ldrh %r32, [%r64, _%S@PAGEOFF]\n"; break;
-      case kDWord: fmt = "    ldr %r32, [%r64, _%S@PAGEOFF]\n"; break;
-      case kQWord: fmt = "    ldr %r64, [%r64, _%S@PAGEOFF]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, dest, dest, label.data(), label.length());
+    LoadStoreN("ldr", dest, label, dt);
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
-    const char* fmt;
-    switch (dt) {
-      case kByte:  fmt = "    strb %r32, [%r64, #%i]\n"; break;
-      case kWord:  fmt = "    strh %r32, [%r64, #%i]\n"; break;
-      case kDWord: fmt = "    str %r32, [%r64, #%i]\n"; break;
-      case kQWord: fmt = "    str %r64, [%r64, #%i]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, v, addr, disp);
+    LoadStoreN("str", v, addr, disp, dt);
   }
 
   void StoreN(std::string_view label, Register v, DataType dt) override {
-    PrintAsm(this, "    adrp x16, _%S@PAGE\n", label.data(), label.length());
-    const char* fmt;
-    switch (dt) {
-      case kByte:  fmt = "    strb %r32, [x16, _%S@PAGEOFF]\n"; break;
-      case kWord:  fmt = "    strh %r32, [x16, _%S@PAGEOFF]\n"; break;
-      case kDWord: fmt = "    str %r32, [x16, _%S@PAGEOFF]\n"; break;
-      case kQWord: fmt = "    str %r64, [x16, _%S@PAGEOFF]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, v, label.data(), label.length());
+    LoadStoreN("str", v, label, dt);
   }
 
   void CmpSet(Compare c, Register dest, Register lhs, Register rhs) override {
@@ -505,45 +470,15 @@ class AsmAArch64 : public Asm {
   }
 
   void IncN(Register addr, DataType dt) override {
-    const char* fmt;
-    switch (dt) {
-      case kByte:  fmt = "    ldrb x16, [%r64]\n"; break;
-      case kWord:  fmt = "    ldrh x16, [%r64]\n"; break;
-      case kDWord: fmt = "    ldr x16, [%r64]\n"; break;
-      case kQWord: fmt = "    ldr x16, [%r64]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, addr);
+    LoadN(Asm::kRegScr0, addr, 0, dt);
     PrintAsm(this, "    add x16, x16, #1\n", addr);
-    switch (dt) {
-      case kByte:  fmt = "    strb x16, [%r64]\n"; break;
-      case kWord:  fmt = "    strh x16, [%r64]\n"; break;
-      case kDWord: fmt = "    str x16, [%r64]\n"; break;
-      case kQWord: fmt = "    str x16, [%r64]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, addr);
+    StoreN(addr, 0, Asm::kRegScr0, dt);
   }
 
   void DecN(Register addr, DataType dt) override {
-    const char* fmt;
-    switch (dt) {
-      case kByte:  fmt = "    ldrb x16, [%r64]\n"; break;
-      case kWord:  fmt = "    ldrh x16, [%r64]\n"; break;
-      case kDWord: fmt = "    ldr x16, [%r64]\n"; break;
-      case kQWord: fmt = "    ldr x16, [%r64]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, addr);
+    LoadN(Asm::kRegScr0, addr, 0, dt);
     PrintAsm(this, "    sub x16, x16, #1\n", addr);
-    switch (dt) {
-      case kByte:  fmt = "    strb x16, [%r64]\n"; break;
-      case kWord:  fmt = "    strh x16, [%r64]\n"; break;
-      case kDWord: fmt = "    str x16, [%r64]\n"; break;
-      case kQWord: fmt = "    str x16, [%r64]\n"; break;
-      default:     fmt = "non-standard size is not supported\n";
-    }
-    PrintAsm(this, fmt, addr);
+    StoreN(addr, 0, Asm::kRegScr0, dt);
   }
 
   void FilePrologue() override {
@@ -583,6 +518,34 @@ class AsmAArch64 : public Asm {
 
   bool VParamOnStack() override {
     return true;
+  }
+
+ private:
+  void LoadStoreN(const char* inst,
+                  Register v, Register addr, int disp, DataType dt) {
+    const char* fmt;
+    switch (dt) {
+      case kByte:  fmt = "    %sb %r32, [%r64, #%i]\n"; break;
+      case kWord:  fmt = "    %sh %r32, [%r64, #%i]\n"; break;
+      case kDWord: fmt = "    %s %r32, [%r64, #%i]\n"; break;
+      case kQWord: fmt = "    %s %r64, [%r64, #%i]\n"; break;
+      default:     fmt = "non-standard size is not supported\n";
+    }
+    PrintAsm(this, fmt, inst, v, addr, disp);
+  }
+
+  void LoadStoreN(const char* inst,
+                  Register v, std::string_view label, DataType dt) {
+    PrintAsm(this, "    adrp x16, _%S@PAGE\n", label.data(), label.length());
+    const char* fmt;
+    switch (dt) {
+      case kByte:  fmt = "    %sb %r32, [x16, _%S@PAGEOFF]\n"; break;
+      case kWord:  fmt = "    %sh %r32, [x16, _%S@PAGEOFF]\n"; break;
+      case kDWord: fmt = "    %s %r32, [x16, _%S@PAGEOFF]\n"; break;
+      case kQWord: fmt = "    %s %r64, [x16, _%S@PAGEOFF]\n"; break;
+      default:     fmt = "non-standard size is not supported\n";
+    }
+    PrintAsm(this, fmt, inst, v, label.data(), label.length());
   }
 };
 
