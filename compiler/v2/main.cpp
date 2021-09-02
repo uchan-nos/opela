@@ -468,8 +468,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
       const int num_arg = CountListItems(node->rhs);
 
       int num_normal_param = 0;
+
+      auto func_t = node->lhs->type;
+      if (func_t->kind == Type::kPointer) {
+        func_t = func_t->base;
+      }
       Node* varg_start = node->rhs;
-      for (auto param_t = node->lhs->type->next;
+      for (auto param_t = func_t->next;
            param_t && param_t->kind == Type::kParam;
            param_t = param_t->next) {
         ++num_normal_param;
