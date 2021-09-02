@@ -274,6 +274,10 @@ class AsmX86_64 : public Asm {
     PrintAsm(this, "    leave\n");
     PrintAsm(this, "    ret\n");
   }
+
+  bool VParamOnStack() override {
+    return false;
+  }
 };
 
 class AsmAArch64 : public Asm {
@@ -404,7 +408,17 @@ class AsmAArch64 : public Asm {
   }
 
   void LoadN(Register dest, std::string_view label, DataType dt) override {
-    NOT_IMPLEMENTED;
+    PrintAsm(this, "    adrp %r64, _%S@PAGE\n",
+             dest, label.data(), label.length());
+    const char* fmt;
+    switch (dt) {
+      case kByte:  fmt = "    ldrb %r32, [%r64, _%S@PAGEOFF]\n"; break;
+      case kWord:  fmt = "    ldrh %r32, [%r64, _%S@PAGEOFF]\n"; break;
+      case kDWord: fmt = "    ldr %r32, [%r64, _%S@PAGEOFF]\n"; break;
+      case kQWord: fmt = "    ldr %r64, [%r64, _%S@PAGEOFF]\n"; break;
+      default:     fmt = "non-standard size is not supported\n";
+    }
+    PrintAsm(this, fmt, dest, dest, label.data(), label.length());
   }
 
   void StoreN(Register addr, int disp, Register v, DataType dt) override {
@@ -466,10 +480,10 @@ class AsmAArch64 : public Asm {
   }
 
   void LoadLabelAddr(Register dest, std::string_view label) override {
-    auto sym_label = SymLabel(label);
-    PrintAsm(this, "    adrp %r64, %s@GOTPAGE\n", dest, sym_label.c_str());
-    PrintAsm(this, "    ldr %r64, [%r64, %s@GOTPAGEOFF]\n",
-             dest, dest, sym_label.c_str());
+    PrintAsm(this, "    adrp %r64, %S@GOTPAGE\n",
+             dest, label.data(), label.length());
+    PrintAsm(this, "    ldr %r64, [%r64, %S@GOTPAGEOFF]\n",
+             dest, dest, label.data(), label.length());
   }
 
   void Set1IfNonZero64(Register dest, Register v) override {
@@ -529,6 +543,10 @@ class AsmAArch64 : public Asm {
     PrintAsm(this, "    mov sp, x29\n");
     PrintAsm(this, "    ldp x29, x30, [sp], #16\n");
     PrintAsm(this, "    ret\n");
+  }
+
+  bool VParamOnStack() override {
+    return true;
   }
 };
 

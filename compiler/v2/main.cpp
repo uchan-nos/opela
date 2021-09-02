@@ -355,12 +355,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
         if (obj->kind == Object::kFunc) {
           if (obj->linkage == Object::kExternal &&
               obj->def->cond->token->raw == R"("C")") {
-            ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
+            ctx.asmgen.LoadLabelAddr(dest, ctx.asmgen.SymLabel(obj->id->raw));
           } else {
-            ctx.asmgen.LoadLabelAddr(dest, obj->mangled_name);
+            ctx.asmgen.LoadLabelAddr(
+                dest, ctx.asmgen.SymLabel(obj->mangled_name));
           }
         } else if (lval) {
-          ctx.asmgen.LoadLabelAddr(dest, obj->id->raw);
+          ctx.asmgen.LoadLabelAddr(dest, ctx.asmgen.SymLabel(obj->id->raw));
         } else {
           ctx.asmgen.LoadN(dest, obj->id->raw, DataTypeOf(ctx, obj->type));
         }
@@ -466,6 +467,15 @@ void GenerateAsm(GenContext& ctx, Node* node,
       SetErshovNumber(ctx.src, node);
       const int num_arg = CountListItems(node->rhs);
 
+      int num_normal_param = 0;
+      Node* varg_start = node->rhs;
+      for (auto param_t = node->lhs->type->next;
+           param_t && param_t->kind == Type::kParam;
+           param_t = param_t->next) {
+        ++num_normal_param;
+        varg_start = varg_start->next;
+      }
+
       vector<Asm::Register> saved_regs;
       auto save_reg = [&](Asm::Register reg) {
         ctx.asmgen.Push64(reg);
@@ -476,7 +486,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       if (dest != Asm::kRegA) {
         save_reg(Asm::kRegA);
       }
-      for (int i = 0; i < num_arg; ++i) {
+      for (int i = -1; i < num_arg; ++i) {
         auto reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
         if (!ctx.asmgen.SameReg(reg, dest) && !free_calc_regs.test(reg)) {
           save_reg(reg);
@@ -498,10 +508,26 @@ void GenerateAsm(GenContext& ctx, Node* node,
         free_calc_regs.set(lhs_reg);
       }
 
+      // 可変長引数をスタックに積む（特定のアーキテクチャだけ）
+      if (ctx.asmgen.VParamOnStack()) {
+        unsigned int bytes = 8 * (num_arg - num_normal_param);
+        bytes = (bytes + 0xf) & ~0xf;
+        ctx.asmgen.Sub64(Asm::kRegSP, bytes);
+
+        unsigned int offset = 0;
+        for (auto varg = varg_start; varg; varg = varg->next) {
+          GenerateAsm(ctx, varg, dest, free_calc_regs, labels);
+          ctx.asmgen.Output() << "    # store varg into stack\n";
+          ctx.asmgen.StoreN(Asm::kRegSP, offset, dest, Asm::kQWord);
+          offset += 8;
+        }
+      }
+
       // Ershov 数が 2 以上の引数を事前に評価し、スタックに保存しておく
-      vector<Node*> args;
-      for (auto arg = node->rhs; arg; arg = arg->next) {
-        args.push_back(arg);
+      vector<Node*> reg_args;
+      Node* arg_on_reg_end = ctx.asmgen.VParamOnStack() ? varg_start : nullptr;
+      for (auto arg = node->rhs; arg != arg_on_reg_end; arg = arg->next) {
+        reg_args.push_back(arg);
         if (arg->ershov >= 2) {
           GenerateAsm(ctx, arg, dest, free_calc_regs, labels);
           ctx.asmgen.Push64(dest);
@@ -512,12 +538,14 @@ void GenerateAsm(GenContext& ctx, Node* node,
       free_calc_regs.reset(lhs_reg);
 
       // 引数レジスタに実引数を設定する
-      for (int i = num_arg - 1; i >= 0; --i) {
-        auto arg_reg = static_cast<Asm::Register>(Asm::kRegV0 + i);
-        if (args[i]->ershov == 1) {
-          GenerateAsm(ctx, args[i], arg_reg, free_calc_regs, labels);
+      while (!reg_args.empty()) {
+        auto arg = reg_args.back();
+        reg_args.pop_back();
+        auto reg = static_cast<Asm::Register>(Asm::kRegV0 + reg_args.size());
+        if (arg->ershov == 1) {
+          GenerateAsm(ctx, arg, reg, free_calc_regs, labels);
         } else {
-          ctx.asmgen.Pop64(arg_reg);
+          ctx.asmgen.Pop64(reg);
         }
       }
 
@@ -526,6 +554,13 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.Call(lhs_reg);
       if (Asm::kRegA != dest) {
         ctx.asmgen.Mov64(dest, Asm::kRegA);
+      }
+
+      // 可変長引数を積んだスタックの領域を開放する
+      if (ctx.asmgen.VParamOnStack()) {
+        unsigned int bytes = 8 * (num_arg - num_normal_param);
+        bytes = (bytes + 0xf) & ~0xf;
+        ctx.asmgen.Add64(Asm::kRegSP, bytes);
       }
 
       // 退避したレジスタの復帰
@@ -550,7 +585,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kCast:
     if (node->rhs->kind == Node::kTList) {
       auto tf = get<TypedFunc*>(node->value);
-      ctx.asmgen.LoadLabelAddr(dest, Mangle(*tf));
+      ctx.asmgen.LoadLabelAddr(dest, ctx.asmgen.SymLabel(Mangle(*tf)));
       return;
     }
     GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, lval);
@@ -937,7 +972,7 @@ int main(int argc, char** argv) {
   asmgen->SectionInit();
   asmgen->Output() << "    .dc.a _init_opela\n";
 
-  asmgen->SectionData(false);
+  asmgen->SectionData(true);
   for (size_t i = 0; i < strings.size(); ++i) {
     cout << StringLabel(i) << ":\n    .byte ";
     for (auto ch : strings[i]) {
@@ -946,10 +981,11 @@ int main(int argc, char** argv) {
     cout << "0\n";
   }
 
+  asmgen->SectionData(false);
   GenContext ctx{src, *asmgen, nullptr};
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
-      asmgen->Output() << obj->id->raw << ":\n";
+      asmgen->Output() << asmgen->SymLabel(obj->id->raw) << ":\n";
       GenerateGVarData(ctx, obj->type, obj->def->rhs);
     }
   }
