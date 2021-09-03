@@ -346,14 +346,8 @@ class AsmAArch64 : public Asm {
   }
 
   void Mul64(Register dest, Register a, std::uint64_t b) override {
-    auto breg = Register::kRegV1;
-    while (breg == dest || breg == a) {
-      breg = static_cast<Register>(static_cast<int>(breg) + 1);
-    }
-    Push64(breg);
-    Mov64(breg, b);
-    PrintAsm(this, "    mul %r64, %r64, %r64\n", dest, a, breg);
-    Pop64(breg);
+    Mov64(Asm::kRegScr0, b);
+    PrintAsm(this, "    mul %r64, %r64, %r64\n", dest, a, Asm::kRegScr0);
   }
 
   void Div64(Register dest, Register v) override {
@@ -361,14 +355,8 @@ class AsmAArch64 : public Asm {
   }
 
   void And64(Register dest, std::uint64_t v) override {
-    auto breg = Register::kRegV1;
-    while (breg == dest) {
-      breg = static_cast<Register>(static_cast<int>(breg) + 1);
-    }
-    Push64(breg);
-    Mov64(breg, v);
-    PrintAsm(this, "    and %r64, %r64, %r64\n", dest, dest, breg);
-    Pop64(breg);
+    Mov64(Asm::kRegScr0, v);
+    PrintAsm(this, "    and %r64, %r64, %r64\n", dest, dest, Asm::kRegScr0);
   }
 
   void And64(Register dest, Register v) override {
