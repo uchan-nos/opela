@@ -322,7 +322,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
                  Asm::Register dest, Asm::RegSet free_calc_regs,
                  const LabelSet& labels, bool lval) {
   auto comment_node = [&ctx, node]{
-    ctx.asmgen.Output() << "    # ";
+    ctx.asmgen.Output() << "    ; ";
     PrintAST(ctx.asmgen.Output(), node);
     ctx.asmgen.Output() << '\n';
   };
@@ -424,20 +424,20 @@ void GenerateAsm(GenContext& ctx, Node* node,
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
       if (node->rhs) {
         ctx.asmgen.Jmp(label_exit);
-        ctx.asmgen.Output() << label_else << ": # else clause\n";
+        ctx.asmgen.Output() << label_else << ": ; else clause\n";
         GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
       }
-      ctx.asmgen.Output() << label_exit << ": # if stmt exit\n";
+      ctx.asmgen.Output() << label_exit << ": ; if stmt exit\n";
     }
     return;
   case Node::kLoop:
     comment_node();
     {
       LabelSet ls{GenerateLabel(), GenerateLabel()};
-      ctx.asmgen.Output() << ls.cont << ": # loop body\n";
+      ctx.asmgen.Output() << ls.cont << ": ; loop body\n";
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs, ls);
       ctx.asmgen.Jmp(ls.cont);
-      ctx.asmgen.Output() << ls.brk << ": # loop end\n";
+      ctx.asmgen.Output() << ls.brk << ": ; loop end\n";
     }
     return;
   case Node::kFor:
@@ -450,16 +450,16 @@ void GenerateAsm(GenContext& ctx, Node* node,
         GenerateAsm(ctx, node->rhs, dest, free_calc_regs, ls);
       }
       ctx.asmgen.Jmp(label_cond);
-      ctx.asmgen.Output() << label_loop << ": # loop body\n";
+      ctx.asmgen.Output() << label_loop << ": ; loop body\n";
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs, ls);
       if (node->rhs) {
-        ctx.asmgen.Output() << ls.cont << ": # update\n";
+        ctx.asmgen.Output() << ls.cont << ": ; update\n";
         GenerateAsm(ctx, node->rhs->next, dest, free_calc_regs, ls);
       }
-      ctx.asmgen.Output() << label_cond << ": # condition\n";
+      ctx.asmgen.Output() << label_cond << ": ; condition\n";
       GenerateAsm(ctx, node->cond, dest, free_calc_regs, ls);
       ctx.asmgen.JmpIfNotZero(dest, label_loop);
-      ctx.asmgen.Output() << ls.brk << ": # loop end\n";
+      ctx.asmgen.Output() << ls.brk << ": ; loop end\n";
     }
     return;
   case Node::kCall:
@@ -522,7 +522,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
         unsigned int offset = 0;
         for (auto varg = varg_start; varg; varg = varg->next) {
           GenerateAsm(ctx, varg, dest, free_calc_regs, labels);
-          ctx.asmgen.Output() << "    # store varg into stack\n";
+          ctx.asmgen.Output() << "    ; store varg into stack\n";
           ctx.asmgen.StoreN(Asm::kRegSP, offset, dest, Asm::kQWord);
           offset += 8;
         }
@@ -555,7 +555,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       }
 
       // 関数を呼び、結果を dest レジスタにコピーする
-      ctx.asmgen.Output() << "    # calling " << node->lhs->token->raw << '\n';
+      ctx.asmgen.Output() << "    ; calling " << node->lhs->token->raw << '\n';
       ctx.asmgen.Call(lhs_reg);
       if (Asm::kRegA != dest) {
         ctx.asmgen.Mov64(dest, Asm::kRegA);
@@ -612,7 +612,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       ctx.asmgen.JmpIfZero(dest, label_end);
       GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
       ctx.asmgen.Set1IfNonZero64(dest, dest);
-      ctx.asmgen.Output() << label_end << ": # end of '&&'\n";
+      ctx.asmgen.Output() << label_end << ": ; end of '&&'\n";
     }
     return;
   case Node::kLOr:
@@ -622,7 +622,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
       ctx.asmgen.JmpIfNotZero(dest, label_end);
       GenerateAsm(ctx, node->rhs, dest, free_calc_regs, labels);
-      ctx.asmgen.Output() << label_end << ": # end of '||'\n";
+      ctx.asmgen.Output() << label_end << ": ; end of '||'\n";
       ctx.asmgen.Set1IfNonZero64(dest, dest);
     }
     return;

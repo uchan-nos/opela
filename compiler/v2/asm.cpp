@@ -8,7 +8,7 @@
 
 #define NOT_IMPLEMENTED \
   do { \
-    this->Output() << "# not implemented: " << __PRETTY_FUNCTION__ << std::endl; \
+    this->Output() << "; not implemented: " << __PRETTY_FUNCTION__ << std::endl; \
   } while (0)
 
 using namespace std;
