@@ -282,7 +282,18 @@ void GenerateAssign(GenContext& ctx, const EvalBinOp& e,
       }
     }
   } else {
-    ctx.asmgen.StoreN(e.lhs_reg, 0, e.rhs_reg, DataTypeOf(ctx, e.node->lhs));
+    if (auto lhs_size = SizeofType(ctx.src, e.node->lhs->type); lhs_size > 8) {
+      // 8バイトより大きなデータ構造はレジスタにアドレスが格納されているはず
+      const auto reg = UseAnyCalcReg(free_calc_regs);
+      for (size_t i = 0; 8 * i < lhs_size; ++i) {
+        auto copy_dt = BytesToDataType(min(size_t(8), lhs_size - 8 * i));
+        ctx.asmgen.LoadN(reg, e.rhs_reg, 8 * i, copy_dt);
+        ctx.asmgen.StoreN(e.lhs_reg, 8 * i, reg, copy_dt);
+      }
+    } else {
+      // 8バイト以下のデータ構造はレジスタに値自体が乗っている
+      ctx.asmgen.StoreN(e.lhs_reg, 0, e.rhs_reg, BytesToDataType(lhs_size));
+    }
   }
   if (lval && !e.lhs_in_dest) {
     ctx.asmgen.Mov64(e.dest_reg, e.calc_reg);
@@ -343,7 +354,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
       Object* obj = *p;
       switch (obj->linkage) {
       case Object::kLocal:
-        if (lval) {
+        if (lval || SizeofType(ctx.src, obj->type) > 8) {
           ctx.asmgen.LEA(dest, Asm::kRegBP, obj->bp_offset);
         } else {
           ctx.asmgen.LoadN(dest, Asm::kRegBP, obj->bp_offset,
@@ -405,8 +416,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
   case Node::kRet:
     comment_node();
     if (node->lhs) {
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels);
-      if (GenCast(ctx, dest, node->lhs->type, ctx.func->type->base)) {
+      GenerateAsm(ctx, node->lhs, Asm::kRegA, free_calc_regs, labels);
+      if (GenCast(ctx, Asm::kRegA, node->lhs->type, ctx.func->type->base)) {
         cerr << "not implemented cast from " << node->lhs->type
              << " to " << ctx.func->type->base << endl;
         ErrorAt(ctx.src, *node->token);
