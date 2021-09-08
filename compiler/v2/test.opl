@@ -104,6 +104,7 @@ func main() int {
   TEST_INT(4,  testGenericFunc());
   TEST_INT(1,  testGenericFunc2());
   TEST_INT(5,  testFuncOverload());
+  TEST_INT(3,  testIntStruct().a);
 
   printf("%ld passed, %ld failed\n", passed, failed);
   return failed > 0;
@@ -228,6 +229,7 @@ func testGenericNested2() int { var x GNode<int>={42,0}; var y GNode<int>={1,&x}
 func testGenericFunc() int { var x Pair={2,3}; return GetBNested@<Pair>(&x)+1; }
 func testGenericFunc2() int { var x Pair={2,3}; return GetANested2@<Pair>(&x)-1; }
 func testFuncOverload() int { var x Pair={2,3}; return myAdd(&x); }
+func testIntStruct() IntStruct { var x IntStruct = {2}; y:=x; y.a=y.a+1; return y; }
 
 extern "C" func42 func()int;
 extern "C" funcfunc42 func() *func()int;
@@ -262,5 +264,6 @@ func GetA<T>(v *T) int { return v->a; }
 func GetANested<T>(v *T) int { return GetA@<T>(v); }
 func GetANested2<T>(v *T) int { return GetANested@<T>(v); }
 func myAdd(x *Pair)int{return x->a+x->b;}
+type IntStruct struct { a int; };
 
 extern "C" printf func(format *byte, ...) int;

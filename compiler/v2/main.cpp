@@ -673,11 +673,18 @@ void GenerateAsm(GenContext& ctx, Node* node,
         }
         field_offset += SizeofType(ctx.src, ft);
       }
-      GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
-      if (lval) {
-        ctx.asmgen.Add64(dest, field_offset);
-      } else {
-        ctx.asmgen.LoadN(dest, dest, field_offset, DataTypeOf(ctx, ft->base));
+      if (SizeofType(ctx.src, node->lhs->type) > 8 || lval) {
+        GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, true);
+        if (lval) {
+          ctx.asmgen.Add64(dest, field_offset);
+        } else {
+          ctx.asmgen.LoadN(dest, dest, field_offset, DataTypeOf(ctx, ft->base));
+        }
+      } else { // SizeofType <= 8 && lval == false
+        GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, false);
+        if (field_offset > 0) {
+          ctx.asmgen.ShiftR64(dest, field_offset * 8);
+        }
       }
     }
     return;
