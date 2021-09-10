@@ -63,6 +63,17 @@ int ParseArgs(int argc, char** argv) {
   return 0;
 }
 
+void ExtractBits(Asm& asmgen, Asm::Register v, int offset, int width) {
+  /* v:      0001'0010'0011'0100
+   * offset: 8    ^^^^
+   * width:  4
+   *
+   * result: 0000'0000'0000'0010
+   */
+  asmgen.ShiftL64(v, 64 - offset - width);
+  asmgen.ShiftR64(v, 64 - width);
+}
+
 } // namespace
 
 Asm::Register UseAnyCalcReg(Asm::RegSet& free_calc_regs) {
@@ -189,6 +200,7 @@ bool GenCast(GenContext& ctx, Asm::Register dest,
       // pass
     } else if (IsIntegral(t)) {
       if (auto bits = get<long>(t->value); bits < 64) {
+
         ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
       }
     } else {
@@ -693,8 +705,8 @@ void GenerateAsm(GenContext& ctx, Node* node,
         }
       } else { // SizeofType <= 8 && lval == false
         GenerateAsm(ctx, node->lhs, dest, free_calc_regs, labels, false);
-        if (field_offset > 0) {
-          ctx.asmgen.ShiftR64(dest, field_offset * 8);
+        if (auto field_size = SizeofType(ctx.src, ft->base); field_size < 8) {
+          ExtractBits(ctx.asmgen, dest, field_offset * 8, field_size * 8);
         }
       }
     }
@@ -850,7 +862,7 @@ void GenerateAsm(GenContext& ctx, Node* node,
 
   if (auto t = GetUserBaseType(node->type); !lval && IsIntegral(t)) {
     if (auto bits = get<long>(t->value); bits < 64) {
-      ctx.asmgen.And64(dest, (1 << get<long>(t->value)) - 1);
+      ExtractBits(ctx.asmgen, dest, 0, bits);
     }
   }
   /* node->type が bool の場合はあえて無視する。

@@ -123,7 +123,14 @@ class AsmX86_64 : public Asm {
   }
 
   void And64(Register dest, std::uint64_t v) override {
-    PrintAsm(this, "    and %r64, %u64\n", dest, v);
+    if (v <= 0x7fffffff) {
+      PrintAsm(this, "    and %r64, %u64\n", dest, v);
+    } else {
+      Push64(Asm::kRegV0);
+      Mov64(Asm::kRegV0, v);
+      And64(dest, Asm::kRegV0);
+      Pop64(Asm::kRegV0);
+    }
   }
 
   void And64(Register dest, Register v) override {
