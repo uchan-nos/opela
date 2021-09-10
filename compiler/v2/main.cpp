@@ -1020,7 +1020,8 @@ int main(int argc, char** argv) {
   GenContext ctx{src, *asmgen, nullptr};
   for (auto obj : globals) {
     if (obj->linkage == Object::kGlobal && obj->kind == Object::kVar) {
-      asmgen->Output() << asmgen->SymLabel(obj->id->raw) << ":\n";
+      asmgen->Output() << "    .p2align 4\n"
+                       << asmgen->SymLabel(obj->id->raw) << ":\n";
       GenerateGVarData(ctx, obj->type, obj->def->rhs);
     }
   }
