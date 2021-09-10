@@ -1,0 +1,72 @@
+func main() int {
+  var env CoroEnv;
+  var env2 CoroEnv;
+  InitCoro(&env, LongTask, 1);
+  InitCoro(&env2, LongTask, 2);
+  status := RunCoro(&env);
+  status2 := RunCoro(&env2);
+  for status.status == 1 || status2.status == 1 {
+    status = RunCoro(&env);
+    status2 = RunCoro(&env2);
+
+    if (status.status == 2) {
+      printf("task 1 finished: exitcode=%d\n", status.exitcode);
+    } else if (status2.status == 2) {
+      printf("task 2 finished: exitcode=%d\n", status2.exitcode);
+    }
+  }
+  return 0;
+}
+
+func LongTask(env *CoroEnv, arg int64) int32 {
+  printf("LongTask %d: 1 running...\n", arg);
+  Yield(env);
+  printf("LongTask %d: 2 running...\n", arg);
+  Yield(env);
+  if (arg == 1) {
+    printf("LongTask %d: 3 finishing\n", arg);
+    return 42;
+  }
+  printf("LongTask %d: 3 running...\n", arg);
+  Yield(env);
+  printf("LongTask %d: 4 running...\n", arg);
+  Yield(env);
+  printf("LongTask %d: 5 finishing\n", arg);
+  return 43;
+}
+
+type CoroContext struct {
+  rip uint64;
+  rsp uint64;
+  rbp uint64;
+  rbx uint64;
+  r12 uint64;
+  r13 uint64;
+  r14 uint64;
+  r15 uint64;
+};
+type CoroEnv struct {
+  run_ctx CoroContext;
+  task_ctx CoroContext;
+  task_stack [1008]uint64;
+};
+type CoroStatus struct {
+  status int32; // 0:kNotInitialized, 1:kRunnable, 2:kFinished
+  exitcode int32;
+};
+
+func InitCoro(env *CoroEnv, f *func(*CoroEnv,int64)int64, arg int64) {
+  memset(env, 0, sizeof(CoroEnv));
+  stk := &env->task_stack[1008 - 3];
+  stk[0] = ExitTask;
+  stk[1] = env;
+  env->task_ctx.rsp = stk;
+  env->task_ctx.rip = f;
+  env->task_ctx.r12 = arg;
+}
+
+extern "C" memset func(*byte, byte, uint64);
+extern "C" ExitTask func();
+extern "C" RunCoro func(*CoroEnv) CoroStatus;
+extern "C" Yield func(*CoroEnv);
+extern "C" printf func(*byte, ...) int;
